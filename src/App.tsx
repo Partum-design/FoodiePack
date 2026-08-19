@@ -225,7 +225,7 @@ function App() {
       <section className="brand-landing" aria-labelledby="landing-title">
         <div className="brand-landing__inner">
           <div className="brand-landing__copy">
-            <p>Cocina diaria · Ciudad de México</p>
+            <p>Tu cocina en la oficina</p>
             <h1 id="landing-title">Mañana ya<br />está <em>servido.</em></h1>
             <span>Tres platos, cocina fresca y una sola decisión: cuál se te antoja.</span>
             <div className="brand-landing__actions">
