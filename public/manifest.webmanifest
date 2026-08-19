@@ -1,0 +1,10 @@
+{
+  "name": "FoodiePack",
+  "short_name": "FoodiePack",
+  "description": "Tu cocina en la oficina",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f1e6",
+  "theme_color": "#0b4b39",
+  "icons": []
+}
