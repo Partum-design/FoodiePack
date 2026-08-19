@@ -6,3 +6,6 @@ dist/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+.env
+server/data/runtime.json
+server/data/runtime.json.tmp
