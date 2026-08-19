@@ -1,11 +1,33 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Check, ChevronDown, Clock3, Minus, Plus, ShoppingBag, X } from 'lucide-react'
+import { ArrowRight, ChevronDown, Clock3, LocateFixed, MapPin, Minus, Navigation, Plus, ShoppingBag, X } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
 import Logo from './components/Logo'
 import type { CartItem, Meal, MenuDay, MenuResponse, SavedOrder } from './types'
 
 const money = (value: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value)
+
+const DELIVERY_ZONE = 'Lindavista, CDMX' as const
+const LINDAVISTA_QUERY = 'Lindavista, Gustavo A. Madero, Ciudad de México'
+
+type Coordinates = { latitude: number; longitude: number }
+
+function mapLinks(address: string, coordinates: Coordinates | null) {
+  const query = coordinates
+    ? `${coordinates.latitude},${coordinates.longitude}`
+    : address
+      ? `${address}, ${LINDAVISTA_QUERY}`
+      : LINDAVISTA_QUERY
+
+  return {
+    embed: `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`,
+    external: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
+  }
+}
+
+function isNearLindavista({ latitude, longitude }: Coordinates) {
+  return latitude >= 19.472 && latitude <= 19.516 && longitude >= -99.151 && longitude <= -99.106
+}
 
 function dateFromKey(date: string) {
   return new Date(`${date}T12:00:00`)
@@ -36,6 +58,25 @@ function BrandPreloader() {
         <p>Tu cocina en la oficina</p>
         <span aria-hidden="true"><i /></span>
       </div>
+    </div>
+  )
+}
+
+function AcceptedOrderAnimation() {
+  return (
+    <div className="accepted-order-motion" role="status" aria-label="Pedido aceptado">
+      <span className="accepted-order-motion__waiting" aria-hidden="true">Enviando a cocina</span>
+      <span className="accepted-order-motion__success" aria-hidden="true">Pedido aceptado
+        <svg viewBox="0 0 12 10" aria-hidden="true"><polyline points="1.5 6 4.5 9 10.5 1" /></svg>
+      </span>
+      <div className="accepted-order-motion__package" aria-hidden="true" />
+      <div className="accepted-order-motion__truck" aria-hidden="true">
+        <div className="accepted-order-motion__back" />
+        <div className="accepted-order-motion__front"><div className="accepted-order-motion__window" /></div>
+        <div className="accepted-order-motion__light accepted-order-motion__light--top" />
+        <div className="accepted-order-motion__light accepted-order-motion__light--bottom" />
+      </div>
+      <div className="accepted-order-motion__lines" aria-hidden="true" />
     </div>
   )
 }
@@ -84,7 +125,7 @@ function OrderSummary({ cart, deliveryDate, canOrder, onQuantity, onCheckout }: 
       </div>
       <div className="order-summary__date">
         <Clock3 size={18} />
-        <p><span>Entrega</span><strong>{deliveryDate ? fullDate(deliveryDate) : 'Mañana'} · 1:30–2:00 pm</strong></p>
+        <p><span>Entrega</span><strong>{deliveryDate ? fullDate(deliveryDate) : 'Mañana'} · 1:30 a 2:00 pm</strong></p>
       </div>
       <div className="summary-items">
         {cart.map((item) => (
@@ -122,6 +163,11 @@ function App() {
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [order, setOrder] = useState<SavedOrder | null>(null)
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [pinnedAddress, setPinnedAddress] = useState('')
+  const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates | null>(null)
+  const [deliveryError, setDeliveryError] = useState('')
+  const [locating, setLocating] = useState(false)
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -167,6 +213,8 @@ function App() {
   const isTomorrow = menu?.policy.tomorrow === selectedDate
   const canOrder = Boolean(menu?.canOrder)
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
+  const deliveryMap = mapLinks(pinnedAddress, deliveryCoordinates)
+  const hasDeliveryPin = Boolean(pinnedAddress || deliveryCoordinates)
 
   const addMeal = (meal: Meal) => {
     if (!canOrder || !menu) return
@@ -184,8 +232,57 @@ function App() {
       .filter((item) => item.quantity > 0))
   }
 
+  const updateDeliveryAddress = (value: string) => {
+    setDeliveryAddress(value)
+    setPinnedAddress('')
+    setDeliveryCoordinates(null)
+    setDeliveryError('')
+  }
+
+  const pinDeliveryAddress = () => {
+    const address = deliveryAddress.trim()
+    if (address.length < 8) {
+      setDeliveryError('Escribe la calle y el número antes de colocar el pin.')
+      return
+    }
+    setPinnedAddress(address)
+    setDeliveryCoordinates(null)
+    setDeliveryError('')
+  }
+
+  const useCurrentLocation = () => {
+    if (deliveryAddress.trim().length < 8) {
+      setDeliveryError('Primero escribe la dirección de la oficina.')
+      return
+    }
+    if (!navigator.geolocation) {
+      setDeliveryError('Este dispositivo no permite obtener la ubicación. Puedes ubicar la dirección escrita.')
+      return
+    }
+
+    setLocating(true)
+    setDeliveryError('')
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      const location = { latitude: coords.latitude, longitude: coords.longitude }
+      setLocating(false)
+      if (!isNearLindavista(location)) {
+        setDeliveryError('La ubicación actual parece estar fuera de Lindavista. Revisa la dirección y pulsa Ubicar dirección.')
+        return
+      }
+      setDeliveryCoordinates(location)
+      setPinnedAddress(deliveryAddress.trim())
+    }, () => {
+      setLocating(false)
+      setDeliveryError('No pudimos obtener tu ubicación. Puedes ubicar la dirección escrita.')
+    }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 })
+  }
+
   const placeOrder = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!hasDeliveryPin) {
+      setDeliveryError('Ubica la dirección en el mapa antes de confirmar el pedido.')
+      return
+    }
     const form = new FormData(event.currentTarget)
     setSubmitting(true)
     setError('')
@@ -194,8 +291,14 @@ function App() {
         customer: {
           name: String(form.get('name')),
           phone: String(form.get('phone')),
-          address: String(form.get('address')),
           notes: String(form.get('notes') || ''),
+        },
+        delivery: {
+          zone: DELIVERY_ZONE,
+          address: deliveryAddress.trim(),
+          office: String(form.get('office')),
+          pinConfirmed: true,
+          ...(deliveryCoordinates ? { coordinates: deliveryCoordinates } : {}),
         },
         items: cart.map((item) => ({ mealId: item.meal.id, date: item.date, quantity: item.quantity })),
       })
@@ -215,7 +318,7 @@ function App() {
         <a href="/" aria-label="Inicio"><Logo /></a>
         <div className="store-header__delivery">
           <span>Zona de entrega</span>
-          <button>Roma Norte, CDMX <ChevronDown size={14} /></button>
+          <button onClick={() => document.querySelector('#menu-del-dia')?.scrollIntoView({ behavior: 'smooth' })}>Lindavista, CDMX <ChevronDown size={14} /></button>
         </div>
         <button className="header-cart" onClick={() => document.querySelector('#pedido')?.scrollIntoView({ behavior: 'smooth' })}>
           <ShoppingBag size={18} /><span>Pedido</span>{cartCount > 0 && <b>{cartCount}</b>}
@@ -235,12 +338,12 @@ function App() {
           </div>
           <div className="brand-landing__visual">
             <div className="landing-dish" style={{ backgroundPosition: featuredMeal?.position || '50% 50%' }} role="img" aria-label={featuredMeal?.name || 'Comida preparada por FoodiePack'}>
-              <div className="landing-date"><span>Entrega</span><strong>{menu?.policy.tomorrow ? dateFromKey(menu.policy.tomorrow).getDate() : '—'}</strong><small>{menu?.policy.tomorrow ? new Intl.DateTimeFormat('es-MX', { month: 'short' }).format(dateFromKey(menu.policy.tomorrow)).replace('.', '') : 'pronto'}</small></div>
+              <div className="landing-date"><span>Entrega</span><strong>{menu?.policy.tomorrow ? dateFromKey(menu.policy.tomorrow).getDate() : '...'}</strong><small>{menu?.policy.tomorrow ? new Intl.DateTimeFormat('es-MX', { month: 'short' }).format(dateFromKey(menu.policy.tomorrow)).replace('.', '') : 'pronto'}</small></div>
             </div>
             <div className="landing-caption">
               <span>Del menú de mañana</span>
               <strong>{featuredMeal?.name || 'Cocinando el menú…'}</strong>
-              <b>{featuredMeal ? money(featuredMeal.price) : '—'}</b>
+              <b>{featuredMeal ? money(featuredMeal.price) : '...'}</b>
             </div>
           </div>
         </div>
@@ -251,7 +354,7 @@ function App() {
           <div className={`order-window ${menu?.policy.isOpen ? 'order-window--open' : ''}`}>
             <span className="order-window__status"><i />{menu?.policy.isOpen ? 'Pedidos abiertos' : 'Pedidos cerrados'}</span>
             <p>Reserva para mañana</p>
-            <strong>8:00 am — 6:00 pm</strong>
+            <strong>8:00 am a 6:00 pm</strong>
             <small>Hora de Ciudad de México</small>
           </div>
 
@@ -298,19 +401,38 @@ function App() {
           <button className="dialog-close" onClick={() => { setCheckoutOpen(false); setOrder(null) }} aria-label="Cerrar"><X size={20} /></button>
           {order ? (
             <div className="order-confirmed">
-              <span><Check size={28} /></span>
+              <AcceptedOrderAnimation />
               <p>Pedido {order.id}</p>
-              <h2>Listo para mañana.</h2>
-              <small>Guardamos tu pedido. La entrega será de 1:30 a 2:00 pm.</small>
+              <h2>Nos vemos mañana.</h2>
+              <small>La cocina aceptó tu pedido. Llegará a {order.delivery?.office || 'tu oficina'} de 1:30 a 2:00 pm.</small>
+              {order.delivery?.mapUrl && <a className="confirmed-map-link" href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={14} /> Ver dirección guardada</a>}
               <button onClick={() => { setCheckoutOpen(false); setOrder(null) }}>Cerrar</button>
             </div>
           ) : (
             <form onSubmit={placeOrder}>
               <p>Confirmar pedido</p>
               <h2>Datos de entrega</h2>
+              <div className="delivery-zone-card">
+                <MapPin size={20} />
+                <p><span>Zona disponible</span><strong>Lindavista, CDMX</strong></p>
+                <b>Envío {money(29)}</b>
+              </div>
               <label>Nombre<input name="name" autoComplete="name" required /></label>
               <label>Teléfono<input name="phone" type="tel" autoComplete="tel" required /></label>
-              <label>Dirección y oficina<input name="address" autoComplete="street-address" required placeholder="Calle, número, piso y oficina" /></label>
+              <label>Dirección en Lindavista<input name="address" autoComplete="street-address" required minLength={8} value={deliveryAddress} onChange={(event) => updateDeliveryAddress(event.target.value)} placeholder="Calle y número" /></label>
+              <label>Empresa, edificio u oficina<input name="office" autoComplete="organization" required minLength={2} placeholder="Empresa, edificio, piso u oficina" /></label>
+              <div className="delivery-map-tools">
+                <button type="button" onClick={pinDeliveryAddress}><Navigation size={15} /> Ubicar dirección</button>
+                <button type="button" onClick={useCurrentLocation} disabled={locating}><LocateFixed size={15} /> {locating ? 'Ubicando…' : 'Usar mi ubicación'}</button>
+              </div>
+              <div className={`delivery-map ${hasDeliveryPin ? 'delivery-map--pinned' : ''}`}>
+                <iframe title="Pin de entrega en Lindavista" src={deliveryMap.embed} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
+                <div>
+                  <span><i />{hasDeliveryPin ? 'Pin listo' : 'Vista de la zona'}</span>
+                  <a href={deliveryMap.external} target="_blank" rel="noreferrer">Abrir en Google Maps <ArrowRight size={13} /></a>
+                </div>
+              </div>
+              {deliveryError && <div className="delivery-error">{deliveryError}</div>}
               <label>Indicaciones opcionales<textarea name="notes" maxLength={300} /></label>
               {error && <div className="inline-error">{error}</div>}
               <div className="checkout-dialog__total"><span>Total</span><strong>{money(cartTotal)}</strong></div>

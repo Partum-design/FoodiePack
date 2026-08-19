@@ -25,7 +25,14 @@ export function getMenu(date: string) {
 }
 
 export function createOrder(payload: {
-  customer: { name: string; phone: string; address: string; notes: string }
+  customer: { name: string; phone: string; notes: string }
+  delivery: {
+    zone: 'Lindavista, CDMX'
+    address: string
+    office: string
+    pinConfirmed: true
+    coordinates?: { latitude: number; longitude: number }
+  }
   items: Array<{ mealId: string; date: string; quantity: number }>
 }) {
   return request<{ order: SavedOrder }>('/orders', { method: 'POST', body: JSON.stringify(payload) })

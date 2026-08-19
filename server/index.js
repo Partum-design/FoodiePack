@@ -16,6 +16,7 @@ const jwtSecret = process.env.JWT_SECRET || (isProduction ? '' : 'local-secret-c
 const allowedOrigins = (process.env.WEB_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((origin) => origin.trim())
+const deliveryZone = 'Lindavista, CDMX'
 
 if (!adminPassword || !jwtSecret) {
   throw new Error('ADMIN_PASSWORD and JWT_SECRET are required in production')
@@ -25,7 +26,8 @@ app.disable('x-powered-by')
 app.use(helmet())
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true)
+    const isLocalDevelopmentOrigin = !isProduction && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin || '')
+    if (!origin || allowedOrigins.includes(origin) || isLocalDevelopmentOrigin) return callback(null, true)
     return callback(new Error('Origin not allowed'))
   },
 }))
@@ -36,11 +38,21 @@ const loginSchema = z.object({ password: z.string().min(8).max(200) })
 const customerSchema = z.object({
   name: z.string().trim().min(2).max(80),
   phone: z.string().trim().min(8).max(24),
-  address: z.string().trim().min(8).max(180),
   notes: z.string().trim().max(300).optional().default(''),
+})
+const deliverySchema = z.object({
+  zone: z.literal(deliveryZone),
+  address: z.string().trim().min(8).max(180),
+  office: z.string().trim().min(2).max(100),
+  pinConfirmed: z.literal(true),
+  coordinates: z.object({
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+  }).optional(),
 })
 const orderSchema = z.object({
   customer: customerSchema,
+  delivery: deliverySchema,
   items: z.array(z.object({
     mealId: z.string().min(1).max(100),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -59,6 +71,13 @@ const mealSchema = z.object({
   available: z.boolean(),
 })
 const menuSchema = z.object({ meals: z.array(mealSchema).max(20) })
+
+function googleMapsUrl(delivery) {
+  const query = delivery.coordinates
+    ? `${delivery.coordinates.latitude},${delivery.coordinates.longitude}`
+    : `${delivery.address}, Lindavista, Gustavo A. Madero, Ciudad de México`
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+}
 
 function safePasswordMatch(candidate) {
   const expected = Buffer.from(adminPassword)
@@ -139,8 +158,15 @@ app.post('/api/orders', (request, response) => {
     id: `FP-${Date.now().toString().slice(-7)}`,
     createdAt: new Date().toISOString(),
     deliveryDate: policy.tomorrow,
-    status: 'confirmed',
+    status: 'accepted',
     customer: parsed.data.customer,
+    delivery: {
+      zone: deliveryZone,
+      address: parsed.data.delivery.address,
+      office: parsed.data.delivery.office,
+      mapUrl: googleMapsUrl(parsed.data.delivery),
+      ...(parsed.data.delivery.coordinates ? { coordinates: parsed.data.delivery.coordinates } : {}),
+    },
     items,
     subtotal,
     deliveryFee,

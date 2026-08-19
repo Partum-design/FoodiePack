@@ -38,6 +38,17 @@ export type CartItem = {
   date: string
 }
 
+export type DeliveryLocation = {
+  zone: 'Lindavista, CDMX'
+  address: string
+  office: string
+  mapUrl: string
+  coordinates?: {
+    latitude: number
+    longitude: number
+  }
+}
+
 export type SavedOrder = {
   id: string
   createdAt: string
@@ -46,9 +57,10 @@ export type SavedOrder = {
   customer: {
     name: string
     phone: string
-    address: string
+    address?: string
     notes?: string
   }
+  delivery?: DeliveryLocation
   items: Array<{
     mealId: string
     date: string

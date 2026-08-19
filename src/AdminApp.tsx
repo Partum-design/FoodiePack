@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { ArrowLeft, Check, Eye, EyeOff, LogOut, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Check, Eye, EyeOff, LogOut, MapPin, Plus, Save, Trash2 } from 'lucide-react'
 import { adminLogin, getAdminMenu, getAdminOrders, getMenuDays, saveAdminMenu } from './api'
 import Logo from './components/Logo'
 import type { Meal, MenuDay, SavedOrder } from './types'
@@ -205,11 +205,25 @@ function AdminApp() {
             ))}
           </div>
         </> : <>
-          <header className="admin-page-head"><div><p>Operación</p><h1>Pedidos</h1><span>Pedidos confirmados por el servidor.</span></div></header>
+          <header className="admin-page-head"><div><p>Operación</p><h1>Pedidos</h1><span>Aquí llegan los pedidos aceptados.</span></div></header>
           {error && <div className="inline-error">{error}</div>}
           <div className="orders-table">
-            <div className="orders-table__head"><span>Pedido</span><span>Entrega</span><span>Cliente</span><span>Productos</span><span>Total</span><span>Estado</span></div>
-            {orders.map((order) => <div className="orders-table__row" key={order.id}><strong>{order.id}</strong><span>{longDate(order.deliveryDate)}</span><span>{order.customer.name}</span><span>{order.items.reduce((sum, item) => sum + item.quantity, 0)}</span><strong>{money(order.total)}</strong><b>Confirmado</b></div>)}
+            <div className="orders-table__head"><span>Pedido</span><span>Entrega</span><span>Cliente</span><span>Dirección</span><span>Productos</span><span>Total</span><span>Estado</span></div>
+            {orders.map((order) => (
+              <div className="orders-table__row" key={order.id}>
+                <strong>{order.id}</strong>
+                <span>{longDate(order.deliveryDate)}</span>
+                <span>{order.customer.name}</span>
+                <span className="order-address">
+                  <strong>{order.delivery?.address || order.customer.address || 'Sin dirección'}</strong>
+                  {order.delivery?.office && <small>{order.delivery.office}</small>}
+                  {order.delivery?.mapUrl && <a href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={12} /> Ver pin</a>}
+                </span>
+                <span>{order.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
+                <strong>{money(order.total)}</strong>
+                <b>{order.status === 'accepted' ? 'Aceptado' : 'Confirmado'}</b>
+              </div>
+            ))}
             {!loading && orders.length === 0 && <div className="admin-empty">Todavía no hay pedidos confirmados.</div>}
           </div>
         </>}

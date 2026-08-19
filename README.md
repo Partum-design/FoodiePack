@@ -7,6 +7,8 @@ Aplicación de pedidos para una dark kitchen con dos procesos independientes:
 
 La tienda permite revisar los siguientes menús, pero el servidor únicamente acepta pedidos para el día siguiente entre las 8:00 y las 18:00, usando siempre la zona horaria `America/Mexico_City`.
 
+La entrega está limitada a Lindavista, CDMX. Antes de confirmar, el cliente debe escribir su dirección y oficina, revisar el pin en Google Maps y confirmar la ubicación. La liga del pin queda guardada con el pedido y aparece en el panel de cocina.
+
 ## Desarrollo local
 
 ```bash
@@ -61,6 +63,7 @@ El servidor guarda menús y pedidos en `server/data/runtime.json`. En producció
 - Los endpoints de menú y pedidos administrativos requieren token.
 - El inicio de sesión limita intentos por dirección IP.
 - Los precios, disponibilidad, fecha y horario del pedido se vuelven a validar en la API.
+- La API valida que la zona de entrega sea Lindavista y genera la liga de Google Maps en el servidor.
 - El pago sigue siendo demostrativo y no realiza cargos reales.
 
 ```bash
