@@ -28,6 +28,18 @@ function loadCart() {
   }
 }
 
+function BrandPreloader() {
+  return (
+    <div className="brand-preloader" role="status" aria-label="Cargando FoodiePack">
+      <div className="brand-preloader__lockup">
+        <Logo />
+        <p>Tu cocina en la oficina</p>
+        <span aria-hidden="true"><i /></span>
+      </div>
+    </div>
+  )
+}
+
 function MealRow({ meal, canOrder, onAdd }: { meal: Meal; canOrder: boolean; onAdd: () => void }) {
   const disabled = !canOrder || !meal.available
   return (
@@ -100,6 +112,7 @@ function OrderSummary({ cart, deliveryDate, canOrder, onQuantity, onCheckout }: 
 }
 
 function App() {
+  const [preloading, setPreloading] = useState(true)
   const [days, setDays] = useState<MenuDay[]>([])
   const [selectedDate, setSelectedDate] = useState('')
   const [menu, setMenu] = useState<MenuResponse | null>(null)
@@ -109,6 +122,19 @@ function App() {
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [order, setOrder] = useState<SavedOrder | null>(null)
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    document.body.style.overflow = 'hidden'
+    const timer = window.setTimeout(() => {
+      setPreloading(false)
+      document.body.style.overflow = ''
+    }, reducedMotion ? 250 : 1750)
+    return () => {
+      window.clearTimeout(timer)
+      document.body.style.overflow = ''
+    }
+  }, [])
 
   useEffect(() => {
     getMenuDays()
@@ -140,6 +166,7 @@ function App() {
   const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + item.meal.price * item.quantity, 0) + (cart.length ? 29 : 0), [cart])
   const isTomorrow = menu?.policy.tomorrow === selectedDate
   const canOrder = Boolean(menu?.canOrder)
+  const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
 
   const addMeal = (meal: Meal) => {
     if (!canOrder || !menu) return
@@ -183,6 +210,7 @@ function App() {
 
   return (
     <div className="storefront">
+      {preloading && <BrandPreloader />}
       <header className="store-header">
         <a href="/" aria-label="Inicio"><Logo /></a>
         <div className="store-header__delivery">
@@ -194,7 +222,31 @@ function App() {
         </button>
       </header>
 
-      <main className="order-workspace">
+      <section className="brand-landing" aria-labelledby="landing-title">
+        <div className="brand-landing__inner">
+          <div className="brand-landing__copy">
+            <p>Cocina diaria · Ciudad de México</p>
+            <h1 id="landing-title">Mañana ya<br />está <em>servido.</em></h1>
+            <span>Tres platos, cocina fresca y una sola decisión: cuál se te antoja.</span>
+            <div className="brand-landing__actions">
+              <a href="#menu-del-dia">Elegir mi comida <ArrowRight size={17} /></a>
+              <small><Clock3 size={15} /> Pide hoy de 8:00 am a 6:00 pm</small>
+            </div>
+          </div>
+          <div className="brand-landing__visual">
+            <div className="landing-dish" style={{ backgroundPosition: featuredMeal?.position || '50% 50%' }} role="img" aria-label={featuredMeal?.name || 'Comida preparada por FoodiePack'}>
+              <div className="landing-date"><span>Entrega</span><strong>{menu?.policy.tomorrow ? dateFromKey(menu.policy.tomorrow).getDate() : '—'}</strong><small>{menu?.policy.tomorrow ? new Intl.DateTimeFormat('es-MX', { month: 'short' }).format(dateFromKey(menu.policy.tomorrow)).replace('.', '') : 'pronto'}</small></div>
+            </div>
+            <div className="landing-caption">
+              <span>Del menú de mañana</span>
+              <strong>{featuredMeal?.name || 'Cocinando el menú…'}</strong>
+              <b>{featuredMeal ? money(featuredMeal.price) : '—'}</b>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <main className="order-workspace" id="menu-del-dia">
         <section className="menu-column">
           <div className={`order-window ${menu?.policy.isOpen ? 'order-window--open' : ''}`}>
             <span className="order-window__status"><i />{menu?.policy.isOpen ? 'Pedidos abiertos' : 'Pedidos cerrados'}</span>
