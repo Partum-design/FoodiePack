@@ -328,9 +328,9 @@ function App() {
       <section className="brand-landing" aria-labelledby="landing-title">
         <div className="brand-landing__inner">
           <div className="brand-landing__copy">
-            <p>Tu cocina en la oficina</p>
-            <h1 id="landing-title">Mañana ya<br />está <em>servido.</em></h1>
-            <span>Tres platos, cocina fresca y una sola decisión: cuál se te antoja.</span>
+            <p>FoodiePack · Lindavista</p>
+            <h1 id="landing-title">Tu cocina<br />en la <em>oficina.</em></h1>
+            <span>Pide hoy y mañana te llevamos comida fresca hasta tu oficina en Lindavista.</span>
             <div className="brand-landing__actions">
               <a href="#menu-del-dia">Elegir mi comida <ArrowRight size={17} /></a>
               <small><Clock3 size={15} /> Pide hoy de 8:00 am a 6:00 pm</small>
