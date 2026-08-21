@@ -1,19 +1,21 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowRight, Check, ChevronDown, Clock3, Heart, LocateFixed, MapPin, Minus, Navigation,
-  Plus, RefreshCw, ShoppingBag, WifiOff, X,
+  ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, CreditCard, Heart, LocateFixed,
+  MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
 } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
 import Logo from './components/Logo'
-import type { CartItem, Meal, MenuDay, MenuResponse, SavedOrder } from './types'
+import type { CartItem, Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
 
 const money = (value: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value)
 
 const DELIVERY_ZONE = 'Lindavista, CDMX' as const
 const LINDAVISTA_QUERY = 'Lindavista, Gustavo A. Madero, Ciudad de México'
+const WEEKLY_DISCOUNT_RATE = 0.12
 
 type Coordinates = { latitude: number; longitude: number }
+type OrderMode = 'day' | 'week'
 
 function mapLinks(address: string, coordinates: Coordinates | null) {
   const query = coordinates
@@ -45,9 +47,9 @@ function fullDate(date: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-function loadCart() {
+function loadCart(key: string) {
   try {
-    return JSON.parse(localStorage.getItem('foodiepack:v2:cart') || '[]') as CartItem[]
+    return JSON.parse(localStorage.getItem(key) || '[]') as CartItem[]
   } catch {
     return []
   }
@@ -135,7 +137,7 @@ function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: nu
   )
 }
 
-function MealRow({ meal, canOrder, index, isFavorite, justAdded, onAdd, onToggleFavorite }: {
+function MealCard({ meal, canOrder, index, isFavorite, justAdded, onAdd, onToggleFavorite }: {
   meal: Meal
   canOrder: boolean
   index: number
@@ -149,32 +151,33 @@ function MealRow({ meal, canOrder, index, isFavorite, justAdded, onAdd, onToggle
   return (
     <article
       ref={ref}
-      className={`menu-item reveal ${meal.available ? '' : 'menu-item--unavailable'} ${visible ? 'reveal--visible' : ''}`}
-      style={{ transitionDelay: visible ? `${Math.min(index, 6) * 55}ms` : '0ms' }}
+      className={`meal-card reveal ${meal.available ? '' : 'meal-card--unavailable'} ${visible ? 'reveal--visible' : ''}`}
+      style={{ transitionDelay: visible ? `${Math.min(index, 8) * 50}ms` : '0ms' }}
     >
-      <div className="menu-item__image" style={{ backgroundPosition: meal.position }}>
-        {!meal.available && <span>Agotado</span>}
+      <div className="meal-card__media">
+        <img src={meal.image} alt={meal.name} loading="lazy" decoding="async" />
+        {!meal.available && <span className="meal-card__sold-out">Agotado</span>}
         <button
           type="button"
-          className={`menu-item__favorite ${isFavorite ? 'menu-item__favorite--active' : ''}`}
+          className={`meal-card__favorite ${isFavorite ? 'meal-card__favorite--active' : ''}`}
           onClick={onToggleFavorite}
           aria-pressed={isFavorite}
           aria-label={isFavorite ? `Quitar ${meal.name} de favoritos` : `Guardar ${meal.name} en favoritos`}
         >
           <Heart size={14} fill={isFavorite ? 'currentColor' : 'none'} />
         </button>
-      </div>
-      <div className="menu-item__content">
-        <div className="menu-item__topline">
+        <div className="meal-card__chips">
           <span>{meal.tags[0] || 'Menú del día'}</span>
-          <strong>{money(meal.price)}</strong>
+          <b>{money(meal.price)}</b>
         </div>
+      </div>
+      <div className="meal-card__content">
         <h2>{meal.name}</h2>
         <p>{meal.description}</p>
-        <div className="menu-item__bottom">
+        <div className="meal-card__bottom">
           <span>{meal.protein} g proteína</span>
           <span>{meal.kcal} kcal</span>
-          <button className={justAdded ? 'menu-item__add--pop' : ''} disabled={disabled} onClick={onAdd}>
+          <button className={justAdded ? 'meal-card__add--pop' : ''} disabled={disabled} onClick={onAdd}>
             {meal.available
               ? (canOrder ? (justAdded ? <><Check size={16} /> Agregado</> : <><Plus size={16} /> Agregar</>) : 'Vista previa')
               : 'No disponible'}
@@ -208,7 +211,7 @@ function OrderSummary({ cart, deliveryDate, canOrder, onQuantity, onCheckout }: 
       <div className="summary-items">
         {cart.map((item) => (
           <div className="summary-item" key={item.meal.id}>
-            <div className="summary-item__thumb" style={{ backgroundPosition: item.meal.position }} />
+            <div className="summary-item__thumb" style={{ backgroundImage: `url(${item.meal.image})` }} />
             <p><strong>{item.meal.name}</strong><span>{money(item.meal.price)}</span></p>
             <div className="counter">
               <button onClick={() => onQuantity(item.meal.id, -1)} aria-label={`Quitar ${item.meal.name}`}><Minus size={12} /></button>
@@ -225,7 +228,72 @@ function OrderSummary({ cart, deliveryDate, canOrder, onQuantity, onCheckout }: 
         <p className="summary-total"><span>Total</span><strong>{money(subtotal + delivery)}</strong></p>
       </div>
       <button className="checkout-button" disabled={!cart.length || !canOrder} onClick={onCheckout}>Continuar <ArrowRight size={17} /></button>
-      <small>Pedido y pago de demostración. No se realizará un cargo real.</small>
+      <small>Pedido de demostración. No se realizará un cargo real.</small>
+    </aside>
+  )
+}
+
+function WeeklySummary({ days, weeklyByDate, subtotal, deliveryFee, discountRate, discountAmount, total, prepayWeek, weeklyIsFull, canOrder, onTogglePrepay, onQuantity, onCheckout }: {
+  days: MenuDay[]
+  weeklyByDate: Map<string, CartItem[]>
+  subtotal: number
+  deliveryFee: number
+  discountRate: number
+  discountAmount: number
+  total: number
+  prepayWeek: boolean
+  weeklyIsFull: boolean
+  canOrder: boolean
+  onTogglePrepay: () => void
+  onQuantity: (mealId: string, date: string, change: number) => void
+  onCheckout: () => void
+}) {
+  const totalItems = days.reduce((sum, day) => sum + (weeklyByDate.get(day.date) || []).reduce((s, i) => s + i.quantity, 0), 0)
+
+  return (
+    <aside className="order-summary" id="pedido">
+      <div className="order-summary__head">
+        <span>Tu semana</span>
+        <strong>{totalItems} productos</strong>
+      </div>
+      <div className="summary-items summary-items--weekly">
+        {days.map((day) => {
+          const items = weeklyByDate.get(day.date) || []
+          return (
+            <div className="weekly-day-group" key={day.date}>
+              <p className="weekly-day-group__label">{dayName(day.date, true)} {dateFromKey(day.date).getDate()}</p>
+              {items.length === 0 && <p className="weekly-day-group__empty">Sin platillos todavía</p>}
+              {items.map((item) => (
+                <div className="summary-item" key={`${day.date}:${item.meal.id}`}>
+                  <div className="summary-item__thumb" style={{ backgroundImage: `url(${item.meal.image})` }} />
+                  <p><strong>{item.meal.name}</strong><span>{money(item.meal.price)}</span></p>
+                  <div className="counter">
+                    <button onClick={() => onQuantity(item.meal.id, day.date, -1)} aria-label={`Quitar ${item.meal.name}`}><Minus size={12} /></button>
+                    <span>{item.quantity}</span>
+                    <button onClick={() => onQuantity(item.meal.id, day.date, 1)} aria-label={`Agregar otro ${item.meal.name}`}><Plus size={12} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })}
+      </div>
+      <label className={`weekly-discount ${weeklyIsFull ? '' : 'weekly-discount--disabled'}`}>
+        <input type="checkbox" checked={prepayWeek} disabled={!weeklyIsFull} onChange={onTogglePrepay} />
+        <span>
+          <strong>Pagar toda la semana por adelantado</strong>
+          <small>{weeklyIsFull ? 'Desbloqueado: ahorra en tu semana completa' : 'Agrega platillos los 5 días para desbloquear el descuento'}</small>
+        </span>
+        <b>-{Math.round(WEEKLY_DISCOUNT_RATE * 100)}%</b>
+      </label>
+      <div className="summary-totals">
+        <p><span>Comida</span><strong>{money(subtotal)}</strong></p>
+        {discountRate > 0 && <p className="summary-discount"><span>Descuento semanal</span><strong>-{money(discountAmount)}</strong></p>}
+        <p><span>Envío ({days.filter((d) => (weeklyByDate.get(d.date)?.length || 0) > 0).length} días)</span><strong>{money(deliveryFee)}</strong></p>
+        <p className="summary-total"><span>Total</span><strong>{money(total)}</strong></p>
+      </div>
+      <button className="checkout-button" disabled={totalItems === 0 || !canOrder} onClick={onCheckout}>Continuar <ArrowRight size={17} /></button>
+      <small>Pedido de demostración. No se realizará un cargo real.</small>
     </aside>
   )
 }
@@ -233,11 +301,19 @@ function OrderSummary({ cart, deliveryDate, canOrder, onQuantity, onCheckout }: 
 function App() {
   const [preloading, setPreloading] = useState(true)
   const [days, setDays] = useState<MenuDay[]>([])
+  const [policy, setPolicy] = useState<OrderPolicy | null>(null)
+  const [orderMode, setOrderMode] = useState<OrderMode>('day')
   const [selectedDate, setSelectedDate] = useState('')
   const [menu, setMenu] = useState<MenuResponse | null>(null)
-  const [cart, setCart] = useState<CartItem[]>(loadCart)
+  const [cart, setCart] = useState<CartItem[]>(() => loadCart('foodiepack:v2:cart'))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [activeWeekDay, setActiveWeekDay] = useState('')
+  const [weeklyMenus, setWeeklyMenus] = useState<Record<string, MenuResponse>>({})
+  const [weeklyLoading, setWeeklyLoading] = useState(false)
+  const [weeklyCart, setWeeklyCart] = useState<CartItem[]>(() => loadCart('foodiepack:v2:weeklycart'))
+  const [prepayWeek, setPrepayWeek] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [order, setOrder] = useState<SavedOrder | null>(null)
@@ -254,7 +330,7 @@ function App() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine)
   const [retryTick, setRetryTick] = useState(0)
   const [headerScrolled, setHeaderScrolled] = useState(false)
-  const [addedMealId, setAddedMealId] = useState<string | null>(null)
+  const [addedKey, setAddedKey] = useState<string | null>(null)
   const toastId = useRef(0)
 
   const dismissToast = (id: number) => setToasts((items) => items.filter((item) => item.id !== id))
@@ -298,16 +374,20 @@ function App() {
 
   useEffect(() => {
     getMenuDays()
-      .then(({ days: availableDays, policy }) => {
+      .then(({ days: availableDays, policy: currentPolicy }) => {
+        const eligibleDates = availableDays.map((day) => day.date)
         setDays(availableDays)
-        setSelectedDate((current) => current || policy.tomorrow)
-        setCart((items) => items.filter((item) => item.date === policy.tomorrow))
+        setPolicy(currentPolicy)
+        setSelectedDate((current) => current || currentPolicy.tomorrow)
+        setActiveWeekDay((current) => current || availableDays[0]?.date || '')
+        setCart((items) => items.filter((item) => eligibleDates.includes(item.date)))
+        setWeeklyCart((items) => items.filter((item) => eligibleDates.includes(item.date)))
       })
       .catch(() => setError('No pudimos conectar con la cocina. Intenta nuevamente en un momento.'))
   }, [retryTick])
 
   useEffect(() => {
-    if (!selectedDate) return
+    if (!selectedDate || orderMode !== 'day') return
     let active = true
     setLoading(true)
     setError('')
@@ -316,38 +396,78 @@ function App() {
       .catch(() => { if (active) setError('No pudimos cargar el menú de este día.') })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [selectedDate, retryTick])
+  }, [selectedDate, orderMode, retryTick])
+
+  useEffect(() => {
+    if (orderMode !== 'week' || days.length === 0) return
+    let active = true
+    setWeeklyLoading(true)
+    setError('')
+    Promise.all(days.map((day) => getMenu(day.date).then((response) => [day.date, response] as const)))
+      .then((entries) => { if (active) setWeeklyMenus(Object.fromEntries(entries)) })
+      .catch(() => { if (active) setError('No pudimos cargar el plan semanal.') })
+      .finally(() => { if (active) setWeeklyLoading(false) })
+    return () => { active = false }
+  }, [orderMode, days, retryTick])
 
   useEffect(() => {
     localStorage.setItem('foodiepack:v2:cart', JSON.stringify(cart))
   }, [cart])
 
   useEffect(() => {
+    localStorage.setItem('foodiepack:v2:weeklycart', JSON.stringify(weeklyCart))
+  }, [weeklyCart])
+
+  useEffect(() => {
     localStorage.setItem('foodiepack:v2:favorites', JSON.stringify(favorites))
   }, [favorites])
 
-  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
-  const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + item.meal.price * item.quantity, 0) + (cart.length ? 29 : 0), [cart])
+  const orderingOpen = Boolean(policy?.isOpen)
   const isTomorrow = menu?.policy.tomorrow === selectedDate
-  const canOrder = Boolean(menu?.canOrder)
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
   const deliveryMap = mapLinks(pinnedAddress, deliveryCoordinates)
   const hasDeliveryPin = Boolean(pinnedAddress || deliveryCoordinates)
 
-  const availableTags = useMemo(
-    () => Array.from(new Set((menu?.meals || []).flatMap((meal) => meal.tags))).filter(Boolean),
-    [menu],
+  const currentMeals = useMemo(
+    () => orderMode === 'day' ? (menu?.meals || []) : (weeklyMenus[activeWeekDay]?.meals || []),
+    [orderMode, menu, weeklyMenus, activeWeekDay],
   )
-  const visibleMeals = useMemo(() => (menu?.meals || [])
+  const availableTags = useMemo(
+    () => Array.from(new Set(currentMeals.flatMap((meal) => meal.tags))).filter(Boolean),
+    [currentMeals],
+  )
+  const visibleMeals = useMemo(() => currentMeals
     .filter((meal) => !activeTag || meal.tags.includes(activeTag))
-    .filter((meal) => !onlyFavorites || favorites.includes(meal.id)), [menu, activeTag, onlyFavorites, favorites])
+    .filter((meal) => !onlyFavorites || favorites.includes(meal.id)), [currentMeals, activeTag, onlyFavorites, favorites])
+  const isLoadingCurrent = orderMode === 'day' ? loading : weeklyLoading
+
+  const cartCount = (orderMode === 'week' ? weeklyCart : cart).reduce((sum, item) => sum + item.quantity, 0)
+  const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + item.meal.price * item.quantity, 0) + (cart.length ? 29 : 0), [cart])
+
+  const weeklyByDate = useMemo(() => {
+    const map = new Map<string, CartItem[]>()
+    for (const day of days) map.set(day.date, [])
+    for (const item of weeklyCart) {
+      if (!map.has(item.date)) map.set(item.date, [])
+      map.get(item.date)!.push(item)
+    }
+    return map
+  }, [weeklyCart, days])
+  const weeklyDaysCovered = days.filter((day) => (weeklyByDate.get(day.date)?.length || 0) > 0).length
+  const weeklyIsFull = days.length > 0 && weeklyDaysCovered === days.length
+  const weeklySubtotal = weeklyCart.reduce((sum, item) => sum + item.meal.price * item.quantity, 0)
+  const weeklyDeliveryDays = new Set(weeklyCart.map((item) => item.date)).size
+  const weeklyDeliveryFee = weeklyDeliveryDays * 29
+  const weeklyDiscountRate = prepayWeek && weeklyIsFull ? WEEKLY_DISCOUNT_RATE : 0
+  const weeklyDiscountAmount = Math.round(weeklySubtotal * weeklyDiscountRate)
+  const weeklyTotal = weeklySubtotal - weeklyDiscountAmount + weeklyDeliveryFee
 
   const toggleFavorite = (mealId: string) => {
     setFavorites((current) => current.includes(mealId) ? current.filter((id) => id !== mealId) : [...current, mealId])
   }
 
   const addMeal = (meal: Meal) => {
-    if (!canOrder || !menu) return
+    if (!orderingOpen || !menu) return
     setCart((items) => {
       const existing = items.find((item) => item.meal.id === meal.id)
       return existing
@@ -355,13 +475,33 @@ function App() {
         : [...items, { meal, quantity: 1, date: menu.policy.tomorrow }]
     })
     pushToast(`${meal.name} se agregó a tu pedido`, 'success')
-    setAddedMealId(meal.id)
-    window.setTimeout(() => setAddedMealId((current) => current === meal.id ? null : current), 1100)
+    setAddedKey(meal.id)
+    window.setTimeout(() => setAddedKey((current) => current === meal.id ? null : current), 1100)
   }
 
   const changeQuantity = (mealId: string, change: number) => {
     setCart((items) => items
       .map((item) => item.meal.id === mealId ? { ...item, quantity: item.quantity + change } : item)
+      .filter((item) => item.quantity > 0))
+  }
+
+  const addWeeklyMeal = (meal: Meal, date: string) => {
+    if (!orderingOpen) return
+    setWeeklyCart((items) => {
+      const existing = items.find((item) => item.meal.id === meal.id && item.date === date)
+      return existing
+        ? items.map((item) => item === existing ? { ...item, quantity: item.quantity + 1 } : item)
+        : [...items, { meal, quantity: 1, date }]
+    })
+    pushToast(`${meal.name} se agregó a ${dayName(date, true)}`, 'success')
+    const key = `${meal.id}::${date}`
+    setAddedKey(key)
+    window.setTimeout(() => setAddedKey((current) => current === key ? null : current), 1100)
+  }
+
+  const changeWeeklyQuantity = (mealId: string, date: string, change: number) => {
+    setWeeklyCart((items) => items
+      .map((item) => (item.meal.id === mealId && item.date === date) ? { ...item, quantity: item.quantity + change } : item)
       .filter((item) => item.quantity > 0))
   }
 
@@ -410,6 +550,10 @@ function App() {
     }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 })
   }
 
+  const activeCartItems = orderMode === 'week' ? weeklyCart : cart
+  const activeTotal = orderMode === 'week' ? weeklyTotal : cartTotal
+  const isWeeklyPlanOrder = orderMode === 'week' && prepayWeek && weeklyIsFull
+
   const placeOrder = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!isOnline) {
@@ -437,10 +581,17 @@ function App() {
           pinConfirmed: true,
           ...(deliveryCoordinates ? { coordinates: deliveryCoordinates } : {}),
         },
-        items: cart.map((item) => ({ mealId: item.meal.id, date: item.date, quantity: item.quantity })),
+        paymentMethod,
+        isWeeklyPlan: isWeeklyPlanOrder,
+        items: activeCartItems.map((item) => ({ mealId: item.meal.id, date: item.date, quantity: item.quantity })),
       })
       setOrder(response.order)
-      setCart([])
+      if (orderMode === 'week') {
+        setWeeklyCart([])
+        setPrepayWeek(false)
+      } else {
+        setCart([])
+      }
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : 'No se pudo confirmar el pedido'
       setOrderError(message)
@@ -449,6 +600,9 @@ function App() {
       setSubmitting(false)
     }
   }
+
+  const scrollToMenu = () => document.querySelector('#menu-del-dia')?.scrollIntoView({ behavior: 'smooth' })
+  const scrollToSummary = () => document.querySelector('#pedido')?.scrollIntoView({ behavior: 'smooth' })
 
   return (
     <div className="storefront">
@@ -463,9 +617,9 @@ function App() {
         <a href="/" aria-label="Inicio"><Logo /></a>
         <div className="store-header__delivery">
           <span>Zona de entrega</span>
-          <button onClick={() => document.querySelector('#menu-del-dia')?.scrollIntoView({ behavior: 'smooth' })}>Lindavista, CDMX <ChevronDown size={14} /></button>
+          <button onClick={scrollToMenu}>Lindavista, CDMX <ChevronDown size={14} /></button>
         </div>
-        <button className="header-cart" onClick={() => document.querySelector('#pedido')?.scrollIntoView({ behavior: 'smooth' })}>
+        <button className="header-cart" onClick={scrollToSummary}>
           <ShoppingBag size={18} /><span>Pedido</span>{cartCount > 0 && <b key={cartCount} className="header-cart__badge">{cartCount}</b>}
         </button>
       </header>
@@ -482,7 +636,7 @@ function App() {
             </div>
           </div>
           <div className="brand-landing__visual">
-            <div className="landing-dish" style={{ backgroundPosition: featuredMeal?.position || '50% 50%' }} role="img" aria-label={featuredMeal?.name || 'Comida preparada por FoodiePack'}>
+            <div className="landing-dish" style={{ backgroundImage: featuredMeal ? `url(${featuredMeal.image})` : undefined }} role="img" aria-label={featuredMeal?.name || 'Comida preparada por FoodiePack'}>
               <div className="landing-date"><span>Entrega</span><strong>{menu?.policy.tomorrow ? dateFromKey(menu.policy.tomorrow).getDate() : '...'}</strong><small>{menu?.policy.tomorrow ? new Intl.DateTimeFormat('es-MX', { month: 'short' }).format(dateFromKey(menu.policy.tomorrow)).replace('.', '') : 'pronto'}</small></div>
             </div>
             <div className="landing-caption">
@@ -494,32 +648,78 @@ function App() {
         </div>
       </section>
 
+      <section className="weekly-promo" aria-labelledby="weekly-promo-title">
+        <div className="weekly-promo__inner">
+          <div className="weekly-promo__media">
+            <img src="/assets/meals/weekly-hero.jpg" alt="Comidas de la semana en contenedores" loading="lazy" />
+          </div>
+          <div className="weekly-promo__copy">
+            <span><Sparkles size={13} /> Nuevo</span>
+            <h2 id="weekly-promo-title">Arma tu semana completa</h2>
+            <p>Elige tus comidas de cada día, paga por adelantado y ahorra {Math.round(WEEKLY_DISCOUNT_RATE * 100)}% en toda tu semana.</p>
+            <button type="button" onClick={() => { setOrderMode('week'); scrollToMenu() }}>Armar mi semana <ArrowRight size={16} /></button>
+          </div>
+        </div>
+      </section>
+
       <main className="order-workspace" id="menu-del-dia">
         <section className="menu-column">
-          <div className={`order-window ${menu?.policy.isOpen ? 'order-window--open' : ''}`}>
-            <span className="order-window__status"><i />{menu?.policy.isOpen ? 'Pedidos abiertos' : 'Pedidos cerrados'}</span>
-            <p>Reserva para mañana</p>
+          <div className={`order-window ${orderingOpen ? 'order-window--open' : ''}`}>
+            <span className="order-window__status"><i />{orderingOpen ? 'Pedidos abiertos' : 'Pedidos cerrados'}</span>
+            <p>Reserva hasta 5 días</p>
             <strong>8:00 am a 6:00 pm</strong>
             <small>Hora de Ciudad de México</small>
           </div>
 
-          <div className="menu-title">
-            <p>{isTomorrow ? 'Entrega de mañana' : 'Próximamente'}</p>
-            <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
-            <span>{isTomorrow
-              ? (canOrder ? 'Haz tu pedido hoy. Lo cocinamos mañana por la mañana.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
-              : 'Puedes revisar este menú. Las reservaciones abren el día anterior a las 8:00 am.'}</span>
+          <div className="order-mode-toggle" role="tablist" aria-label="Modo de pedido">
+            <button role="tab" aria-selected={orderMode === 'day'} className={orderMode === 'day' ? 'selected' : ''} onClick={() => setOrderMode('day')}>Pedido de mañana</button>
+            <button role="tab" aria-selected={orderMode === 'week'} className={orderMode === 'week' ? 'selected' : ''} onClick={() => setOrderMode('week')}>Plan semanal <b>-{Math.round(WEEKLY_DISCOUNT_RATE * 100)}%</b></button>
           </div>
 
-          <div className="date-strip" aria-label="Próximos menús">
-            {days.map((day, index) => (
-              <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}>
-                <span>{index === 0 ? 'Mañana' : dayName(day.date)}</span>
-                <strong>{dateFromKey(day.date).getDate()}</strong>
-                <small>{day.mealCount} opciones</small>
-              </button>
-            ))}
-          </div>
+          {orderMode === 'day' ? (
+            <>
+              <div className="menu-title">
+                <p>{isTomorrow ? 'Entrega de mañana' : 'Próximamente'}</p>
+                <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
+                <span>{isTomorrow
+                  ? (orderingOpen ? 'Haz tu pedido hoy. Lo cocinamos mañana por la mañana.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
+                  : 'Puedes revisar este menú. Las reservaciones abren el día anterior a las 8:00 am.'}</span>
+              </div>
+
+              <div className="date-strip" aria-label="Próximos menús">
+                {days.map((day, index) => (
+                  <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}>
+                    <span>{index === 0 ? 'Mañana' : dayName(day.date)}</span>
+                    <strong>{dateFromKey(day.date).getDate()}</strong>
+                    <small>{day.mealCount} opciones</small>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="menu-title">
+                <p>Plan semanal</p>
+                <h1>{activeWeekDay ? fullDate(activeWeekDay) : 'Elige tus días'}</h1>
+                <span>{weeklyIsFull
+                  ? 'Ya cubriste toda la semana. Activa el pago por adelantado para ahorrar.'
+                  : `Elige platillos para cada día. Cubre los ${days.length || 5} días para desbloquear ${Math.round(WEEKLY_DISCOUNT_RATE * 100)}% de descuento.`}</span>
+              </div>
+
+              <div className="date-strip" aria-label="Días de tu plan semanal">
+                {days.map((day, index) => {
+                  const count = (weeklyByDate.get(day.date) || []).reduce((sum, item) => sum + item.quantity, 0)
+                  return (
+                    <button key={day.date} className={activeWeekDay === day.date ? 'selected' : ''} onClick={() => setActiveWeekDay(day.date)}>
+                      <span>{index === 0 ? 'Mañana' : dayName(day.date)}</span>
+                      <strong>{dateFromKey(day.date).getDate()}</strong>
+                      <small>{count > 0 ? `${count} en tu plan` : `${day.mealCount} opciones`}</small>
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
 
           {error && (
             <div className="inline-error">
@@ -528,7 +728,7 @@ function App() {
             </div>
           )}
 
-          {!loading && Boolean(menu?.meals.length) && (
+          {!isLoadingCurrent && Boolean(currentMeals.length) && (
             <div className="filter-chips" aria-label="Filtrar menú">
               <button className={!activeTag && !onlyFavorites ? 'selected' : ''} onClick={() => { setActiveTag(null); setOnlyFavorites(false) }}>Todo</button>
               {availableTags.map((tag) => (
@@ -540,37 +740,60 @@ function App() {
             </div>
           )}
 
-          <div className="menu-list">
-            {loading && Array.from({ length: 3 }, (_, index) => <div className="menu-skeleton" key={index} />)}
-            {!loading && visibleMeals.map((meal, index) => (
-              <MealRow
+          <div className="meal-grid">
+            {isLoadingCurrent && Array.from({ length: 4 }, (_, index) => <div className="meal-skeleton" key={index} />)}
+            {!isLoadingCurrent && visibleMeals.map((meal, index) => (
+              <MealCard
                 key={meal.id}
                 meal={meal}
-                canOrder={canOrder}
+                canOrder={orderingOpen}
                 index={index}
                 isFavorite={favorites.includes(meal.id)}
-                justAdded={addedMealId === meal.id}
-                onAdd={() => addMeal(meal)}
+                justAdded={addedKey === (orderMode === 'week' ? `${meal.id}::${activeWeekDay}` : meal.id)}
+                onAdd={() => orderMode === 'week' ? addWeeklyMeal(meal, activeWeekDay) : addMeal(meal)}
                 onToggleFavorite={() => toggleFavorite(meal.id)}
               />
             ))}
-            {!loading && menu?.meals.length === 0 && <div className="menu-empty"><h2>Menú pendiente</h2><p>La cocina todavía no publica las opciones para este día.</p></div>}
-            {!loading && Boolean(menu?.meals.length) && visibleMeals.length === 0 && (
+            {!isLoadingCurrent && currentMeals.length === 0 && <div className="menu-empty"><h2>Menú pendiente</h2><p>La cocina todavía no publica las opciones para este día.</p></div>}
+            {!isLoadingCurrent && Boolean(currentMeals.length) && visibleMeals.length === 0 && (
               <div className="menu-empty"><h2>Sin resultados</h2><p>Ningún platillo coincide con este filtro. Prueba con otro.</p></div>
             )}
           </div>
         </section>
 
-        <OrderSummary cart={cart} deliveryDate={menu?.policy.tomorrow || ''} canOrder={canOrder} onQuantity={changeQuantity} onCheckout={() => setCheckoutOpen(true)} />
+        {orderMode === 'day' ? (
+          <OrderSummary cart={cart} deliveryDate={menu?.policy.tomorrow || ''} canOrder={orderingOpen} onQuantity={changeQuantity} onCheckout={() => setCheckoutOpen(true)} />
+        ) : (
+          <WeeklySummary
+            days={days}
+            weeklyByDate={weeklyByDate}
+            subtotal={weeklySubtotal}
+            deliveryFee={weeklyDeliveryFee}
+            discountRate={weeklyDiscountRate}
+            discountAmount={weeklyDiscountAmount}
+            total={weeklyTotal}
+            prepayWeek={prepayWeek}
+            weeklyIsFull={weeklyIsFull}
+            canOrder={orderingOpen}
+            onTogglePrepay={() => setPrepayWeek((value) => !value)}
+            onQuantity={changeWeeklyQuantity}
+            onCheckout={() => setCheckoutOpen(true)}
+          />
+        )}
       </main>
 
-      {cartCount > 0 && (
-        <a className="mobile-order-bar" href="#pedido">
-          <span><b>{cartCount}</b> {cartCount === 1 ? 'producto' : 'productos'}</span>
-          <strong>{money(cartTotal)}</strong>
-          <span>Ver pedido <ArrowRight size={15} /></span>
-        </a>
-      )}
+      <nav className="app-tabbar" aria-label="Navegación">
+        <button className={orderMode === 'day' ? 'active' : ''} onClick={() => { setOrderMode('day'); scrollToMenu() }}>
+          <Utensils size={20} /><span>Menú</span>
+        </button>
+        <button className={orderMode === 'week' ? 'active' : ''} onClick={() => { setOrderMode('week'); scrollToMenu() }}>
+          <CalendarDays size={20} /><span>Semana</span>
+        </button>
+        <button onClick={scrollToSummary}>
+          <span className="app-tabbar__cart"><ShoppingBag size={20} />{cartCount > 0 && <b>{cartCount}</b>}</span>
+          <span>Pedido</span>
+        </button>
+      </nav>
 
       {checkoutOpen && <button className="modal-backdrop" aria-label="Cerrar" onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }} />}
       {checkoutOpen && (
@@ -580,19 +803,29 @@ function App() {
             <div className="order-confirmed">
               <AcceptedOrderAnimation />
               <p>Pedido {order.id}</p>
-              <h2>Nos vemos mañana.</h2>
-              <small>La cocina aceptó tu pedido. Llegará a {order.delivery?.office || 'tu oficina'} de 1:30 a 2:00 pm.</small>
+              <h2>{order.isWeeklyPlan ? 'Tu semana está lista.' : 'Nos vemos mañana.'}</h2>
+              <small>
+                La cocina aceptó tu pedido{order.isWeeklyPlan ? ', con descuento de plan semanal aplicado' : ''}. Llegará a {order.delivery?.office || 'tu oficina'} de 1:30 a 2:00 pm.
+                {' '}Pagarás {order.paymentMethod === 'card' ? 'con tarjeta' : 'en efectivo'} al recibir.
+              </small>
               {order.delivery?.mapUrl && <a className="confirmed-map-link" href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={14} /> Ver dirección guardada</a>}
               <button onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }}>Cerrar</button>
             </div>
           ) : (
             <form onSubmit={placeOrder}>
               <p>Confirmar pedido</p>
-              <h2>Datos de entrega</h2>
+              <h2>{orderMode === 'week' ? 'Plan semanal' : 'Datos de entrega'}</h2>
+              {orderMode === 'week' && (
+                <div className="weekly-recap">
+                  <CalendarDays size={16} />
+                  <p><span>{weeklyDeliveryDays} {weeklyDeliveryDays === 1 ? 'día' : 'días'} de entrega</span>
+                    <strong>{isWeeklyPlanOrder ? `Ahorras ${money(weeklyDiscountAmount)}` : 'Sin descuento semanal'}</strong></p>
+                </div>
+              )}
               <div className="delivery-zone-card">
                 <MapPin size={20} />
                 <p><span>Zona disponible</span><strong>Lindavista, CDMX</strong></p>
-                <b>Envío {money(29)}</b>
+                <b>Envío {money(29)}/día</b>
               </div>
               <label>Nombre<input name="name" autoComplete="name" required /></label>
               <label>Teléfono<input name="phone" type="tel" autoComplete="tel" required /></label>
@@ -611,8 +844,17 @@ function App() {
               </div>
               {deliveryError && <div className="delivery-error">{deliveryError}</div>}
               <label>Indicaciones opcionales<textarea name="notes" maxLength={300} /></label>
+
+              <div className="payment-method">
+                <span>Método de pago</span>
+                <div className="payment-method__options">
+                  <button type="button" className={paymentMethod === 'card' ? 'selected' : ''} onClick={() => setPaymentMethod('card')}><CreditCard size={16} /> Tarjeta</button>
+                  <button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => setPaymentMethod('cash')}><Banknote size={16} /> Efectivo</button>
+                </div>
+              </div>
+
               {orderError && <div className="inline-error"><span>{orderError}</span></div>}
-              <div className="checkout-dialog__total"><span>Total</span><strong>{money(cartTotal)}</strong></div>
+              <div className="checkout-dialog__total"><span>Total</span><strong>{money(activeTotal)}</strong></div>
               <button className="checkout-button" disabled={submitting || !isOnline}>{submitting ? 'Confirmando…' : (isOnline ? 'Confirmar pedido' : 'Sin conexión')}</button>
               <small>Este prototipo no procesa pagos reales.</small>
             </form>

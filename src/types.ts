@@ -1,3 +1,5 @@
+export type PaymentMethod = 'card' | 'cash'
+
 export type Meal = {
   id: string
   name: string
@@ -6,7 +8,7 @@ export type Meal = {
   protein: number
   kcal: number
   tags: string[]
-  position: string
+  image: string
   available: boolean
 }
 
@@ -54,6 +56,8 @@ export type SavedOrder = {
   createdAt: string
   deliveryDate: string
   status: string
+  paymentMethod: PaymentMethod
+  isWeeklyPlan: boolean
   customer: {
     name: string
     phone: string
@@ -70,5 +74,7 @@ export type SavedOrder = {
   }>
   subtotal: number
   deliveryFee: number
+  discountRate: number
+  discountAmount: number
   total: number
 }

@@ -1,4 +1,4 @@
-import type { Meal, MenuDay, MenuResponse, OrderPolicy, SavedOrder } from './types'
+import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
 
 const configuredUrl = import.meta.env.VITE_API_URL as string | undefined
 const API_URL = (configuredUrl || '/api').replace(/\/$/, '')
@@ -45,6 +45,8 @@ export function createOrder(payload: {
     pinConfirmed: true
     coordinates?: { latitude: number; longitude: number }
   }
+  paymentMethod: PaymentMethod
+  isWeeklyPlan: boolean
   items: Array<{ mealId: string; date: string; quantity: number }>
 }) {
   return request<{ order: SavedOrder }>('/orders', { method: 'POST', body: JSON.stringify(payload) })

@@ -7,6 +7,14 @@ const root = path.dirname(fileURLToPath(import.meta.url))
 const dataDirectory = path.join(root, 'data')
 const databasePath = path.join(dataDirectory, 'runtime.json')
 
+export const mealImages = [
+  '/assets/meals/pollo-citrico.jpg',
+  '/assets/meals/pasta-poblano.jpg',
+  '/assets/meals/res-chipotle.jpg',
+  '/assets/meals/salmon-verde.jpg',
+  '/assets/meals/bowl-huerto.jpg',
+]
+
 export const mealTemplates = [
   {
     id: 'pollo-citrico',
@@ -16,7 +24,7 @@ export const mealTemplates = [
     protein: 38,
     kcal: 540,
     tags: ['Sin gluten'],
-    position: '8% 20%',
+    image: mealImages[0],
     available: true,
   },
   {
@@ -27,7 +35,7 @@ export const mealTemplates = [
     protein: 24,
     kcal: 610,
     tags: ['Vegetariano'],
-    position: '50% 9%',
+    image: mealImages[1],
     available: true,
   },
   {
@@ -38,7 +46,7 @@ export const mealTemplates = [
     protein: 41,
     kcal: 650,
     tags: ['Alto en proteína'],
-    position: '92% 18%',
+    image: mealImages[2],
     available: true,
   },
   {
@@ -49,7 +57,7 @@ export const mealTemplates = [
     protein: 36,
     kcal: 490,
     tags: ['Sin gluten'],
-    position: '24% 82%',
+    image: mealImages[3],
     available: true,
   },
   {
@@ -60,7 +68,7 @@ export const mealTemplates = [
     protein: 22,
     kcal: 510,
     tags: ['Vegano'],
-    position: '72% 78%',
+    image: mealImages[4],
     available: true,
   },
 ]

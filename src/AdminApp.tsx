@@ -1,11 +1,17 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { ArrowLeft, Check, Eye, EyeOff, Loader2, LogOut, MapPin, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Banknote, Check, CreditCard, Eye, EyeOff, Loader2, LogOut, MapPin, Plus, Save, Trash2 } from 'lucide-react'
 import { adminLogin, getAdminMenu, getAdminOrders, getMenuDays, saveAdminMenu } from './api'
 import Logo from './components/Logo'
 import type { Meal, MenuDay, SavedOrder } from './types'
 
 const TOKEN_KEY = 'foodiepack:admin-session'
-const positions = ['8% 20%', '50% 9%', '92% 18%', '24% 82%', '72% 78%']
+const placeholderImages = [
+  '/assets/meals/pollo-citrico.jpg',
+  '/assets/meals/pasta-poblano.jpg',
+  '/assets/meals/res-chipotle.jpg',
+  '/assets/meals/salmon-verde.jpg',
+  '/assets/meals/bowl-huerto.jpg',
+]
 
 const money = (value: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value)
@@ -135,7 +141,7 @@ function AdminApp() {
       protein: 30,
       kcal: 520,
       tags: ['Nuevo'],
-      position: positions[current.length % positions.length],
+      image: placeholderImages[current.length % placeholderImages.length],
       available: true,
     }])
     setMessage('')
@@ -187,7 +193,7 @@ function AdminApp() {
             {loading && <div className="admin-loading">Cargando menú…</div>}
             {!loading && meals.map((meal, index) => (
               <article className="editor-row" key={meal.id}>
-                <div className="editor-photo" style={{ backgroundPosition: meal.position }} />
+                <div className="editor-photo" style={{ backgroundImage: `url(${meal.image})` }} />
                 <div className="editor-fields">
                   <label>Nombre<input value={meal.name} onChange={(event) => updateMeal(index, 'name', event.target.value)} /></label>
                   <label>Descripción<input value={meal.description} onChange={(event) => updateMeal(index, 'description', event.target.value)} /></label>
@@ -215,10 +221,10 @@ function AdminApp() {
           <header className="admin-page-head"><div><p>Operación</p><h1>Pedidos</h1><span>Aquí llegan los pedidos aceptados.</span></div></header>
           {error && <div className="inline-error">{error}</div>}
           <div className="orders-table">
-            <div className="orders-table__head"><span>Pedido</span><span>Entrega</span><span>Cliente</span><span>Dirección</span><span>Productos</span><span>Total</span><span>Estado</span></div>
+            <div className="orders-table__head"><span>Pedido</span><span>Entrega</span><span>Cliente</span><span>Dirección</span><span>Productos</span><span>Pago</span><span>Total</span><span>Estado</span></div>
             {orders.map((order) => (
               <div className="orders-table__row" key={order.id}>
-                <strong>{order.id}</strong>
+                <strong>{order.id}{order.isWeeklyPlan && <em className="plan-badge">Plan semanal</em>}</strong>
                 <span>{longDate(order.deliveryDate)}</span>
                 <span>{order.customer.name}</span>
                 <span className="order-address">
@@ -227,7 +233,8 @@ function AdminApp() {
                   {order.delivery?.mapUrl && <a href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={12} /> Ver pin</a>}
                 </span>
                 <span>{order.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
-                <strong>{money(order.total)}</strong>
+                <span className="order-payment">{order.paymentMethod === 'card' ? <CreditCard size={13} /> : <Banknote size={13} />} {order.paymentMethod === 'card' ? 'Tarjeta' : 'Efectivo'}</span>
+                <strong>{money(order.total)}{order.discountAmount > 0 && <small className="order-discount">-{money(order.discountAmount)}</small>}</strong>
                 <b>{order.status === 'accepted' ? 'Aceptado' : 'Confirmado'}</b>
               </div>
             ))}

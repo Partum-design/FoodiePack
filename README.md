@@ -5,9 +5,9 @@ Aplicación de pedidos para una dark kitchen con dos procesos independientes:
 - `web`: tienda React/Vite para clientes.
 - `api`: servidor Express para menús, pedidos y acceso administrativo.
 
-La tienda permite revisar los siguientes menús, pero el servidor únicamente acepta pedidos para el día siguiente entre las 8:00 y las 18:00, usando siempre la zona horaria `America/Mexico_City`.
+La tienda permite pedir para mañana o armar un plan semanal (hasta 5 días disponibles). El servidor únicamente acepta pedidos entre las 8:00 y las 18:00, usando siempre la zona horaria `America/Mexico_City`. Si el plan cubre los 5 días y el cliente elige pagar por adelantado, se aplica 12% de descuento sobre la comida; el envío se cobra por día entregado.
 
-La entrega está limitada a Lindavista, CDMX. Antes de confirmar, el cliente debe escribir su dirección y oficina, revisar el pin en Google Maps y confirmar la ubicación. La liga del pin queda guardada con el pedido y aparece en el panel de cocina.
+La entrega está limitada a Lindavista, CDMX. Antes de confirmar, el cliente debe escribir su dirección y oficina, revisar el pin en Google Maps, confirmar la ubicación y elegir método de pago (tarjeta o efectivo). La liga del pin queda guardada con el pedido y aparece en el panel de cocina.
 
 ## Desarrollo local
 

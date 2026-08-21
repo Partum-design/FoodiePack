@@ -17,6 +17,9 @@ const allowedOrigins = (process.env.WEB_ORIGIN || 'http://localhost:5173,http://
   .split(',')
   .map((origin) => origin.trim())
 const deliveryZone = 'Lindavista, CDMX'
+const DELIVERY_FEE_PER_DAY = 29
+const WEEKLY_PLAN_DAYS = 5
+const WEEKLY_PLAN_DISCOUNT_RATE = 0.12
 
 if (!adminPassword || !jwtSecret) {
   throw new Error('ADMIN_PASSWORD and JWT_SECRET are required in production')
@@ -53,11 +56,13 @@ const deliverySchema = z.object({
 const orderSchema = z.object({
   customer: customerSchema,
   delivery: deliverySchema,
+  paymentMethod: z.enum(['card', 'cash']),
+  isWeeklyPlan: z.boolean().optional().default(false),
   items: z.array(z.object({
     mealId: z.string().min(1).max(100),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     quantity: z.number().int().min(1).max(10),
-  })).min(1).max(20),
+  })).min(1).max(50),
 })
 const mealSchema = z.object({
   id: z.string().min(1).max(100),
@@ -67,7 +72,7 @@ const mealSchema = z.object({
   protein: z.number().int().min(0).max(300),
   kcal: z.number().int().min(0).max(3000),
   tags: z.array(z.string().trim().min(1).max(40)).max(4),
-  position: z.string().max(30).default('50% 50%'),
+  image: z.string().min(1).max(300).default('/assets/meals/pollo-citrico.jpg'),
   available: z.boolean(),
 })
 const menuSchema = z.object({ meals: z.array(mealSchema).max(20) })
@@ -106,11 +111,12 @@ app.get('/api/menu', (request, response) => {
   const date = typeof request.query.date === 'string' ? request.query.date : policy.tomorrow
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return response.status(400).json({ error: 'Fecha inválida' })
 
+  const eligibleDates = Array.from({ length: WEEKLY_PLAN_DAYS }, (_, index) => addDays(policy.tomorrow, index))
   const database = readDatabase()
   response.json({
     date,
     meals: database.menus[date] || [],
-    canOrder: date === policy.tomorrow && policy.isOpen,
+    canOrder: eligibleDates.includes(date) && policy.isOpen,
     policy,
   })
 })
@@ -137,28 +143,37 @@ app.post('/api/orders', (request, response) => {
     })
   }
 
-  if (parsed.data.items.some((item) => item.date !== policy.tomorrow)) {
-    return response.status(409).json({ error: 'Hoy solo puedes reservar comida para mañana.', policy })
+  const eligibleDates = Array.from({ length: WEEKLY_PLAN_DAYS }, (_, index) => addDays(policy.tomorrow, index))
+  if (parsed.data.items.some((item) => !eligibleDates.includes(item.date))) {
+    return response.status(409).json({ error: 'Solo puedes reservar comida dentro de los próximos 5 días disponibles.', policy })
   }
 
   const database = readDatabase()
-  const menu = database.menus[policy.tomorrow] || []
   let subtotal = 0
   const items = []
+  const datesOrdered = new Set()
 
   for (const requestedItem of parsed.data.items) {
+    const menu = database.menus[requestedItem.date] || []
     const meal = menu.find((candidate) => candidate.id === requestedItem.mealId && candidate.available)
     if (!meal) return response.status(409).json({ error: 'Uno de los platillos ya no está disponible.' })
     subtotal += meal.price * requestedItem.quantity
     items.push({ ...requestedItem, name: meal.name, unitPrice: meal.price })
+    datesOrdered.add(requestedItem.date)
   }
 
-  const deliveryFee = 29
+  const isFullWeekPlan = parsed.data.isWeeklyPlan && eligibleDates.every((date) => datesOrdered.has(date))
+  const discountRate = isFullWeekPlan ? WEEKLY_PLAN_DISCOUNT_RATE : 0
+  const discountAmount = Math.round(subtotal * discountRate)
+  const deliveryFee = DELIVERY_FEE_PER_DAY * datesOrdered.size
+
   const order = {
     id: `FP-${Date.now().toString().slice(-7)}`,
     createdAt: new Date().toISOString(),
     deliveryDate: policy.tomorrow,
     status: 'accepted',
+    paymentMethod: parsed.data.paymentMethod,
+    isWeeklyPlan: isFullWeekPlan,
     customer: parsed.data.customer,
     delivery: {
       zone: deliveryZone,
@@ -170,7 +185,9 @@ app.post('/api/orders', (request, response) => {
     items,
     subtotal,
     deliveryFee,
-    total: subtotal + deliveryFee,
+    discountRate,
+    discountAmount,
+    total: subtotal - discountAmount + deliveryFee,
   }
   database.orders.unshift(order)
   writeDatabase(database)
