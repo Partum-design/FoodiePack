@@ -4,16 +4,28 @@ const configuredUrl = import.meta.env.VITE_API_URL as string | undefined
 const API_URL = (configuredUrl || '/api').replace(/\/$/, '')
 
 async function request<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.error || 'No se pudo conectar con FoodiePack')
-  return data as T
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 12_000)
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.error || 'No se pudo conectar con FoodiePack')
+    return data as T
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('La solicitud tardó demasiado. Revisa tu conexión e intenta de nuevo.')
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeout)
+  }
 }
 
 export function getMenuDays() {

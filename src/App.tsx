@@ -1,5 +1,8 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { ArrowRight, ChevronDown, Clock3, LocateFixed, MapPin, Minus, Navigation, Plus, ShoppingBag, X } from 'lucide-react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ArrowRight, Check, ChevronDown, Clock3, Heart, LocateFixed, MapPin, Minus, Navigation,
+  Plus, RefreshCw, ShoppingBag, WifiOff, X,
+} from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
 import Logo from './components/Logo'
 import type { CartItem, Meal, MenuDay, MenuResponse, SavedOrder } from './types'
@@ -50,6 +53,42 @@ function loadCart() {
   }
 }
 
+function loadFavorites() {
+  try {
+    return JSON.parse(localStorage.getItem('foodiepack:v2:favorites') || '[]') as string[]
+  } catch {
+    return []
+  }
+}
+
+type Toast = { id: number; message: string; tone: 'success' | 'error' | 'info' }
+
+function useReveal<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setVisible(true)
+      return
+    }
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          setVisible(true)
+          observer.disconnect()
+        }
+      })
+    }, { threshold: 0.15 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  return { ref, visible }
+}
+
 function BrandPreloader() {
   return (
     <div className="brand-preloader" role="status" aria-label="Cargando FoodiePack">
@@ -81,12 +120,49 @@ function AcceptedOrderAnimation() {
   )
 }
 
-function MealRow({ meal, canOrder, onAdd }: { meal: Meal; canOrder: boolean; onAdd: () => void }) {
-  const disabled = !canOrder || !meal.available
+function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
+  if (!toasts.length) return null
   return (
-    <article className={`menu-item ${meal.available ? '' : 'menu-item--unavailable'}`}>
+    <div className="toast-stack" role="status" aria-live="polite">
+      {toasts.map((toast) => (
+        <div className={`toast toast--${toast.tone}`} key={toast.id}>
+          {toast.tone === 'success' && <Check size={14} />}
+          <span>{toast.message}</span>
+          <button onClick={() => onDismiss(toast.id)} aria-label="Cerrar aviso"><X size={13} /></button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MealRow({ meal, canOrder, index, isFavorite, justAdded, onAdd, onToggleFavorite }: {
+  meal: Meal
+  canOrder: boolean
+  index: number
+  isFavorite: boolean
+  justAdded: boolean
+  onAdd: () => void
+  onToggleFavorite: () => void
+}) {
+  const disabled = !canOrder || !meal.available
+  const { ref, visible } = useReveal<HTMLElement>()
+  return (
+    <article
+      ref={ref}
+      className={`menu-item reveal ${meal.available ? '' : 'menu-item--unavailable'} ${visible ? 'reveal--visible' : ''}`}
+      style={{ transitionDelay: visible ? `${Math.min(index, 6) * 55}ms` : '0ms' }}
+    >
       <div className="menu-item__image" style={{ backgroundPosition: meal.position }}>
         {!meal.available && <span>Agotado</span>}
+        <button
+          type="button"
+          className={`menu-item__favorite ${isFavorite ? 'menu-item__favorite--active' : ''}`}
+          onClick={onToggleFavorite}
+          aria-pressed={isFavorite}
+          aria-label={isFavorite ? `Quitar ${meal.name} de favoritos` : `Guardar ${meal.name} en favoritos`}
+        >
+          <Heart size={14} fill={isFavorite ? 'currentColor' : 'none'} />
+        </button>
       </div>
       <div className="menu-item__content">
         <div className="menu-item__topline">
@@ -98,8 +174,10 @@ function MealRow({ meal, canOrder, onAdd }: { meal: Meal; canOrder: boolean; onA
         <div className="menu-item__bottom">
           <span>{meal.protein} g proteína</span>
           <span>{meal.kcal} kcal</span>
-          <button disabled={disabled} onClick={onAdd}>
-            {meal.available ? (canOrder ? <><Plus size={16} /> Agregar</> : 'Vista previa') : 'No disponible'}
+          <button className={justAdded ? 'menu-item__add--pop' : ''} disabled={disabled} onClick={onAdd}>
+            {meal.available
+              ? (canOrder ? (justAdded ? <><Check size={16} /> Agregado</> : <><Plus size={16} /> Agregar</>) : 'Vista previa')
+              : 'No disponible'}
           </button>
         </div>
       </div>
@@ -163,11 +241,29 @@ function App() {
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [order, setOrder] = useState<SavedOrder | null>(null)
+  const [orderError, setOrderError] = useState('')
   const [deliveryAddress, setDeliveryAddress] = useState('')
   const [pinnedAddress, setPinnedAddress] = useState('')
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates | null>(null)
   const [deliveryError, setDeliveryError] = useState('')
   const [locating, setLocating] = useState(false)
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const [favorites, setFavorites] = useState<string[]>(loadFavorites)
+  const [activeTag, setActiveTag] = useState<string | null>(null)
+  const [onlyFavorites, setOnlyFavorites] = useState(false)
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine)
+  const [retryTick, setRetryTick] = useState(0)
+  const [headerScrolled, setHeaderScrolled] = useState(false)
+  const [addedMealId, setAddedMealId] = useState<string | null>(null)
+  const toastId = useRef(0)
+
+  const dismissToast = (id: number) => setToasts((items) => items.filter((item) => item.id !== id))
+
+  const pushToast = (message: string, tone: Toast['tone'] = 'info') => {
+    const id = (toastId.current += 1)
+    setToasts((items) => [...items, { id, message, tone }])
+    window.setTimeout(() => dismissToast(id), 3200)
+  }
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -183,14 +279,32 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const goOnline = () => setIsOnline(true)
+    const goOffline = () => setIsOnline(false)
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onScroll = () => setHeaderScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
     getMenuDays()
       .then(({ days: availableDays, policy }) => {
         setDays(availableDays)
-        setSelectedDate(policy.tomorrow)
+        setSelectedDate((current) => current || policy.tomorrow)
         setCart((items) => items.filter((item) => item.date === policy.tomorrow))
       })
       .catch(() => setError('No pudimos conectar con la cocina. Intenta nuevamente en un momento.'))
-  }, [])
+  }, [retryTick])
 
   useEffect(() => {
     if (!selectedDate) return
@@ -202,11 +316,15 @@ function App() {
       .catch(() => { if (active) setError('No pudimos cargar el menú de este día.') })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [selectedDate])
+  }, [selectedDate, retryTick])
 
   useEffect(() => {
     localStorage.setItem('foodiepack:v2:cart', JSON.stringify(cart))
   }, [cart])
+
+  useEffect(() => {
+    localStorage.setItem('foodiepack:v2:favorites', JSON.stringify(favorites))
+  }, [favorites])
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
   const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + item.meal.price * item.quantity, 0) + (cart.length ? 29 : 0), [cart])
@@ -216,6 +334,18 @@ function App() {
   const deliveryMap = mapLinks(pinnedAddress, deliveryCoordinates)
   const hasDeliveryPin = Boolean(pinnedAddress || deliveryCoordinates)
 
+  const availableTags = useMemo(
+    () => Array.from(new Set((menu?.meals || []).flatMap((meal) => meal.tags))).filter(Boolean),
+    [menu],
+  )
+  const visibleMeals = useMemo(() => (menu?.meals || [])
+    .filter((meal) => !activeTag || meal.tags.includes(activeTag))
+    .filter((meal) => !onlyFavorites || favorites.includes(meal.id)), [menu, activeTag, onlyFavorites, favorites])
+
+  const toggleFavorite = (mealId: string) => {
+    setFavorites((current) => current.includes(mealId) ? current.filter((id) => id !== mealId) : [...current, mealId])
+  }
+
   const addMeal = (meal: Meal) => {
     if (!canOrder || !menu) return
     setCart((items) => {
@@ -224,6 +354,9 @@ function App() {
         ? items.map((item) => item.meal.id === meal.id ? { ...item, quantity: item.quantity + 1 } : item)
         : [...items, { meal, quantity: 1, date: menu.policy.tomorrow }]
     })
+    pushToast(`${meal.name} se agregó a tu pedido`, 'success')
+    setAddedMealId(meal.id)
+    window.setTimeout(() => setAddedMealId((current) => current === meal.id ? null : current), 1100)
   }
 
   const changeQuantity = (mealId: string, change: number) => {
@@ -279,13 +412,17 @@ function App() {
 
   const placeOrder = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!isOnline) {
+      setOrderError('Sin conexión a internet. Reconéctate para confirmar tu pedido.')
+      return
+    }
     if (!hasDeliveryPin) {
       setDeliveryError('Ubica la dirección en el mapa antes de confirmar el pedido.')
       return
     }
     const form = new FormData(event.currentTarget)
     setSubmitting(true)
-    setError('')
+    setOrderError('')
     try {
       const response = await createOrder({
         customer: {
@@ -305,7 +442,9 @@ function App() {
       setOrder(response.order)
       setCart([])
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'No se pudo confirmar el pedido')
+      const message = requestError instanceof Error ? requestError.message : 'No se pudo confirmar el pedido'
+      setOrderError(message)
+      pushToast(message, 'error')
     } finally {
       setSubmitting(false)
     }
@@ -314,14 +453,20 @@ function App() {
   return (
     <div className="storefront">
       {preloading && <BrandPreloader />}
-      <header className="store-header">
+      {!isOnline && (
+        <div className="offline-banner" role="alert">
+          <WifiOff size={14} /> Sin conexión a internet. Algunas acciones no estarán disponibles.
+        </div>
+      )}
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <header className={`store-header ${headerScrolled ? 'store-header--scrolled' : ''}`}>
         <a href="/" aria-label="Inicio"><Logo /></a>
         <div className="store-header__delivery">
           <span>Zona de entrega</span>
           <button onClick={() => document.querySelector('#menu-del-dia')?.scrollIntoView({ behavior: 'smooth' })}>Lindavista, CDMX <ChevronDown size={14} /></button>
         </div>
         <button className="header-cart" onClick={() => document.querySelector('#pedido')?.scrollIntoView({ behavior: 'smooth' })}>
-          <ShoppingBag size={18} /><span>Pedido</span>{cartCount > 0 && <b>{cartCount}</b>}
+          <ShoppingBag size={18} /><span>Pedido</span>{cartCount > 0 && <b key={cartCount} className="header-cart__badge">{cartCount}</b>}
         </button>
       </header>
 
@@ -376,11 +521,43 @@ function App() {
             ))}
           </div>
 
-          {error && <div className="inline-error">{error}</div>}
+          {error && (
+            <div className="inline-error">
+              <span>{error}</span>
+              <button type="button" onClick={() => setRetryTick((tick) => tick + 1)}><RefreshCw size={12} /> Reintentar</button>
+            </div>
+          )}
+
+          {!loading && Boolean(menu?.meals.length) && (
+            <div className="filter-chips" aria-label="Filtrar menú">
+              <button className={!activeTag && !onlyFavorites ? 'selected' : ''} onClick={() => { setActiveTag(null); setOnlyFavorites(false) }}>Todo</button>
+              {availableTags.map((tag) => (
+                <button key={tag} className={activeTag === tag ? 'selected' : ''} onClick={() => setActiveTag((current) => current === tag ? null : tag)}>{tag}</button>
+              ))}
+              <button className={`filter-chips__favorite ${onlyFavorites ? 'selected' : ''}`} onClick={() => setOnlyFavorites((value) => !value)}>
+                <Heart size={12} fill={onlyFavorites ? 'currentColor' : 'none'} /> Favoritos{favorites.length > 0 ? ` (${favorites.length})` : ''}
+              </button>
+            </div>
+          )}
+
           <div className="menu-list">
             {loading && Array.from({ length: 3 }, (_, index) => <div className="menu-skeleton" key={index} />)}
-            {!loading && menu?.meals.map((meal) => <MealRow key={meal.id} meal={meal} canOrder={canOrder} onAdd={() => addMeal(meal)} />)}
+            {!loading && visibleMeals.map((meal, index) => (
+              <MealRow
+                key={meal.id}
+                meal={meal}
+                canOrder={canOrder}
+                index={index}
+                isFavorite={favorites.includes(meal.id)}
+                justAdded={addedMealId === meal.id}
+                onAdd={() => addMeal(meal)}
+                onToggleFavorite={() => toggleFavorite(meal.id)}
+              />
+            ))}
             {!loading && menu?.meals.length === 0 && <div className="menu-empty"><h2>Menú pendiente</h2><p>La cocina todavía no publica las opciones para este día.</p></div>}
+            {!loading && Boolean(menu?.meals.length) && visibleMeals.length === 0 && (
+              <div className="menu-empty"><h2>Sin resultados</h2><p>Ningún platillo coincide con este filtro. Prueba con otro.</p></div>
+            )}
           </div>
         </section>
 
@@ -395,10 +572,10 @@ function App() {
         </a>
       )}
 
-      {checkoutOpen && <button className="modal-backdrop" aria-label="Cerrar" onClick={() => { setCheckoutOpen(false); setOrder(null) }} />}
+      {checkoutOpen && <button className="modal-backdrop" aria-label="Cerrar" onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }} />}
       {checkoutOpen && (
         <section className="checkout-dialog" role="dialog" aria-modal="true" aria-label="Confirmar pedido">
-          <button className="dialog-close" onClick={() => { setCheckoutOpen(false); setOrder(null) }} aria-label="Cerrar"><X size={20} /></button>
+          <button className="dialog-close" onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }} aria-label="Cerrar"><X size={20} /></button>
           {order ? (
             <div className="order-confirmed">
               <AcceptedOrderAnimation />
@@ -406,7 +583,7 @@ function App() {
               <h2>Nos vemos mañana.</h2>
               <small>La cocina aceptó tu pedido. Llegará a {order.delivery?.office || 'tu oficina'} de 1:30 a 2:00 pm.</small>
               {order.delivery?.mapUrl && <a className="confirmed-map-link" href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={14} /> Ver dirección guardada</a>}
-              <button onClick={() => { setCheckoutOpen(false); setOrder(null) }}>Cerrar</button>
+              <button onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }}>Cerrar</button>
             </div>
           ) : (
             <form onSubmit={placeOrder}>
@@ -434,9 +611,9 @@ function App() {
               </div>
               {deliveryError && <div className="delivery-error">{deliveryError}</div>}
               <label>Indicaciones opcionales<textarea name="notes" maxLength={300} /></label>
-              {error && <div className="inline-error">{error}</div>}
+              {orderError && <div className="inline-error"><span>{orderError}</span></div>}
               <div className="checkout-dialog__total"><span>Total</span><strong>{money(cartTotal)}</strong></div>
-              <button className="checkout-button" disabled={submitting}>{submitting ? 'Confirmando…' : 'Confirmar pedido'}</button>
+              <button className="checkout-button" disabled={submitting || !isOnline}>{submitting ? 'Confirmando…' : (isOnline ? 'Confirmar pedido' : 'Sin conexión')}</button>
               <small>Este prototipo no procesa pagos reales.</small>
             </form>
           )}

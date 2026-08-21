@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { ArrowLeft, Check, Eye, EyeOff, LogOut, MapPin, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Check, Eye, EyeOff, Loader2, LogOut, MapPin, Plus, Save, Trash2 } from 'lucide-react'
 import { adminLogin, getAdminMenu, getAdminOrders, getMenuDays, saveAdminMenu } from './api'
 import Logo from './components/Logo'
 import type { Meal, MenuDay, SavedOrder } from './types'
@@ -174,7 +174,7 @@ function AdminApp() {
             <div className="admin-head-actions">
               {message && <span className="save-message"><Check size={14} /> {message}</span>}
               <button className="admin-secondary" onClick={addMeal}><Plus size={16} /> Agregar platillo</button>
-              <button className="admin-primary" onClick={save} disabled={saving || loading}><Save size={16} /> {saving ? 'Guardando…' : 'Guardar cambios'}</button>
+              <button className="admin-primary" onClick={save} disabled={saving || loading}>{saving ? <Loader2 size={16} className="spin" /> : <Save size={16} />} {saving ? 'Guardando…' : 'Guardar cambios'}</button>
             </div>
           </header>
 
@@ -199,7 +199,14 @@ function AdminApp() {
                 </div>
                 <div className="editor-controls">
                   <button className={`availability ${meal.available ? 'active' : ''}`} onClick={() => updateMeal(index, 'available', !meal.available)}><i />{meal.available ? 'Disponible' : 'Agotado'}</button>
-                  <button className="delete-meal" onClick={() => setMeals((current) => current.filter((_, mealIndex) => mealIndex !== index))}><Trash2 size={16} /> Eliminar</button>
+                  <button
+                    className="delete-meal"
+                    onClick={() => {
+                      if (!window.confirm(`¿Eliminar "${meal.name}" del menú?`)) return
+                      setMeals((current) => current.filter((_, mealIndex) => mealIndex !== index))
+                      setMessage('')
+                    }}
+                  ><Trash2 size={16} /> Eliminar</button>
                 </div>
               </article>
             ))}
