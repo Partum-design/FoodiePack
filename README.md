@@ -1,9 +1,10 @@
 # FoodiePack
 
-Aplicación de pedidos para una dark kitchen con dos procesos independientes:
+Aplicación de pedidos para una dark kitchen:
 
 - `web`: tienda React/Vite para clientes.
 - `api`: servidor Express para menús, pedidos y acceso administrativo.
+- Supabase: persistencia de menús y pedidos en PostgreSQL.
 
 La tienda permite pedir para mañana o armar un plan semanal (hasta 5 días disponibles). El servidor únicamente acepta pedidos entre las 8:00 y las 18:00, usando siempre la zona horaria `America/Mexico_City`. Si el plan cubre los 5 días y el cliente elige pagar por adelantado, se aplica 12% de descuento sobre la comida; el envío se cobra por día entregado.
 
@@ -29,32 +30,42 @@ http://localhost:5173/gestion-cocina
 Copia `.env.example` a `.env` y cambia todos los secretos antes de desplegar:
 
 ```env
-VITE_API_URL=https://api.tu-dominio.com/api
+VITE_API_URL=/api
 PORT=8787
 WEB_ORIGIN=https://tu-dominio.com
 ADMIN_PASSWORD=una-contraseña-larga
 JWT_SECRET=un-secreto-aleatorio-de-al-menos-32-caracteres
+SUPABASE_URL=https://icyjsedrzwruihrveyay.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=tu-clave-service-role-de-supabase
 ```
 
-`VITE_API_URL` se incorpora al compilar la web. `WEB_ORIGIN` limita qué dominio puede llamar directamente a la API.
+`VITE_API_URL` se incorpora al compilar la web. `WEB_ORIGIN` limita qué dominio puede llamar directamente a la API. La clave `SUPABASE_SERVICE_ROLE_KEY` solo se usa en el servidor y nunca debe comenzar con `VITE_` ni llegar al navegador.
 
-## Despliegue separado
+## Supabase
 
-Web:
+La migración en `supabase/migrations/` crea las tablas `menu_days` y `orders`, activa RLS y deja el acceso exclusivamente para `service_role`. Con la CLI de Supabase autenticada:
 
 ```bash
-VITE_API_URL=https://api.tu-dominio.com/api npm run build
+npx supabase@latest link --project-ref icyjsedrzwruihrveyay
+npx supabase@latest db push
 ```
 
-Publica la carpeta `dist` en el hosting web.
+También puedes ejecutar el SQL de la migración desde el SQL Editor de Supabase si no tienes la CLI autenticada.
 
-Servidor:
+## Vercel
 
 ```bash
-NODE_ENV=production npm run start:api
+npx vercel link --yes --project foodiepack --scope partum-designs-projects
+npx vercel env add SUPABASE_URL production
+npx vercel env add SUPABASE_SERVICE_ROLE_KEY production --sensitive
+npx vercel env add ADMIN_PASSWORD production --sensitive
+npx vercel env add JWT_SECRET production --sensitive
+npx vercel --prod
 ```
 
-El servidor guarda menús y pedidos en `server/data/runtime.json`. En producción debes montar `server/data` en un volumen persistente o sustituir este almacenamiento por una base de datos antes de usar múltiples instancias.
+`vercel.json` configura Vite con salida `dist`, sirve el API Express en `/api` y conserva la ruta SPA `/gestion-cocina`. Para previews, agrega las mismas variables en el entorno `preview`.
+
+La web y el API se despliegan juntos en el proyecto Vercel `foodiepack`; no se debe usar `server/data/runtime.json` en producción.
 
 ## Seguridad y validación
 
@@ -68,4 +79,5 @@ El servidor guarda menús y pedidos en `server/data/runtime.json`. En producció
 
 ```bash
 npm run check
+npm run lint
 ```

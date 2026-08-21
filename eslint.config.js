@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', 'graphify-out'] },
+  { ignores: ['dist', 'graphify-out', '.vercel'] },
   {
     files: ['**/*.{js,mjs,cjs,ts,tsx}'],
     extends: [js.configs.recommended],
@@ -27,7 +27,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['server/**/*.js', 'vite.config.ts'],
+    files: ['api/**/*.js', 'server/**/*.js', 'vite.config.ts'],
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.node,

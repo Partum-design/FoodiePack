@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "vite",
     "dev:api": "node --watch server/index.js",
@@ -16,6 +19,7 @@
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.6",
     "@fontsource/fredoka": "^5.2.6",
+    "@supabase/supabase-js": "2.112.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
