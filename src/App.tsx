@@ -798,6 +798,7 @@ function App() {
       {checkoutOpen && <button className="modal-backdrop" aria-label="Cerrar" onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }} />}
       {checkoutOpen && (
         <section className="checkout-dialog" role="dialog" aria-modal="true" aria-label="Confirmar pedido">
+          <div className="sheet-handle" aria-hidden="true" />
           <button className="dialog-close" onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }} aria-label="Cerrar"><X size={20} /></button>
           {order ? (
             <div className="order-confirmed">
