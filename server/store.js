@@ -1,11 +1,26 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createClient } from '@supabase/supabase-js'
 import { addDays, orderPolicy } from './time.js'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 const dataDirectory = path.join(root, 'data')
 const databasePath = path.join(dataDirectory, 'runtime.json')
+const menuTable = 'menu_days'
+const orderTable = 'orders'
+
+const supabaseUrl = process.env.SUPABASE_URL || ''
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+const supabase = supabaseUrl && supabaseServiceRoleKey
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  : null
+
+if (process.env.NODE_ENV === 'production' && !supabase) {
+  throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required in production')
+}
 
 export const mealImages = [
   '/assets/meals/pollo-citrico.jpg',
@@ -87,7 +102,7 @@ function seedMenus(database) {
   return database
 }
 
-function ensureDatabase() {
+function ensureLocalDatabase() {
   fs.mkdirSync(dataDirectory, { recursive: true })
   let database = { menus: {}, orders: [] }
 
@@ -102,17 +117,138 @@ function ensureDatabase() {
   database.menus ||= {}
   database.orders ||= []
   seedMenus(database)
-  writeDatabase(database)
+  writeLocalDatabase(database)
   return database
 }
 
-export function readDatabase() {
-  return ensureDatabase()
-}
-
-export function writeDatabase(database) {
+function writeLocalDatabase(database) {
   fs.mkdirSync(dataDirectory, { recursive: true })
   const temporaryPath = `${databasePath}.tmp`
   fs.writeFileSync(temporaryPath, JSON.stringify(database, null, 2))
   fs.renameSync(temporaryPath, databasePath)
+}
+
+function throwIfSupabaseError(operation, error) {
+  if (error) throw new Error(`Supabase ${operation} failed: ${error.message}`)
+}
+
+function orderFromRow(row) {
+  return {
+    id: row.id,
+    createdAt: row.created_at,
+    deliveryDate: row.delivery_date,
+    status: row.status,
+    paymentMethod: row.payment_method,
+    isWeeklyPlan: row.is_weekly_plan,
+    customer: row.customer,
+    delivery: row.delivery,
+    items: row.items,
+    subtotal: row.subtotal,
+    deliveryFee: row.delivery_fee,
+    discountRate: Number(row.discount_rate),
+    discountAmount: row.discount_amount,
+    total: row.total,
+  }
+}
+
+async function getSupabaseMenus() {
+  const { data: rows, error } = await supabase
+    .from(menuTable)
+    .select('menu_date, meals')
+    .order('menu_date', { ascending: true })
+  throwIfSupabaseError('menu lookup', error)
+
+  const menus = Object.fromEntries((rows || []).map((row) => [row.menu_date, row.meals || []]))
+  const { today } = orderPolicy()
+  const missingRows = []
+
+  for (let offset = 1; offset <= 10; offset += 1) {
+    const date = addDays(today, offset)
+    if (!menus[date]) {
+      const meals = Array.from({ length: 3 }, (_, index) => {
+        const template = mealTemplates[(offset + index) % mealTemplates.length]
+        return { ...template }
+      })
+      menus[date] = meals
+      missingRows.push({ menu_date: date, meals })
+    }
+  }
+
+  if (missingRows.length > 0) {
+    const { error: seedError } = await supabase
+      .from(menuTable)
+      .upsert(missingRows, { onConflict: 'menu_date', ignoreDuplicates: true })
+    throwIfSupabaseError('menu seed', seedError)
+  }
+
+  return menus
+}
+
+export function storageMode() {
+  return supabase ? 'supabase' : 'local'
+}
+
+export async function getMenus() {
+  if (!supabase) return ensureLocalDatabase().menus
+  return getSupabaseMenus()
+}
+
+export async function getMenu(date) {
+  const menus = await getMenus()
+  return menus[date] || []
+}
+
+export async function saveMenu(date, meals) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    database.menus[date] = meals
+    writeLocalDatabase(database)
+    return meals
+  }
+
+  const { error } = await supabase
+    .from(menuTable)
+    .upsert({ menu_date: date, meals, updated_at: new Date().toISOString() }, { onConflict: 'menu_date' })
+  throwIfSupabaseError('menu save', error)
+  return meals
+}
+
+export async function saveOrder(order) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    database.orders.unshift(order)
+    writeLocalDatabase(database)
+    return order
+  }
+
+  const { error } = await supabase.from(orderTable).insert({
+    id: order.id,
+    created_at: order.createdAt,
+    delivery_date: order.deliveryDate,
+    status: order.status,
+    payment_method: order.paymentMethod,
+    is_weekly_plan: order.isWeeklyPlan,
+    customer: order.customer,
+    delivery: order.delivery,
+    items: order.items,
+    subtotal: order.subtotal,
+    delivery_fee: order.deliveryFee,
+    discount_rate: order.discountRate,
+    discount_amount: order.discountAmount,
+    total: order.total,
+  })
+  throwIfSupabaseError('order save', error)
+  return order
+}
+
+export async function getOrders(limit = 200) {
+  if (!supabase) return ensureLocalDatabase().orders.slice(0, limit)
+
+  const { data: rows, error } = await supabase
+    .from(orderTable)
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  throwIfSupabaseError('order lookup', error)
+  return (rows || []).map(orderFromRow)
 }

@@ -1,11 +1,12 @@
 import 'dotenv/config'
 import crypto from 'node:crypto'
+import { pathToFileURL } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import helmet from 'helmet'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
-import { readDatabase, writeDatabase } from './store.js'
+import { getMenu, getMenus, getOrders, saveMenu, saveOrder, storageMode } from './store.js'
 import { addDays, orderPolicy } from './time.js'
 
 const app = express()
@@ -13,9 +14,13 @@ const port = Number(process.env.PORT || 8787)
 const isProduction = process.env.NODE_ENV === 'production'
 const adminPassword = process.env.ADMIN_PASSWORD || (isProduction ? '' : 'foodiepack-local')
 const jwtSecret = process.env.JWT_SECRET || (isProduction ? '' : 'local-secret-change-before-deploying')
-const allowedOrigins = (process.env.WEB_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
+const configuredOrigins = (process.env.WEB_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((origin) => origin.trim())
+const deployedOrigins = [process.env.VERCEL_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL]
+  .filter(Boolean)
+  .map((origin) => origin.startsWith('http') ? origin : `https://${origin}`)
+const allowedOrigins = [...new Set([...configuredOrigins, ...deployedOrigins])]
 const deliveryZone = 'Lindavista, CDMX'
 const DELIVERY_FEE_PER_DAY = 29
 const WEEKLY_PLAN_DAYS = 5
@@ -103,35 +108,35 @@ function requireAdmin(request, response, next) {
 }
 
 app.get('/api/health', (_request, response) => {
-  response.json({ ok: true, service: 'foodiepack-api', policy: orderPolicy() })
+  response.json({ ok: true, service: 'foodiepack-api', storage: storageMode(), policy: orderPolicy() })
 })
 
-app.get('/api/menu', (request, response) => {
+app.get('/api/menu', async (request, response) => {
   const policy = orderPolicy()
   const date = typeof request.query.date === 'string' ? request.query.date : policy.tomorrow
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return response.status(400).json({ error: 'Fecha inválida' })
 
   const eligibleDates = Array.from({ length: WEEKLY_PLAN_DAYS }, (_, index) => addDays(policy.tomorrow, index))
-  const database = readDatabase()
+  const meals = await getMenu(date)
   response.json({
     date,
-    meals: database.menus[date] || [],
+    meals,
     canOrder: eligibleDates.includes(date) && policy.isOpen,
     policy,
   })
 })
 
-app.get('/api/menu-days', (_request, response) => {
+app.get('/api/menu-days', async (_request, response) => {
   const policy = orderPolicy()
-  const database = readDatabase()
-  const days = Array.from({ length: 5 }, (_, index) => {
-    const date = addDays(policy.today, index + 1)
-    return { date, mealCount: (database.menus[date] || []).filter((meal) => meal.available).length }
+  const dates = Array.from({ length: WEEKLY_PLAN_DAYS }, (_, index) => addDays(policy.today, index + 1))
+  const menus = await getMenus()
+  const days = dates.map((date) => {
+    return { date, mealCount: (menus[date] || []).filter((meal) => meal.available).length }
   })
   response.json({ days, policy })
 })
 
-app.post('/api/orders', (request, response) => {
+app.post('/api/orders', async (request, response) => {
   const parsed = orderSchema.safeParse(request.body)
   if (!parsed.success) return response.status(400).json({ error: 'Revisa los datos del pedido' })
 
@@ -148,13 +153,13 @@ app.post('/api/orders', (request, response) => {
     return response.status(409).json({ error: 'Solo puedes reservar comida dentro de los próximos 5 días disponibles.', policy })
   }
 
-  const database = readDatabase()
+  const menus = await getMenus()
   let subtotal = 0
   const items = []
   const datesOrdered = new Set()
 
   for (const requestedItem of parsed.data.items) {
-    const menu = database.menus[requestedItem.date] || []
+    const menu = menus[requestedItem.date] || []
     const meal = menu.find((candidate) => candidate.id === requestedItem.mealId && candidate.available)
     if (!meal) return response.status(409).json({ error: 'Uno de los platillos ya no está disponible.' })
     subtotal += meal.price * requestedItem.quantity
@@ -168,7 +173,7 @@ app.post('/api/orders', (request, response) => {
   const deliveryFee = DELIVERY_FEE_PER_DAY * datesOrdered.size
 
   const order = {
-    id: `FP-${Date.now().toString().slice(-7)}`,
+    id: `FP-${crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`,
     createdAt: new Date().toISOString(),
     deliveryDate: policy.tomorrow,
     status: 'accepted',
@@ -189,8 +194,7 @@ app.post('/api/orders', (request, response) => {
     discountAmount,
     total: subtotal - discountAmount + deliveryFee,
   }
-  database.orders.unshift(order)
-  writeDatabase(database)
+  await saveOrder(order)
   response.status(201).json({ order })
 })
 
@@ -215,25 +219,23 @@ app.post('/api/admin/login', (request, response) => {
   response.json({ token })
 })
 
-app.get('/api/admin/menu/:date', requireAdmin, (request, response) => {
+app.get('/api/admin/menu/:date', requireAdmin, async (request, response) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(request.params.date)) return response.status(400).json({ error: 'Fecha inválida' })
-  const database = readDatabase()
-  response.json({ date: request.params.date, meals: database.menus[request.params.date] || [] })
+  const meals = await getMenu(request.params.date)
+  response.json({ date: request.params.date, meals })
 })
 
-app.put('/api/admin/menu/:date', requireAdmin, (request, response) => {
+app.put('/api/admin/menu/:date', requireAdmin, async (request, response) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(request.params.date)) return response.status(400).json({ error: 'Fecha inválida' })
   const parsed = menuSchema.safeParse(request.body)
   if (!parsed.success) return response.status(400).json({ error: 'El menú contiene datos inválidos' })
-  const database = readDatabase()
-  database.menus[request.params.date] = parsed.data.meals
-  writeDatabase(database)
-  response.json({ date: request.params.date, meals: database.menus[request.params.date] })
+  const meals = await saveMenu(request.params.date, parsed.data.meals)
+  response.json({ date: request.params.date, meals })
 })
 
-app.get('/api/admin/orders', requireAdmin, (_request, response) => {
-  const database = readDatabase()
-  response.json({ orders: database.orders.slice(0, 200) })
+app.get('/api/admin/orders', requireAdmin, async (_request, response) => {
+  const orders = await getOrders()
+  response.json({ orders })
 })
 
 app.use((error, _request, response, _next) => {
@@ -241,9 +243,15 @@ app.use((error, _request, response, _next) => {
   response.status(500).json({ error: 'El servidor no pudo completar la operación' })
 })
 
-app.listen(port, () => {
-  console.log(`FoodiePack API listening on http://localhost:${port}`)
-  if (!isProduction && process.env.ADMIN_PASSWORD === undefined) {
-    console.log('Local admin password: foodiepack-local')
-  }
-})
+const isDirectExecution = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url
+
+if (isDirectExecution) {
+  app.listen(port, () => {
+    console.log(`FoodiePack API listening on http://localhost:${port}`)
+    if (!isProduction && process.env.ADMIN_PASSWORD === undefined) {
+      console.log('Local admin password: foodiepack-local')
+    }
+  })
+}
+
+export default app
