@@ -4,6 +4,7 @@ import {
   Loader2, LogOut, MapPin, PackageOpen, Plus, Receipt, Save, ShoppingBag, Trash2, UtensilsCrossed,
 } from 'lucide-react'
 import { adminLogin, getAdminMenu, getAdminOrders, getMenuDays, saveAdminMenu } from './api'
+import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
 import type { Meal, MenuDay, SavedOrder } from './types'
 
@@ -30,24 +31,6 @@ function shortDay(date: string) {
 function longDate(date: string) {
   const value = new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }).format(dateFromKey(date))
   return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
-function FloatingDecor() {
-  return (
-    <div className="admin-decor" aria-hidden="true">
-      <span className="admin-decor__shape admin-decor__shape--1" />
-      <span className="admin-decor__shape admin-decor__shape--2" />
-      <span className="admin-decor__shape admin-decor__shape--3" />
-      <svg className="admin-decor__sprout admin-decor__sprout--1" viewBox="0 0 40 34">
-        <path d="M20 33C20 33 20 20 8 14 2 11 0 4 0 4c0 0 9-2 15 4 5 5 5 12 5 12" />
-        <path d="M20 33C20 33 20 18 32 12 38 9 40 2 40 2c0 0-9-2-15 4-5 5-5 12-5 12" />
-      </svg>
-      <svg className="admin-decor__sprout admin-decor__sprout--2" viewBox="0 0 40 34">
-        <path d="M20 33C20 33 20 20 8 14 2 11 0 4 0 4c0 0 9-2 15 4 5 5 5 12 5 12" />
-        <path d="M20 33C20 33 20 18 32 12 38 9 40 2 40 2c0 0-9-2-15 4-5 5-5 12-5 12" />
-      </svg>
-    </div>
-  )
 }
 
 function Login({ onSuccess }: { onSuccess: (token: string) => void }) {

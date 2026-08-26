@@ -4,6 +4,7 @@ import {
   MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
 } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
+import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
 import type { CartItem, Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
 
@@ -94,8 +95,9 @@ function useReveal<T extends HTMLElement>() {
 function BrandPreloader() {
   return (
     <div className="brand-preloader" role="status" aria-label="Cargando FoodiePack">
+      <FloatingDecor />
       <div className="brand-preloader__lockup">
-        <Logo />
+        <Logo hero theme="white" />
         <p>Tu cocina en la oficina</p>
         <span aria-hidden="true"><i /></span>
       </div>
@@ -625,6 +627,7 @@ function App() {
       </header>
 
       <section className="brand-landing" aria-labelledby="landing-title">
+        <FloatingDecor />
         <div className="brand-landing__inner">
           <div className="brand-landing__copy">
             <p>FoodiePack · Lindavista</p>
