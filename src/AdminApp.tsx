@@ -1,5 +1,8 @@
-import { FormEvent, useEffect, useState } from 'react'
-import { ArrowLeft, Banknote, Check, CreditCard, Eye, EyeOff, Loader2, LogOut, MapPin, Plus, Save, Trash2 } from 'lucide-react'
+import { CSSProperties, FormEvent, useEffect, useState } from 'react'
+import {
+  ArrowLeft, Banknote, Check, CheckCircle2, ClipboardList, CreditCard, Eye, EyeOff,
+  Loader2, LogOut, MapPin, PackageOpen, Plus, Receipt, Save, ShoppingBag, Trash2, UtensilsCrossed,
+} from 'lucide-react'
 import { adminLogin, getAdminMenu, getAdminOrders, getMenuDays, saveAdminMenu } from './api'
 import Logo from './components/Logo'
 import type { Meal, MenuDay, SavedOrder } from './types'
@@ -29,6 +32,24 @@ function longDate(date: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+function FloatingDecor() {
+  return (
+    <div className="admin-decor" aria-hidden="true">
+      <span className="admin-decor__shape admin-decor__shape--1" />
+      <span className="admin-decor__shape admin-decor__shape--2" />
+      <span className="admin-decor__shape admin-decor__shape--3" />
+      <svg className="admin-decor__sprout admin-decor__sprout--1" viewBox="0 0 40 34">
+        <path d="M20 33C20 33 20 20 8 14 2 11 0 4 0 4c0 0 9-2 15 4 5 5 5 12 5 12" />
+        <path d="M20 33C20 33 20 18 32 12 38 9 40 2 40 2c0 0-9-2-15 4-5 5-5 12-5 12" />
+      </svg>
+      <svg className="admin-decor__sprout admin-decor__sprout--2" viewBox="0 0 40 34">
+        <path d="M20 33C20 33 20 20 8 14 2 11 0 4 0 4c0 0 9-2 15 4 5 5 5 12 5 12" />
+        <path d="M20 33C20 33 20 18 32 12 38 9 40 2 40 2c0 0-9-2-15 4-5 5-5 12-5 12" />
+      </svg>
+    </div>
+  )
+}
+
 function Login({ onSuccess }: { onSuccess: (token: string) => void }) {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -52,8 +73,9 @@ function Login({ onSuccess }: { onSuccess: (token: string) => void }) {
 
   return (
     <main className="admin-login">
+      <FloatingDecor />
       <section>
-        <Logo />
+        <Logo hero />
         <p>Acceso de cocina</p>
         <h1>Administración</h1>
         <form onSubmit={submit}>
@@ -162,13 +184,16 @@ function AdminApp() {
     }
   }
 
+  const availableCount = meals.filter((meal) => meal.available).length
+  const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
+
   return (
     <div className="admin-shell">
       <aside className="admin-nav">
         <Logo compact />
         <div>
-          <button className={tab === 'menu' ? 'selected' : ''} onClick={() => setTab('menu')}>Menús</button>
-          <button className={tab === 'orders' ? 'selected' : ''} onClick={() => setTab('orders')}>Pedidos</button>
+          <button className={tab === 'menu' ? 'selected' : ''} onClick={() => setTab('menu')}><ClipboardList size={15} /> Menús</button>
+          <button className={tab === 'orders' ? 'selected' : ''} onClick={() => setTab('orders')}><ShoppingBag size={15} /> Pedidos</button>
         </div>
         <button className="logout-button" onClick={logout}><LogOut size={15} /> Salir</button>
       </aside>
@@ -184,15 +209,23 @@ function AdminApp() {
             </div>
           </header>
 
+          <div className="admin-stats">
+            <div className="admin-stat"><UtensilsCrossed size={20} /><span><b>{meals.length}</b>Platillos hoy</span></div>
+            <div className="admin-stat admin-stat--accent"><CheckCircle2 size={20} /><span><b>{availableCount}</b>Disponibles</span></div>
+          </div>
+
           <div className="admin-date-strip">
             {days.map((day, index) => <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}><span>{index === 0 ? 'Mañana' : shortDay(day.date)}</span><strong>{dateFromKey(day.date).getDate()}</strong></button>)}
           </div>
 
           {error && <div className="inline-error">{error}</div>}
           <div className="editor-list">
-            {loading && <div className="admin-loading">Cargando menú…</div>}
+            {loading && <div className="admin-loading"><Loader2 size={22} className="spin" /> Cargando menú…</div>}
+            {!loading && meals.length === 0 && (
+              <div className="admin-empty"><UtensilsCrossed size={26} /><strong>Aún no hay platillos</strong>Agrega el primero para este día.</div>
+            )}
             {!loading && meals.map((meal, index) => (
-              <article className="editor-row" key={meal.id}>
+              <article className="editor-row" key={meal.id} style={{ '--i': index } as CSSProperties}>
                 <div className="editor-photo" style={{ backgroundImage: `url(${meal.image})` }} />
                 <div className="editor-fields">
                   <label>Nombre<input value={meal.name} onChange={(event) => updateMeal(index, 'name', event.target.value)} /></label>
@@ -219,11 +252,18 @@ function AdminApp() {
           </div>
         </> : <>
           <header className="admin-page-head"><div><p>Operación</p><h1>Pedidos</h1><span>Aquí llegan los pedidos aceptados.</span></div></header>
+
+          <div className="admin-stats">
+            <div className="admin-stat"><ShoppingBag size={20} /><span><b>{orders.length}</b>Pedidos</span></div>
+            <div className="admin-stat admin-stat--accent"><Receipt size={20} /><span><b>{money(totalRevenue)}</b>Ingresos</span></div>
+          </div>
+
           {error && <div className="inline-error">{error}</div>}
+          {loading && <div className="admin-loading"><Loader2 size={22} className="spin" /> Cargando pedidos…</div>}
           <div className="orders-table">
             <div className="orders-table__head"><span>Pedido</span><span>Entrega</span><span>Cliente</span><span>Dirección</span><span>Productos</span><span>Pago</span><span>Total</span><span>Estado</span></div>
-            {orders.map((order) => (
-              <div className="orders-table__row" key={order.id}>
+            {!loading && orders.map((order, index) => (
+              <div className="orders-table__row" key={order.id} style={{ '--i': index } as CSSProperties}>
                 <strong>{order.id}{order.isWeeklyPlan && <em className="plan-badge">Plan semanal</em>}</strong>
                 <span>{longDate(order.deliveryDate)}</span>
                 <span>{order.customer.name}</span>
@@ -235,10 +275,12 @@ function AdminApp() {
                 <span>{order.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
                 <span className="order-payment">{order.paymentMethod === 'card' ? <CreditCard size={13} /> : <Banknote size={13} />} {order.paymentMethod === 'card' ? 'Tarjeta' : 'Efectivo'}</span>
                 <strong>{money(order.total)}{order.discountAmount > 0 && <small className="order-discount">-{money(order.discountAmount)}</small>}</strong>
-                <b>{order.status === 'accepted' ? 'Aceptado' : 'Confirmado'}</b>
+                <b className={order.status === 'accepted' ? '' : 'status-confirmed'}>{order.status === 'accepted' ? 'Aceptado' : 'Confirmado'}</b>
               </div>
             ))}
-            {!loading && orders.length === 0 && <div className="admin-empty">Todavía no hay pedidos confirmados.</div>}
+            {!loading && orders.length === 0 && (
+              <div className="admin-empty"><PackageOpen size={26} /><strong>Todavía no hay pedidos</strong>Aquí aparecerán en cuanto lleguen.</div>
+            )}
           </div>
         </>}
       </main>
