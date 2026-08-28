@@ -22,8 +22,10 @@ La tienda abre en `http://localhost:5173` y la API en `http://localhost:8787`. E
 La administración no aparece enlazada en la tienda. El operador entra directamente en:
 
 ```text
-http://localhost:5173/gestion-cocina
+http://localhost:5173/admin
 ```
+
+(el alias `/gestion-cocina` se mantiene por compatibilidad).
 
 ## Variables de entorno
 

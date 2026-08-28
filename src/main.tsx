@@ -11,7 +11,8 @@ import './styles.css'
 import App from './App'
 
 const AdminApp = lazy(() => import('./AdminApp'))
-const isAdminRoute = window.location.pathname.replace(/\/$/, '') === '/gestion-cocina'
+const currentPath = window.location.pathname.replace(/\/$/, '')
+const isAdminRoute = currentPath === '/admin' || currentPath === '/gestion-cocina'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
