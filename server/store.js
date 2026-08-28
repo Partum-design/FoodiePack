@@ -7,8 +7,11 @@ import { addDays, orderPolicy } from './time.js'
 const root = path.dirname(fileURLToPath(import.meta.url))
 const dataDirectory = path.join(root, 'data')
 const databasePath = path.join(dataDirectory, 'runtime.json')
+const uploadsDirectory = path.join(root, '..', 'public', 'assets', 'uploads')
 const menuTable = 'menu_days'
 const orderTable = 'orders'
+const productTable = 'products'
+const productImageBucket = 'product-images'
 
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -104,18 +107,22 @@ function seedMenus(database) {
 
 function ensureLocalDatabase() {
   fs.mkdirSync(dataDirectory, { recursive: true })
-  let database = { menus: {}, orders: [] }
+  let database = { menus: {}, orders: [], products: [] }
 
   if (fs.existsSync(databasePath)) {
     try {
       database = JSON.parse(fs.readFileSync(databasePath, 'utf8'))
     } catch {
-      database = { menus: {}, orders: [] }
+      database = { menus: {}, orders: [], products: [] }
     }
   }
 
   database.menus ||= {}
   database.orders ||= []
+  database.products ||= []
+  if (database.products.length === 0) {
+    database.products = mealTemplates.map((template) => ({ ...template }))
+  }
   seedMenus(database)
   writeLocalDatabase(database)
   return database
@@ -251,4 +258,117 @@ export async function getOrders(limit = 200) {
     .limit(limit)
   throwIfSupabaseError('order lookup', error)
   return (rows || []).map(orderFromRow)
+}
+
+function productFromRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    price: row.price,
+    protein: row.protein,
+    kcal: row.kcal,
+    tags: row.tags || [],
+    image: row.image,
+    available: row.available,
+  }
+}
+
+function productToRow(product) {
+  return {
+    id: product.id,
+    name: product.name,
+    description: product.description,
+    price: product.price,
+    protein: product.protein,
+    kcal: product.kcal,
+    tags: product.tags,
+    image: product.image,
+    available: product.available,
+  }
+}
+
+async function getSupabaseProducts() {
+  const { data: rows, error } = await supabase
+    .from(productTable)
+    .select('*')
+    .order('created_at', { ascending: true })
+  throwIfSupabaseError('product lookup', error)
+
+  if (!rows || rows.length === 0) {
+    const seedRows = mealTemplates.map((template) => ({ ...template }))
+    const { error: seedError } = await supabase
+      .from(productTable)
+      .upsert(seedRows, { onConflict: 'id', ignoreDuplicates: true })
+    throwIfSupabaseError('product seed', seedError)
+    return seedRows
+  }
+  return rows.map(productFromRow)
+}
+
+export async function getProducts() {
+  if (!supabase) return ensureLocalDatabase().products
+  return getSupabaseProducts()
+}
+
+export async function createProduct(product) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    database.products.push(product)
+    writeLocalDatabase(database)
+    return product
+  }
+
+  const { error } = await supabase.from(productTable).insert(productToRow(product))
+  throwIfSupabaseError('product create', error)
+  return product
+}
+
+export async function updateProduct(id, patch) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    const index = database.products.findIndex((item) => item.id === id)
+    if (index === -1) return null
+    database.products[index] = { ...database.products[index], ...patch, id }
+    writeLocalDatabase(database)
+    return database.products[index]
+  }
+
+  const { data, error } = await supabase
+    .from(productTable)
+    .update(productToRow({ ...patch, id }))
+    .eq('id', id)
+    .select()
+    .maybeSingle()
+  throwIfSupabaseError('product update', error)
+  return data ? productFromRow(data) : null
+}
+
+export async function deleteProduct(id) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    const before = database.products.length
+    database.products = database.products.filter((item) => item.id !== id)
+    writeLocalDatabase(database)
+    return database.products.length < before
+  }
+
+  const { data, error } = await supabase.from(productTable).delete().eq('id', id).select()
+  throwIfSupabaseError('product delete', error)
+  return (data || []).length > 0
+}
+
+export async function uploadProductImage(buffer, fileName, contentType) {
+  if (!supabase) {
+    fs.mkdirSync(uploadsDirectory, { recursive: true })
+    fs.writeFileSync(path.join(uploadsDirectory, fileName), buffer)
+    return `/assets/uploads/${fileName}`
+  }
+
+  const { error } = await supabase.storage
+    .from(productImageBucket)
+    .upload(fileName, buffer, { contentType, upsert: true })
+  throwIfSupabaseError('image upload', error)
+  const { data } = supabase.storage.from(productImageBucket).getPublicUrl(fileName)
+  return data.publicUrl
 }

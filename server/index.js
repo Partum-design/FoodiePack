@@ -6,8 +6,12 @@ import express from 'express'
 import helmet from 'helmet'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
-import { getMenu, getMenus, getOrders, saveMenu, saveOrder, storageMode } from './store.js'
+import {
+  createProduct, deleteProduct, getMenu, getMenus, getOrders, getProducts,
+  saveMenu, saveOrder, storageMode, updateProduct, uploadProductImage,
+} from './store.js'
 import { addDays, orderPolicy } from './time.js'
+import { PACKAGES, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS } from './packages.js'
 
 const app = express()
 const port = Number(process.env.PORT || 8787)
@@ -22,9 +26,6 @@ const deployedOrigins = [process.env.VERCEL_URL, process.env.VERCEL_PROJECT_PROD
   .map((origin) => origin.startsWith('http') ? origin : `https://${origin}`)
 const allowedOrigins = [...new Set([...configuredOrigins, ...deployedOrigins])]
 const deliveryZone = 'Lindavista, CDMX'
-const DELIVERY_FEE_PER_DAY = 29
-const WEEKLY_PLAN_DAYS = 5
-const WEEKLY_PLAN_DISCOUNT_RATE = 0.12
 
 if (!adminPassword || !jwtSecret) {
   throw new Error('ADMIN_PASSWORD and JWT_SECRET are required in production')
@@ -39,7 +40,7 @@ app.use(cors({
     return callback(new Error('Origin not allowed'))
   },
 }))
-app.use(express.json({ limit: '64kb' }))
+app.use(express.json({ limit: '4mb' }))
 
 const loginAttempts = new Map()
 const loginSchema = z.object({ password: z.string().min(8).max(200) })
@@ -61,13 +62,13 @@ const deliverySchema = z.object({
 const orderSchema = z.object({
   customer: customerSchema,
   delivery: deliverySchema,
-  paymentMethod: z.enum(['card', 'cash']),
-  isWeeklyPlan: z.boolean().optional().default(false),
-  items: z.array(z.object({
-    mealId: z.string().min(1).max(100),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    quantity: z.number().int().min(1).max(10),
-  })).min(1).max(50),
+  paymentMethod: z.enum(['card', 'cash', 'transfer']),
+  orderMode: z.enum(['day', 'week']),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  packageTier: z.enum(['economico', 'ejecutivo', 'completo']),
+  quantity: z.number().int().min(1).max(10),
+  repeatGuisado: z.boolean().optional().default(false),
+  prepay: z.boolean().optional().default(false),
 })
 const mealSchema = z.object({
   id: z.string().min(1).max(100),
@@ -81,6 +82,21 @@ const mealSchema = z.object({
   available: z.boolean(),
 })
 const menuSchema = z.object({ meals: z.array(mealSchema).max(20) })
+const productSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  description: z.string().trim().min(3).max(240),
+  price: z.number().int().min(1).max(5000),
+  protein: z.number().int().min(0).max(300),
+  kcal: z.number().int().min(0).max(3000),
+  tags: z.array(z.string().trim().min(1).max(40)).max(4),
+  image: z.string().min(1).max(300).default('/assets/meals/pollo-citrico.jpg'),
+  available: z.boolean().default(true),
+})
+const uploadSchema = z.object({
+  fileBase64: z.string().min(1),
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+})
+const MAX_UPLOAD_BYTES = 3_500_000
 
 function googleMapsUrl(delivery) {
   const query = delivery.coordinates
@@ -149,36 +165,32 @@ app.post('/api/orders', async (request, response) => {
   }
 
   const eligibleDates = Array.from({ length: WEEKLY_PLAN_DAYS }, (_, index) => addDays(policy.tomorrow, index))
-  if (parsed.data.items.some((item) => !eligibleDates.includes(item.date))) {
-    return response.status(409).json({ error: 'Solo puedes reservar comida dentro de los próximos 5 días disponibles.', policy })
+  if (!eligibleDates.includes(parsed.data.date)) {
+    return response.status(409).json({ error: 'Solo puedes reservar dentro de los próximos 5 días disponibles.', policy })
   }
 
-  const menus = await getMenus()
-  let subtotal = 0
-  const items = []
-  const datesOrdered = new Set()
+  const { orderMode, packageTier, quantity, repeatGuisado, prepay } = parsed.data
+  const pack = PACKAGES[packageTier]
+  const canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
 
-  for (const requestedItem of parsed.data.items) {
-    const menu = menus[requestedItem.date] || []
-    const meal = menu.find((candidate) => candidate.id === requestedItem.mealId && candidate.available)
-    if (!meal) return response.status(409).json({ error: 'Uno de los platillos ya no está disponible.' })
-    subtotal += meal.price * requestedItem.quantity
-    items.push({ ...requestedItem, name: meal.name, unitPrice: meal.price })
-    datesOrdered.add(requestedItem.date)
+  let subtotal
+  let discountAmount = 0
+  if (orderMode === 'week') {
+    subtotal = pack.weeklyRegular * quantity
+    discountAmount = prepay ? (pack.weeklyRegular - pack.weeklyPrepay) * quantity : 0
+  } else {
+    subtotal = pack.dailyPrice * quantity + (canRepeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0)
   }
-
-  const isFullWeekPlan = parsed.data.isWeeklyPlan && eligibleDates.every((date) => datesOrdered.has(date))
-  const discountRate = isFullWeekPlan ? WEEKLY_PLAN_DISCOUNT_RATE : 0
-  const discountAmount = Math.round(subtotal * discountRate)
-  const deliveryFee = DELIVERY_FEE_PER_DAY * datesOrdered.size
+  const discountRate = subtotal > 0 ? Number((discountAmount / subtotal).toFixed(4)) : 0
+  const total = subtotal - discountAmount
 
   const order = {
     id: `FP-${crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`,
     createdAt: new Date().toISOString(),
-    deliveryDate: policy.tomorrow,
+    deliveryDate: orderMode === 'week' ? policy.tomorrow : parsed.data.date,
     status: 'accepted',
     paymentMethod: parsed.data.paymentMethod,
-    isWeeklyPlan: isFullWeekPlan,
+    isWeeklyPlan: orderMode === 'week',
     customer: parsed.data.customer,
     delivery: {
       zone: deliveryZone,
@@ -187,12 +199,19 @@ app.post('/api/orders', async (request, response) => {
       mapUrl: googleMapsUrl(parsed.data.delivery),
       ...(parsed.data.delivery.coordinates ? { coordinates: parsed.data.delivery.coordinates } : {}),
     },
-    items,
+    items: [{
+      packageTier,
+      packageLabel: pack.label,
+      quantity,
+      unitPrice: orderMode === 'week' ? (prepay ? pack.weeklyPrepay : pack.weeklyRegular) : pack.dailyPrice,
+      repeatGuisado: canRepeatGuisado,
+      prepay: orderMode === 'week' && prepay,
+    }],
     subtotal,
-    deliveryFee,
+    deliveryFee: 0,
     discountRate,
     discountAmount,
-    total: subtotal - discountAmount + deliveryFee,
+    total,
   }
   await saveOrder(order)
   response.status(201).json({ order })
@@ -236,6 +255,46 @@ app.put('/api/admin/menu/:date', requireAdmin, async (request, response) => {
 app.get('/api/admin/orders', requireAdmin, async (_request, response) => {
   const orders = await getOrders()
   response.json({ orders })
+})
+
+app.get('/api/admin/products', requireAdmin, async (_request, response) => {
+  const products = await getProducts()
+  response.json({ products })
+})
+
+app.post('/api/admin/products', requireAdmin, async (request, response) => {
+  const parsed = productSchema.safeParse(request.body)
+  if (!parsed.success) return response.status(400).json({ error: 'Revisa los datos del producto' })
+  const id = `producto-${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`
+  const product = await createProduct({ id, ...parsed.data })
+  response.status(201).json({ product })
+})
+
+app.put('/api/admin/products/:id', requireAdmin, async (request, response) => {
+  const parsed = productSchema.safeParse(request.body)
+  if (!parsed.success) return response.status(400).json({ error: 'Revisa los datos del producto' })
+  const product = await updateProduct(request.params.id, parsed.data)
+  if (!product) return response.status(404).json({ error: 'Producto no encontrado' })
+  response.json({ product })
+})
+
+app.delete('/api/admin/products/:id', requireAdmin, async (request, response) => {
+  const removed = await deleteProduct(request.params.id)
+  if (!removed) return response.status(404).json({ error: 'Producto no encontrado' })
+  response.status(204).end()
+})
+
+app.post('/api/admin/uploads', requireAdmin, async (request, response) => {
+  const parsed = uploadSchema.safeParse(request.body)
+  if (!parsed.success) return response.status(400).json({ error: 'Imagen inválida' })
+
+  const buffer = Buffer.from(parsed.data.fileBase64, 'base64')
+  if (buffer.byteLength > MAX_UPLOAD_BYTES) return response.status(413).json({ error: 'La imagen es muy pesada' })
+
+  const extension = parsed.data.contentType.split('/')[1]
+  const fileName = `product-${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}.${extension}`
+  const url = await uploadProductImage(buffer, fileName, parsed.data.contentType)
+  response.status(201).json({ url })
 })
 
 app.use((error, _request, response, _next) => {

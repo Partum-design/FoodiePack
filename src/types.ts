@@ -1,4 +1,6 @@
-export type PaymentMethod = 'card' | 'cash'
+import type { PackageTier } from './packages'
+
+export type PaymentMethod = 'card' | 'cash' | 'transfer'
 
 export type Meal = {
   id: string
@@ -34,10 +36,13 @@ export type MenuDay = {
   mealCount: number
 }
 
-export type CartItem = {
-  meal: Meal
-  quantity: number
+export type PackageOrderInput = {
+  orderMode: 'day' | 'week'
   date: string
+  packageTier: PackageTier
+  quantity: number
+  repeatGuisado: boolean
+  prepay: boolean
 }
 
 export type DeliveryLocation = {
@@ -66,11 +71,12 @@ export type SavedOrder = {
   }
   delivery?: DeliveryLocation
   items: Array<{
-    mealId: string
-    date: string
+    packageTier: PackageTier
+    packageLabel: string
     quantity: number
-    name: string
     unitPrice: number
+    repeatGuisado: boolean
+    prepay: boolean
   }>
   subtotal: number
   deliveryFee: number

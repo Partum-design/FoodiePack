@@ -46,8 +46,12 @@ export function createOrder(payload: {
     coordinates?: { latitude: number; longitude: number }
   }
   paymentMethod: PaymentMethod
-  isWeeklyPlan: boolean
-  items: Array<{ mealId: string; date: string; quantity: number }>
+  orderMode: 'day' | 'week'
+  date: string
+  packageTier: string
+  quantity: number
+  repeatGuisado: boolean
+  prepay: boolean
 }) {
   return request<{ order: SavedOrder }>('/orders', { method: 'POST', body: JSON.stringify(payload) })
 }
@@ -74,4 +78,39 @@ export function saveAdminMenu(date: string, meals: Meal[], token: string) {
 
 export function getAdminOrders(token: string) {
   return request<{ orders: SavedOrder[] }>('/admin/orders', { headers: adminHeaders(token) })
+}
+
+export function getAdminProducts(token: string) {
+  return request<{ products: Meal[] }>('/admin/products', { headers: adminHeaders(token) })
+}
+
+export function createAdminProduct(product: Omit<Meal, 'id'>, token: string) {
+  return request<{ product: Meal }>('/admin/products', {
+    method: 'POST',
+    headers: adminHeaders(token),
+    body: JSON.stringify(product),
+  })
+}
+
+export function updateAdminProduct(id: string, product: Omit<Meal, 'id'>, token: string) {
+  return request<{ product: Meal }>(`/admin/products/${id}`, {
+    method: 'PUT',
+    headers: adminHeaders(token),
+    body: JSON.stringify(product),
+  })
+}
+
+export function deleteAdminProduct(id: string, token: string) {
+  return request<Record<string, never>>(`/admin/products/${id}`, {
+    method: 'DELETE',
+    headers: adminHeaders(token),
+  })
+}
+
+export function uploadAdminImage(fileBase64: string, contentType: string, token: string) {
+  return request<{ url: string }>('/admin/uploads', {
+    method: 'POST',
+    headers: adminHeaders(token),
+    body: JSON.stringify({ fileBase64, contentType }),
+  })
 }
