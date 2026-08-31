@@ -2,7 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
-import { addDays, orderPolicy } from './time.js'
+import { orderPolicy, upcomingDeliveryDates } from './time.js'
+import { PACKAGE_ORDER } from './packages.js'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 const dataDirectory = path.join(root, 'data')
@@ -44,6 +45,7 @@ export const mealTemplates = [
     tags: ['Sin gluten'],
     image: mealImages[0],
     available: true,
+    packages: [...PACKAGE_ORDER],
   },
   {
     id: 'pasta-poblano',
@@ -55,6 +57,7 @@ export const mealTemplates = [
     tags: ['Vegetariano'],
     image: mealImages[1],
     available: true,
+    packages: [...PACKAGE_ORDER],
   },
   {
     id: 'res-chipotle',
@@ -66,6 +69,7 @@ export const mealTemplates = [
     tags: ['Alto en proteína'],
     image: mealImages[2],
     available: true,
+    packages: [...PACKAGE_ORDER],
   },
   {
     id: 'salmon-verde',
@@ -77,6 +81,7 @@ export const mealTemplates = [
     tags: ['Sin gluten'],
     image: mealImages[3],
     available: true,
+    packages: [...PACKAGE_ORDER],
   },
   {
     id: 'bowl-huerto',
@@ -88,20 +93,66 @@ export const mealTemplates = [
     tags: ['Vegano'],
     image: mealImages[4],
     available: true,
+    packages: [...PACKAGE_ORDER],
   },
 ]
 
+const nextWeekMealImages = {
+  alambreLunes: '/assets/meals/next-week/alambre-puerco-lunes.jpg',
+  longaniza: '/assets/meals/next-week/longaniza-verde.jpg',
+  picadillo: '/assets/meals/next-week/picadillo.jpg',
+  huevoPasilla: '/assets/meals/next-week/huevo-pasilla.jpg',
+  albondigas: '/assets/meals/next-week/albondigas.jpg',
+  papasRajas: '/assets/meals/next-week/papas-rajas.jpg',
+  alambreJueves: '/assets/meals/next-week/alambre-puerco-jueves.jpg',
+  salchicha: '/assets/meals/next-week/salchicha-mexicana.jpg',
+  chuleta: '/assets/meals/next-week/chuleta-morita.jpg',
+  calabacita: '/assets/meals/next-week/calabacita-mexicana.jpg',
+}
+
+export const nextWeekMenus = {
+  '2026-08-31': [
+    { id: 'menu-2026-08-31-alambre-puerco', name: 'Alambre de puerco', description: 'Alambre casero de puerco con verduras; acompáñalo con la base del día.', price: 60, protein: 30, kcal: 560, tags: ['Guisado del día'], image: nextWeekMealImages.alambreLunes, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-08-31-longaniza-verde', name: 'Longaniza en salsa verde', description: 'Longaniza en salsa verde, con opción de huevo y la base del día.', price: 60, protein: 27, kcal: 590, tags: ['Guisado del día'], image: nextWeekMealImages.longaniza, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-01': [
+    { id: 'menu-2026-09-01-picadillo', name: 'Picadillo', description: 'Picadillo casero con verduras y la base del día: arroz, frijoles, huevo o pasta.', price: 60, protein: 29, kcal: 540, tags: ['Guisado del día'], image: nextWeekMealImages.picadillo, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-01-huevo-pasilla', name: 'Huevo en pasilla', description: 'Huevo en salsa de chile pasilla con tomates y la base del día.', price: 60, protein: 21, kcal: 460, tags: ['Vegetariano'], image: nextWeekMealImages.huevoPasilla, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-02': [
+    { id: 'menu-2026-09-02-albondigas', name: 'Albóndigas', description: 'Albóndigas caseras en salsa, servidas con la base y guarnición del día.', price: 60, protein: 32, kcal: 570, tags: ['Guisado del día'], image: nextWeekMealImages.albondigas, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-02-papas-rajas', name: 'Papas con rajas', description: 'Papas con rajas y crema, una opción vegetariana para acompañar la base del día.', price: 60, protein: 12, kcal: 430, tags: ['Vegetariano'], image: nextWeekMealImages.papasRajas, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-03': [
+    { id: 'menu-2026-09-03-alambre-puerco', name: 'Alambre de puerco', description: 'Alambre de puerco con verduras, preparado al momento.', price: 60, protein: 30, kcal: 560, tags: ['Guisado del día'], image: nextWeekMealImages.alambreJueves, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-03-salchicha-mexicana', name: 'Salchicha mexicana', description: 'Salchicha a la mexicana con la base y guarnición del día.', price: 60, protein: 24, kcal: 520, tags: ['Guisado del día'], image: nextWeekMealImages.salchicha, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-04': [
+    { id: 'menu-2026-09-04-chuleta-morita', name: 'Chuleta ahumada en salsa morita', description: 'Chuleta ahumada en salsa morita, con la base y guarnición del día.', price: 60, protein: 34, kcal: 610, tags: ['Guisado del día'], image: nextWeekMealImages.chuleta, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-04-calabacita-mexicana', name: 'Calabacita mexicana', description: 'Calabacita a la mexicana, opción ligera con la base del día.', price: 60, protein: 10, kcal: 390, tags: ['Vegetariano'], image: nextWeekMealImages.calabacita, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+}
+
+function normalizeMeal(meal) {
+  return { ...meal, packages: Array.isArray(meal.packages) && meal.packages.length === 3 ? meal.packages : [...PACKAGE_ORDER] }
+}
+
 function seedMenus(database) {
   const { today } = orderPolicy()
-  for (let offset = 1; offset <= 10; offset += 1) {
-    const date = addDays(today, offset)
+  Object.entries(nextWeekMenus).forEach(([date, meals]) => {
+    const plannedMeals = meals.map(normalizeMeal)
+    const hasPlannedMenu = database.menus[date]?.length === plannedMeals.length
+      && database.menus[date].every((meal, index) => meal.id === plannedMeals[index].id && meal.image === plannedMeals[index].image)
+    if (!hasPlannedMenu) database.menus[date] = plannedMeals
+  })
+  upcomingDeliveryDates(today, 5).forEach((date, dayIndex) => {
     if (!database.menus[date]) {
-      database.menus[date] = Array.from({ length: 3 }, (_, index) => {
-        const template = mealTemplates[(offset + index) % mealTemplates.length]
-        return { ...template }
+      database.menus[date] = Array.from({ length: 3 }, (_, mealIndex) => {
+        const template = mealTemplates[(dayIndex + mealIndex) % mealTemplates.length]
+        return { ...template, packages: [...PACKAGE_ORDER] }
       })
     }
-  }
+  })
   return database
 }
 
@@ -120,6 +171,8 @@ function ensureLocalDatabase() {
   database.menus ||= {}
   database.orders ||= []
   database.products ||= []
+  database.menus = Object.fromEntries(Object.entries(database.menus).map(([date, meals]) => [date, meals.map(normalizeMeal)]))
+  database.products = database.products.map(normalizeMeal)
   if (database.products.length === 0) {
     database.products = mealTemplates.map((template) => ({ ...template }))
   }
@@ -137,6 +190,10 @@ function writeLocalDatabase(database) {
 
 function throwIfSupabaseError(operation, error) {
   if (error) throw new Error(`Supabase ${operation} failed: ${error.message}`)
+}
+
+function isMissingPackagesColumn(error) {
+  return Boolean(error?.message && /packages.*column|column.*packages/i.test(error.message))
 }
 
 function orderFromRow(row) {
@@ -165,26 +222,33 @@ async function getSupabaseMenus() {
     .order('menu_date', { ascending: true })
   throwIfSupabaseError('menu lookup', error)
 
-  const menus = Object.fromEntries((rows || []).map((row) => [row.menu_date, row.meals || []]))
+  const menus = Object.fromEntries((rows || []).map((row) => [row.menu_date, (row.meals || []).map(normalizeMeal)]))
   const { today } = orderPolicy()
   const missingRows = []
 
-  for (let offset = 1; offset <= 10; offset += 1) {
-    const date = addDays(today, offset)
+  upcomingDeliveryDates(today, 5).forEach((date, dayIndex) => {
+    const plannedMeals = nextWeekMenus[date]?.map(normalizeMeal)
+    const hasPlannedMenu = plannedMeals && menus[date]?.length === plannedMeals.length
+      && menus[date].every((meal, index) => meal.id === plannedMeals[index].id && meal.image === plannedMeals[index].image)
+    if (plannedMeals && !hasPlannedMenu) {
+      menus[date] = plannedMeals
+      missingRows.push({ menu_date: date, meals: plannedMeals })
+      return
+    }
     if (!menus[date]) {
-      const meals = Array.from({ length: 3 }, (_, index) => {
-        const template = mealTemplates[(offset + index) % mealTemplates.length]
-        return { ...template }
+      const meals = Array.from({ length: 3 }, (_, mealIndex) => {
+        const template = mealTemplates[(dayIndex + mealIndex) % mealTemplates.length]
+        return { ...template, packages: [...PACKAGE_ORDER] }
       })
       menus[date] = meals
       missingRows.push({ menu_date: date, meals })
     }
-  }
+  })
 
   if (missingRows.length > 0) {
     const { error: seedError } = await supabase
       .from(menuTable)
-      .upsert(missingRows, { onConflict: 'menu_date', ignoreDuplicates: true })
+      .upsert(missingRows, { onConflict: 'menu_date' })
     throwIfSupabaseError('menu seed', seedError)
   }
 
@@ -206,18 +270,19 @@ export async function getMenu(date) {
 }
 
 export async function saveMenu(date, meals) {
+  const normalizedMeals = meals.map(normalizeMeal)
   if (!supabase) {
     const database = ensureLocalDatabase()
-    database.menus[date] = meals
+    database.menus[date] = normalizedMeals
     writeLocalDatabase(database)
-    return meals
+    return normalizedMeals
   }
 
   const { error } = await supabase
     .from(menuTable)
-    .upsert({ menu_date: date, meals, updated_at: new Date().toISOString() }, { onConflict: 'menu_date' })
+    .upsert({ menu_date: date, meals: normalizedMeals, updated_at: new Date().toISOString() }, { onConflict: 'menu_date' })
   throwIfSupabaseError('menu save', error)
-  return meals
+  return normalizedMeals
 }
 
 export async function saveOrder(order) {
@@ -271,6 +336,7 @@ function productFromRow(row) {
     tags: row.tags || [],
     image: row.image,
     available: row.available,
+    packages: Array.isArray(row.packages) ? row.packages : [...PACKAGE_ORDER],
   }
 }
 
@@ -285,6 +351,7 @@ function productToRow(product) {
     tags: product.tags,
     image: product.image,
     available: product.available,
+    packages: product.packages || [...PACKAGE_ORDER],
   }
 }
 
@@ -319,7 +386,13 @@ export async function createProduct(product) {
     return product
   }
 
-  const { error } = await supabase.from(productTable).insert(productToRow(product))
+  const row = productToRow(product)
+  let { error } = await supabase.from(productTable).insert(row)
+  if (isMissingPackagesColumn(error)) {
+    const legacyRow = Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'packages'))
+    const retry = await supabase.from(productTable).insert(legacyRow)
+    error = retry.error
+  }
   throwIfSupabaseError('product create', error)
   return product
 }
@@ -334,12 +407,24 @@ export async function updateProduct(id, patch) {
     return database.products[index]
   }
 
-  const { data, error } = await supabase
+  const row = productToRow({ ...patch, id })
+  let { data, error } = await supabase
     .from(productTable)
-    .update(productToRow({ ...patch, id }))
+    .update(row)
     .eq('id', id)
     .select()
     .maybeSingle()
+  if (isMissingPackagesColumn(error)) {
+    const legacyRow = Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'packages'))
+    const retry = await supabase
+      .from(productTable)
+      .update(legacyRow)
+      .eq('id', id)
+      .select()
+      .maybeSingle()
+    data = retry.data
+    error = retry.error
+  }
   throwIfSupabaseError('product update', error)
   return data ? productFromRow(data) : null
 }

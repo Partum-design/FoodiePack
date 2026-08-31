@@ -30,6 +30,26 @@ export function addDays(dateKey, amount) {
   return result.toISOString().slice(0, 10)
 }
 
+export function isBusinessDay(dateKey) {
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const weekday = new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay()
+  return weekday !== 0 && weekday !== 6
+}
+
+export function addBusinessDays(dateKey, amount) {
+  let result = dateKey
+  let remaining = amount
+  while (remaining > 0) {
+    result = addDays(result, 1)
+    if (isBusinessDay(result)) remaining -= 1
+  }
+  return result
+}
+
+export function upcomingDeliveryDates(dateKey, count = 5) {
+  return Array.from({ length: count }, (_, index) => addBusinessDays(dateKey, index + 1))
+}
+
 export function orderPolicy(now = resolveNow()) {
   const parts = partsInMexico(now)
   const today = `${parts.year}-${parts.month}-${parts.day}`
@@ -39,7 +59,7 @@ export function orderPolicy(now = resolveNow()) {
   return {
     timeZone: BUSINESS_TIME_ZONE,
     today,
-    tomorrow: addDays(today, 1),
+    tomorrow: addBusinessDays(today, 1),
     isOpen,
     opensAt: '08:00',
     closesAt: '18:00',

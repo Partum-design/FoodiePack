@@ -12,6 +12,7 @@ export type Meal = {
   tags: string[]
   image: string
   available: boolean
+  packages: PackageTier[]
 }
 
 export type OrderPolicy = {
@@ -77,6 +78,9 @@ export type SavedOrder = {
     unitPrice: number
     repeatGuisado: boolean
     prepay: boolean
+    mealId?: string
+    mealName?: string
+    menuDate?: string
   }>
   subtotal: number
   deliveryFee: number

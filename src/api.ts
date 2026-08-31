@@ -1,4 +1,5 @@
 import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
+import type { PackageTier } from './packages'
 
 const configuredUrl = import.meta.env.VITE_API_URL as string | undefined
 const API_URL = (configuredUrl || '/api').replace(/\/$/, '')
@@ -48,10 +49,11 @@ export function createOrder(payload: {
   paymentMethod: PaymentMethod
   orderMode: 'day' | 'week'
   date: string
-  packageTier: string
+  packageTier: PackageTier
   quantity: number
   repeatGuisado: boolean
   prepay: boolean
+  mealId?: string
 }) {
   return request<{ order: SavedOrder }>('/orders', { method: 'POST', body: JSON.stringify(payload) })
 }

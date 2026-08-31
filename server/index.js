@@ -10,8 +10,8 @@ import {
   createProduct, deleteProduct, getMenu, getMenus, getOrders, getProducts,
   saveMenu, saveOrder, storageMode, updateProduct, uploadProductImage,
 } from './store.js'
-import { addDays, orderPolicy } from './time.js'
-import { PACKAGES, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS } from './packages.js'
+import { orderPolicy, upcomingDeliveryDates } from './time.js'
+import { PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS } from './packages.js'
 
 const app = express()
 const port = Number(process.env.PORT || 8787)
@@ -44,6 +44,7 @@ app.use(express.json({ limit: '4mb' }))
 
 const loginAttempts = new Map()
 const loginSchema = z.object({ password: z.string().min(8).max(200) })
+const packagesSchema = z.array(z.enum(PACKAGE_ORDER)).length(3).refine((packages) => new Set(packages).size === 3)
 const customerSchema = z.object({
   name: z.string().trim().min(2).max(80),
   phone: z.string().trim().min(8).max(24),
@@ -69,6 +70,14 @@ const orderSchema = z.object({
   quantity: z.number().int().min(1).max(10),
   repeatGuisado: z.boolean().optional().default(false),
   prepay: z.boolean().optional().default(false),
+  mealId: z.string().trim().min(1).max(100).optional(),
+}).superRefine((data, context) => {
+  if (data.prepay && data.paymentMethod !== 'transfer') {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['prepay'], message: 'El precio de adelanto requiere transferencia.' })
+  }
+  if (data.orderMode === 'day' && !data.mealId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['mealId'], message: 'Selecciona un guisado.' })
+  }
 })
 const mealSchema = z.object({
   id: z.string().min(1).max(100),
@@ -80,6 +89,7 @@ const mealSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(40)).max(4),
   image: z.string().min(1).max(300).default('/assets/meals/pollo-citrico.jpg'),
   available: z.boolean(),
+  packages: packagesSchema.default([...PACKAGE_ORDER]),
 })
 const menuSchema = z.object({ meals: z.array(mealSchema).max(20) })
 const productSchema = z.object({
@@ -91,13 +101,13 @@ const productSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(40)).max(4),
   image: z.string().min(1).max(300).default('/assets/meals/pollo-citrico.jpg'),
   available: z.boolean().default(true),
+  packages: packagesSchema.default([...PACKAGE_ORDER]),
 })
 const uploadSchema = z.object({
   fileBase64: z.string().min(1),
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
 })
 const MAX_UPLOAD_BYTES = 3_500_000
-
 function googleMapsUrl(delivery) {
   const query = delivery.coordinates
     ? `${delivery.coordinates.latitude},${delivery.coordinates.longitude}`
@@ -132,7 +142,7 @@ app.get('/api/menu', async (request, response) => {
   const date = typeof request.query.date === 'string' ? request.query.date : policy.tomorrow
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return response.status(400).json({ error: 'Fecha inválida' })
 
-  const eligibleDates = Array.from({ length: WEEKLY_PLAN_DAYS }, (_, index) => addDays(policy.tomorrow, index))
+  const eligibleDates = upcomingDeliveryDates(policy.today, WEEKLY_PLAN_DAYS)
   const meals = await getMenu(date)
   response.json({
     date,
@@ -144,7 +154,7 @@ app.get('/api/menu', async (request, response) => {
 
 app.get('/api/menu-days', async (_request, response) => {
   const policy = orderPolicy()
-  const dates = Array.from({ length: WEEKLY_PLAN_DAYS }, (_, index) => addDays(policy.today, index + 1))
+  const dates = upcomingDeliveryDates(policy.today, WEEKLY_PLAN_DAYS)
   const menus = await getMenus()
   const days = dates.map((date) => {
     return { date, mealCount: (menus[date] || []).filter((meal) => meal.available).length }
@@ -164,12 +174,22 @@ app.post('/api/orders', async (request, response) => {
     })
   }
 
-  const eligibleDates = Array.from({ length: WEEKLY_PLAN_DAYS }, (_, index) => addDays(policy.tomorrow, index))
+  const eligibleDates = upcomingDeliveryDates(policy.today, WEEKLY_PLAN_DAYS)
   if (!eligibleDates.includes(parsed.data.date)) {
     return response.status(409).json({ error: 'Solo puedes reservar dentro de los próximos 5 días disponibles.', policy })
   }
 
   const { orderMode, packageTier, quantity, repeatGuisado, prepay } = parsed.data
+  let selectedMeal = null
+  if (orderMode === 'day') {
+    const menu = await getMenu(parsed.data.date)
+    selectedMeal = menu.find((meal) => meal.id === parsed.data.mealId) || null
+    if (!selectedMeal) return response.status(409).json({ error: 'Selecciona un guisado disponible para ese día.', policy })
+    if (!selectedMeal.available) return response.status(409).json({ error: 'Ese guisado ya no está disponible.', policy })
+    if (!selectedMeal.packages?.includes(packageTier)) {
+      return response.status(409).json({ error: 'Ese guisado no tiene disponible el paquete seleccionado.', policy })
+    }
+  }
   const pack = PACKAGES[packageTier]
   const canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
 
@@ -206,6 +226,7 @@ app.post('/api/orders', async (request, response) => {
       unitPrice: orderMode === 'week' ? (prepay ? pack.weeklyPrepay : pack.weeklyRegular) : pack.dailyPrice,
       repeatGuisado: canRepeatGuisado,
       prepay: orderMode === 'week' && prepay,
+      ...(selectedMeal ? { mealId: selectedMeal.id, mealName: selectedMeal.name, menuDate: parsed.data.date } : {}),
     }],
     subtotal,
     deliveryFee: 0,

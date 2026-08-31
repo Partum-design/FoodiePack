@@ -6,9 +6,9 @@ Aplicación de pedidos para una dark kitchen:
 - `api`: servidor Express para menús, pedidos y acceso administrativo.
 - Supabase: persistencia de menús y pedidos en PostgreSQL.
 
-La tienda permite pedir para mañana o armar un plan semanal (hasta 5 días disponibles). El servidor únicamente acepta pedidos entre las 8:00 y las 18:00, usando siempre la zona horaria `America/Mexico_City`. Si el plan cubre los 5 días y el cliente elige pagar por adelantado, se aplica 12% de descuento sobre la comida; el envío se cobra por día entregado.
+La tienda permite elegir el guisado y uno de los tres paquetes en cada comida: Económico ($60/día), Ejecutivo ($75/día) y Foodie+ ($90/día). También permite armar un plan semanal de lunes a viernes: $300/$375/$450 regular o $290/$365/$430 pagando por adelantado mediante transferencia; el ahorro se toma de la diferencia exacta de cada paquete. El servidor únicamente acepta pedidos entre las 8:00 y las 18:00, usando siempre la zona horaria `America/Mexico_City`; sábado y domingo no son días de entrega, pero el siguiente día hábil sí aparece como opción.
 
-La entrega está limitada a Lindavista, CDMX. Antes de confirmar, el cliente debe escribir su dirección y oficina, revisar el pin en Google Maps, confirmar la ubicación y elegir método de pago (tarjeta o efectivo). La liga del pin queda guardada con el pedido y aparece en el panel de cocina.
+La entrega está limitada a Lindavista, CDMX. Antes de confirmar, el cliente debe escribir su dirección y oficina, revisar el pin en Google Maps, confirmar la ubicación y elegir método de pago (transferencia, tarjeta o efectivo). Los datos bancarios solo aparecen al seleccionar transferencia. La liga del pin y el guisado elegido quedan guardados con el pedido y aparecen en el panel de cocina.
 
 ## Desarrollo local
 
@@ -52,7 +52,7 @@ npx supabase@latest link --project-ref icyjsedrzwruihrveyay
 npx supabase@latest db push
 ```
 
-También puedes ejecutar el SQL de la migración desde el SQL Editor de Supabase si no tienes la CLI autenticada.
+La migración `20260828100000_seed_next_week_menu_and_packages.sql` agrega los tres paquetes al catálogo y publica el menú del 31 de agosto al 4 de septiembre de 2026. También puedes ejecutar ese SQL desde el SQL Editor de Supabase si no tienes la CLI autenticada.
 
 ## Vercel
 

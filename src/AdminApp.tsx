@@ -10,6 +10,7 @@ import {
 } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
+import { PACKAGE_ORDER } from './packages'
 import type { Meal, MenuDay, SavedOrder } from './types'
 
 const TOKEN_KEY = 'foodiepack:admin-session'
@@ -194,6 +195,7 @@ function ProductCard({
       tags: draft.tagsText.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 4),
       image: draft.image,
       available: draft.available,
+      packages: [...PACKAGE_ORDER],
     }
     try {
       const response = isNew || !meal
@@ -274,7 +276,7 @@ function ProductCard({
           <div className="editor-fields product-view">
             <strong>{meal.name}</strong>
             <p>{meal.description}</p>
-            <div className="product-view__tags">{meal.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+            <div className="product-view__tags">{meal.tags.map((tag) => <span key={tag}>{tag}</span>)}<span>3 paquetes</span></div>
             <div className="product-view__stats"><span>{money(meal.price)}</span><span>{meal.protein}g proteína</span><span>{meal.kcal} kcal</span></div>
             {localError && <span className="inline-error inline-error--tight">{localError}</span>}
           </div>
@@ -450,7 +452,7 @@ function AdminApp() {
           </div>
 
           <div className="admin-date-strip">
-            {days.map((day, index) => <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}><span>{index === 0 ? 'Mañana' : shortDay(day.date)}</span><strong>{dateFromKey(day.date).getDate()}</strong></button>)}
+            {days.map((day, index) => <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}><span>{index === 0 ? 'Próximo hábil' : shortDay(day.date)}</span><strong>{dateFromKey(day.date).getDate()}</strong></button>)}
           </div>
 
           {error && <div className="inline-error">{error}</div>}
@@ -539,7 +541,7 @@ function AdminApp() {
                   {order.delivery?.office && <small>{order.delivery.office}</small>}
                   {order.delivery?.mapUrl && <a href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={12} /> Ver pin</a>}
                 </span>
-                <span>{order.items[0]?.packageLabel || '—'} · {order.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
+                <span>{order.items[0]?.packageLabel || '—'} · {order.items.reduce((sum, item) => sum + item.quantity, 0)}{order.items[0]?.mealName ? <small className="order-meal-name">{order.items[0].mealName}</small> : null}</span>
                 <span className="order-payment">
                   {order.paymentMethod === 'card' ? <CreditCard size={13} /> : order.paymentMethod === 'cash' ? <Banknote size={13} /> : <Landmark size={13} />}
                   {' '}{order.paymentMethod === 'card' ? 'Tarjeta' : order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}

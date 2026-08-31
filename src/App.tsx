@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, Copy, CreditCard, Heart, Landmark, LocateFixed,
+  ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, CreditCard, Heart, Landmark, LocateFixed,
   MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
 } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
@@ -135,11 +135,14 @@ function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: nu
   )
 }
 
-function DishCard({ meal, index, isFavorite, onToggleFavorite }: {
+function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, selectedMealId, onChoosePackage }: {
   meal: Meal
   index: number
   isFavorite: boolean
   onToggleFavorite: () => void
+  selectedPackage: PackageTier | null
+  selectedMealId: string | null
+  onChoosePackage: (mealId: string, tier: PackageTier) => void
 }) {
   const { ref, visible } = useReveal<HTMLElement>()
   return (
@@ -167,9 +170,27 @@ function DishCard({ meal, index, isFavorite, onToggleFavorite }: {
       <div className="meal-card__content">
         <h2>{meal.name}</h2>
         <p>{meal.description}</p>
+        <div className="meal-card__packages">
+          <span>Elige paquete</span>
+          <div>
+            {PACKAGE_ORDER.filter((tier) => meal.packages.includes(tier)).map((tier) => {
+              const pack = PACKAGES[tier]
+              const selected = selectedMealId === meal.id && selectedPackage === tier
+              return (
+                <button
+                  type="button"
+                  key={tier}
+                  className={selected ? 'selected' : ''}
+                  disabled={!meal.available}
+                  onClick={() => onChoosePackage(meal.id, tier)}
+                >
+                  <b>{pack.label}</b><small>{money(pack.dailyPrice)}/día</small>
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <div className="meal-card__bottom">
-          <span>{meal.protein} g proteína</span>
-          <span>{meal.kcal} kcal</span>
           <b className={`dish-availability ${meal.available ? '' : 'dish-availability--out'}`}>{meal.available ? 'Disponible' : 'Agotado'}</b>
         </div>
       </div>
@@ -189,6 +210,7 @@ function PackagePicker({ selected, onSelect }: { selected: PackageTier | null; o
             <h3>{pack.label}</h3>
             <p className="package-card__price"><b>{money(pack.dailyPrice)}</b><span>/día</span></p>
             <ul>
+              {pack.includes.map((item) => <li key={item}><span>{item}</span></li>)}
               <li><span>Semanal regular · 5 días</span><strong>{money(pack.weeklyRegular)}</strong></li>
               <li><span>Pago por adelantado</span><strong>{money(pack.weeklyPrepay)}</strong></li>
             </ul>
@@ -203,18 +225,6 @@ function PackagePicker({ selected, onSelect }: { selected: PackageTier | null; o
 }
 
 function PackagesSection({ selected, onSelect }: { selected: PackageTier | null; onSelect: (tier: PackageTier) => void }) {
-  const [copied, setCopied] = useState(false)
-
-  const copyClabe = async () => {
-    try {
-      await navigator.clipboard.writeText(BANK_TRANSFER.clabe)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    } catch {
-      setCopied(false)
-    }
-  }
-
   return (
     <section className="packages-section" id="paquetes" aria-labelledby="packages-title">
       <div className="packages-section__head">
@@ -236,26 +246,17 @@ function PackagesSection({ selected, onSelect }: { selected: PackageTier | null;
           </ul>
         </div>
 
-        <div className="bank-transfer-card">
-          <Landmark size={22} />
-          <div>
-            <p>Datos para transferencia</p>
-            <strong>{BANK_TRANSFER.bank}</strong>
-            <span>CLABE {BANK_TRANSFER.clabe}</span>
-            <span>Titular: {BANK_TRANSFER.holder}</span>
-          </div>
-          <button type="button" onClick={copyClabe}>{copied ? <><Check size={14} /> Copiada</> : <><Copy size={14} /> Copiar CLABE</>}</button>
-        </div>
       </div>
     </section>
   )
 }
 
-function OrderSummary({ packageTier, quantity, repeatGuisado, deliveryDate, canOrder, onQuantity, onToggleRepeat, onCheckout }: {
+function OrderSummary({ packageTier, quantity, repeatGuisado, deliveryDate, meal, canOrder, onQuantity, onToggleRepeat, onCheckout }: {
   packageTier: PackageTier | null
   quantity: number
   repeatGuisado: boolean
   deliveryDate: string
+  meal: Meal | null
   canOrder: boolean
   onQuantity: (change: number) => void
   onToggleRepeat: () => void
@@ -275,11 +276,12 @@ function OrderSummary({ packageTier, quantity, repeatGuisado, deliveryDate, canO
       </div>
       <div className="order-summary__date">
         <Clock3 size={18} />
-        <p><span>Entrega</span><strong>{deliveryDate ? fullDate(deliveryDate) : 'Mañana'} · 12:00 a 2:00 pm</strong></p>
+        <p><span>Entrega</span><strong>{deliveryDate ? fullDate(deliveryDate) : 'Próximo día hábil'} · 12:00 a 2:00 pm</strong></p>
       </div>
-      {!pack && <div className="summary-empty"><ShoppingBag size={24} /><p>Elige uno de los 3 paquetes para continuar.</p></div>}
+      {(!pack || !meal) && <div className="summary-empty"><ShoppingBag size={24} /><p>{pack ? 'Elige una comida del menú para continuar.' : 'Elige una comida y uno de los 3 paquetes para continuar.'}</p></div>}
       {pack && (
         <div className="summary-items">
+          {meal && <div className="summary-meal"><span>Comida elegida</span><strong>{meal.name}</strong></div>}
           <div className="summary-package">
             <p><strong>{pack.label}</strong><span>{money(pack.dailyPrice)} por día</span></p>
             <div className="counter">
@@ -303,7 +305,7 @@ function OrderSummary({ packageTier, quantity, repeatGuisado, deliveryDate, canO
         <p><span>Envío</span><strong>Gratis</strong></p>
         <p className="summary-total"><span>Total</span><strong>{money(total)}</strong></p>
       </div>
-      <button className="checkout-button" disabled={!pack || !canOrder} onClick={onCheckout}>Continuar <ArrowRight size={17} /></button>
+      <button className="checkout-button" disabled={!pack || !meal || !canOrder} onClick={onCheckout}>Continuar <ArrowRight size={17} /></button>
       <small>Pedido de demostración. No se realizará un cargo real.</small>
     </aside>
   )
@@ -376,10 +378,11 @@ function App() {
   const [weeklyMenus, setWeeklyMenus] = useState<Record<string, MenuResponse>>({})
   const [weeklyLoading, setWeeklyLoading] = useState(false)
   const [packageTier, setPackageTier] = useState<PackageTier | null>(null)
+  const [selectedMealId, setSelectedMealId] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [repeatGuisado, setRepeatGuisado] = useState(false)
   const [prepay, setPrepay] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [order, setOrder] = useState<SavedOrder | null>(null)
@@ -480,9 +483,14 @@ function App() {
     if (packageTier !== REPEAT_GUISADO_TIER) setRepeatGuisado(false)
   }, [packageTier])
 
+  useEffect(() => {
+    if (selectedMealId && menu && !menu.meals.some((meal) => meal.id === selectedMealId)) setSelectedMealId(null)
+  }, [menu, selectedMealId])
+
   const orderingOpen = Boolean(policy?.isOpen)
   const isTomorrow = menu?.policy.tomorrow === selectedDate
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
+  const selectedMeal = menu?.meals.find((meal) => meal.id === selectedMealId) || null
   const deliveryMap = mapLinks(pinnedAddress, deliveryCoordinates)
   const hasDeliveryPin = Boolean(pinnedAddress || deliveryCoordinates)
 
@@ -517,6 +525,12 @@ function App() {
   const choosePackage = (tier: PackageTier) => {
     setPackageTier(tier)
     pushToast(`${PACKAGES[tier].label} seleccionado`, 'success')
+  }
+
+  const chooseMealPackage = (mealId: string, tier: PackageTier) => {
+    setSelectedMealId(mealId)
+    setPackageTier(tier)
+    pushToast(`${PACKAGES[tier].label} · comida seleccionada`, 'success')
   }
 
   const changeQuantity = (change: number) => {
@@ -582,6 +596,10 @@ function App() {
       setOrderError('Elige uno de los 3 paquetes antes de continuar.')
       return
     }
+    if (orderMode === 'week' && prepay && paymentMethod !== 'transfer') {
+      setOrderError('Selecciona Transferencia para usar el precio especial de pago adelantado.')
+      return
+    }
     const form = new FormData(event.currentTarget)
     setSubmitting(true)
     setOrderError('')
@@ -606,9 +624,11 @@ function App() {
         quantity,
         repeatGuisado: orderMode === 'day' && canRepeatGuisado && repeatGuisado,
         prepay: orderMode === 'week' && prepay,
+        ...(orderMode === 'day' && selectedMealId ? { mealId: selectedMealId } : {}),
       })
       setOrder(response.order)
       setPackageTier(null)
+      setSelectedMealId(null)
       setQuantity(1)
       setRepeatGuisado(false)
       setPrepay(false)
@@ -651,7 +671,7 @@ function App() {
           <div className="brand-landing__copy">
             <p>FoodiePack · Lindavista</p>
             <h1 id="landing-title">Tu cocina<br />en la <em>oficina.</em></h1>
-            <span>Pide hoy y mañana te llevamos comida fresca hasta tu oficina en Lindavista.</span>
+            <span>Pide hoy y el próximo día hábil te llevamos comida fresca hasta tu oficina en Lindavista.</span>
             <div className="brand-landing__actions">
               <a href="#paquetes" onClick={(event) => { event.preventDefault(); scrollToPackages() }}>Ver paquetes <ArrowRight size={17} /></a>
               <small><Clock3 size={15} /> Pide hoy de 8:00 am a 6:00 pm</small>
@@ -706,14 +726,14 @@ function App() {
                 <p>{isTomorrow ? 'Entrega de mañana' : 'Próximamente'}</p>
                 <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
                 <span>{isTomorrow
-                  ? (orderingOpen ? 'Haz tu pedido hoy. Lo cocinamos mañana por la mañana.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
+                  ? (orderingOpen ? 'Haz tu pedido hoy. Lo cocinamos el próximo día hábil por la mañana.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
                   : 'Puedes revisar este menú. Las reservaciones abren el día anterior a las 8:00 am.'}</span>
               </div>
 
               <div className="date-strip" aria-label="Próximos menús">
                 {days.map((day, index) => (
                   <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}>
-                    <span>{index === 0 ? 'Mañana' : dayName(day.date)}</span>
+                    <span>{index === 0 ? 'Próximo día hábil' : dayName(day.date)}</span>
                     <strong>{dateFromKey(day.date).getDate()}</strong>
                     <small>{day.mealCount} opciones</small>
                   </button>
@@ -731,7 +751,7 @@ function App() {
               <div className="date-strip" aria-label="Días de tu plan semanal">
                 {days.map((day, index) => (
                   <button key={day.date} className={activeWeekDay === day.date ? 'selected' : ''} onClick={() => setActiveWeekDay(day.date)}>
-                    <span>{index === 0 ? 'Mañana' : dayName(day.date)}</span>
+                    <span>{index === 0 ? 'Próximo día hábil' : dayName(day.date)}</span>
                     <strong>{dateFromKey(day.date).getDate()}</strong>
                     <small>{day.mealCount} opciones</small>
                   </button>
@@ -768,6 +788,9 @@ function App() {
                 index={index}
                 isFavorite={favorites.includes(meal.id)}
                 onToggleFavorite={() => toggleFavorite(meal.id)}
+                selectedPackage={packageTier}
+                selectedMealId={selectedMealId}
+                onChoosePackage={chooseMealPackage}
               />
             ))}
             {!isLoadingCurrent && currentMeals.length === 0 && <div className="menu-empty"><h2>Menú pendiente</h2><p>La cocina todavía no publica las opciones para este día.</p></div>}
@@ -782,7 +805,8 @@ function App() {
             packageTier={packageTier}
             quantity={quantity}
             repeatGuisado={repeatGuisado}
-            deliveryDate={menu?.policy.tomorrow || ''}
+            deliveryDate={selectedDate}
+            meal={selectedMeal}
             canOrder={orderingOpen}
             onQuantity={changeQuantity}
             onToggleRepeat={() => setRepeatGuisado((value) => !value)}
@@ -823,7 +847,7 @@ function App() {
             <div className="order-confirmed">
               <AcceptedOrderAnimation />
               <p>Pedido {order.id}</p>
-              <h2>{order.isWeeklyPlan ? 'Tu semana está lista.' : 'Nos vemos mañana.'}</h2>
+              <h2>{order.isWeeklyPlan ? 'Tu semana está lista.' : 'Nos vemos el próximo día hábil.'}</h2>
               <small>
                 La cocina aceptó tu pedido{order.isWeeklyPlan ? ', con tu paquete semanal' : ''}. Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.
                 {' '}{order.paymentMethod === 'transfer'
@@ -871,8 +895,8 @@ function App() {
                 <span>Método de pago</span>
                 <div className="payment-method__options payment-method__options--three">
                   <button type="button" className={paymentMethod === 'transfer' ? 'selected' : ''} onClick={() => setPaymentMethod('transfer')}><Landmark size={16} /> Transferencia</button>
-                  <button type="button" className={paymentMethod === 'card' ? 'selected' : ''} onClick={() => setPaymentMethod('card')}><CreditCard size={16} /> Tarjeta</button>
-                  <button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => setPaymentMethod('cash')}><Banknote size={16} /> Efectivo</button>
+                  <button type="button" className={paymentMethod === 'card' ? 'selected' : ''} onClick={() => { setPaymentMethod('card'); setPrepay(false) }}><CreditCard size={16} /> Tarjeta</button>
+                  <button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => { setPaymentMethod('cash'); setPrepay(false) }}><Banknote size={16} /> Efectivo</button>
                 </div>
                 {paymentMethod === 'transfer' && (
                   <div className="bank-transfer-card bank-transfer-card--inline">
