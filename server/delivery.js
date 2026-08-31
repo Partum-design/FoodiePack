@@ -1,9 +1,14 @@
 const EARTH_RADIUS_KM = 6371
 
-/** Cocina base. Se puede mover sin tocar el código con KITCHEN_LATITUDE / KITCHEN_LONGITUDE. */
+/**
+ * Cocina base: Pernambuco 734, Lindavista, Gustavo A. Madero.
+ * Es una coincidencia a nivel calle, así que el punto puede moverse unos cientos
+ * de metros. Para afinarlo no hace falta tocar el código: basta con definir
+ * KITCHEN_LATITUDE y KITCHEN_LONGITUDE en el entorno.
+ */
 export const KITCHEN_LOCATION = {
-  latitude: Number(process.env.KITCHEN_LATITUDE || 19.4939),
-  longitude: Number(process.env.KITCHEN_LONGITUDE || -99.1095),
+  latitude: Number(process.env.KITCHEN_LATITUDE || 19.49198),
+  longitude: Number(process.env.KITCHEN_LONGITUDE || -99.12515),
 }
 
 /** Radio de envío gratis anunciado en la carta: 3 km a la redonda. */

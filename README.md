@@ -20,7 +20,11 @@ En cuanto el cliente escribe su dirección, la app mide sola la distancia hasta 
 
 La medición usa las coordenadas del pin cuando el cliente pulsa «Usar mi ubicación» y, si no, resuelve la dirección escrita con Nominatim (OpenStreetMap). El servidor vuelve a medir antes de guardar el pedido, así que la regla no se puede saltar desde el navegador. Los kilómetros quedan guardados en el pedido y se ven en la administración.
 
-La cocina y el radio se configuran con `KITCHEN_LATITUDE`, `KITCHEN_LONGITUDE` y `FREE_DELIVERY_RADIUS_KM`. **Cambia las coordenadas por las de la cocina real**: el valor por omisión es un punto intermedio entre Lindavista Sur y San Felipe de Jesús. Si Nominatim no responde, el pedido se acepta y aparece marcado como «distancia sin verificar» para que la cocina lo revise.
+La cocina y el radio se configuran con `KITCHEN_LATITUDE`, `KITCHEN_LONGITUDE` y `FREE_DELIVERY_RADIUS_KM`. Por omisión la cocina es Pernambuco 734, Lindavista (`19.49198, -99.12515`), una coincidencia a nivel calle: si quieres el punto exacto, coloca el pin en Google Maps y pega las coordenadas en esas variables, sin tocar el código.
+
+Desde ahí, un radio de 3 km cubre Lindavista y Lindavista Sur, pero **San Felipe de Jesús queda a unos 5 km y se rechazaría**. Si quieres seguir sirviendo esa colonia, sube `FREE_DELIVERY_RADIUS_KM` a `6`; si no, conviene quitarla de los textos de la tienda (`ORDER_KEY_POINTS` y la tarjeta de zona en `src/App.tsx`).
+
+Si Nominatim no responde, el pedido se acepta y aparece marcado como «distancia sin verificar» para que la cocina lo revise.
 
 ## Administración de pedidos
 
@@ -53,8 +57,8 @@ PORT=8787
 WEB_ORIGIN=https://tu-dominio.com
 ADMIN_PASSWORD=una-contraseña-larga
 JWT_SECRET=un-secreto-aleatorio-de-al-menos-32-caracteres
-KITCHEN_LATITUDE=19.4939
-KITCHEN_LONGITUDE=-99.1095
+KITCHEN_LATITUDE=19.49198
+KITCHEN_LONGITUDE=-99.12515
 FREE_DELIVERY_RADIUS_KM=3
 SUPABASE_URL=https://icyjsedrzwruihrveyay.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=tu-clave-service-role-de-supabase
