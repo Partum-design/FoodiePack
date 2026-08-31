@@ -134,7 +134,10 @@ export const nextWeekMenus = {
 }
 
 function normalizeMeal(meal) {
-  return { ...meal, packages: Array.isArray(meal.packages) && meal.packages.length === 3 ? meal.packages : [...PACKAGE_ORDER] }
+  const image = typeof meal.image === 'string' && meal.image.includes('/next-week/')
+    ? meal.image.replace(/\.png$/i, '.jpg')
+    : meal.image
+  return { ...meal, image, packages: Array.isArray(meal.packages) && meal.packages.length === 3 ? meal.packages : [...PACKAGE_ORDER] }
 }
 
 function seedMenus(database) {
