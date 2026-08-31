@@ -692,7 +692,7 @@ function App() {
         <FloatingDecor />
         <div className="brand-landing__inner">
           <div className="brand-landing__copy">
-            <p>FoodiePack · Lindavista</p>
+            <p className="brand-landing__eyebrow"><Logo compact theme="white" /> <span>Lindavista, CDMX</span></p>
             <h1 id="landing-title">Tu cocina<br />en la <em>oficina.</em></h1>
             <span>Pide hoy y mañana te llevamos comida fresca hasta tu oficina en Lindavista.</span>
             <div className="brand-landing__actions">
