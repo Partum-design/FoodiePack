@@ -1,16 +1,17 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, Copy, CreditCard, Heart, Landmark, LocateFixed,
-  MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
+  ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, Copy, CreditCard, Heart, Landmark, LoaderCircle,
+  LocateFixed, MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, TriangleAlert, Utensils, WifiOff, X,
 } from 'lucide-react'
-import { createOrder, getMenu, getMenuDays } from './api'
+import { checkDelivery, createOrder, getMenu, getMenuDays } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
 import {
-  BANK_TRANSFER, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER,
+  BANK_TRANSFER, FREE_DELIVERY_RADIUS_KM, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES,
+  REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER,
 } from './packages'
 import type { PackageTier } from './packages'
-import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
+import type { Coordinates, DeliveryCheck, Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
 
 const money = (value: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value)
@@ -19,7 +20,6 @@ const DELIVERY_ZONE = 'Lindavista, CDMX' as const
 const LINDAVISTA_QUERY = 'Lindavista, Gustavo A. Madero, Ciudad de México'
 const MAX_WEEKLY_SAVINGS = Math.max(...PACKAGE_ORDER.map((tier) => PACKAGES[tier].weeklyRegular - PACKAGES[tier].weeklyPrepay))
 
-type Coordinates = { latitude: number; longitude: number }
 type OrderMode = 'day' | 'week'
 
 function mapLinks(address: string, coordinates: Coordinates | null) {
@@ -33,10 +33,6 @@ function mapLinks(address: string, coordinates: Coordinates | null) {
     embed: `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`,
     external: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
   }
-}
-
-function isNearLindavista({ latitude, longitude }: Coordinates) {
-  return latitude >= 19.472 && latitude <= 19.516 && longitude >= -99.151 && longitude <= -99.106
 }
 
 function dateFromKey(date: string) {
@@ -388,6 +384,8 @@ function App() {
   const [pinnedAddress, setPinnedAddress] = useState('')
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates | null>(null)
   const [deliveryError, setDeliveryError] = useState('')
+  const [deliveryCheck, setDeliveryCheck] = useState<DeliveryCheck | null>(null)
+  const [checkingDelivery, setCheckingDelivery] = useState(false)
   const [locating, setLocating] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [favorites, setFavorites] = useState<string[]>(loadFavorites)
@@ -480,11 +478,38 @@ function App() {
     if (packageTier !== REPEAT_GUISADO_TIER) setRepeatGuisado(false)
   }, [packageTier])
 
+  // Detecta sola la distancia a la cocina en cuanto la dirección es suficientemente larga.
+  useEffect(() => {
+    const address = deliveryAddress.trim()
+    if (!checkoutOpen || deliveryCoordinates || address.length < 10) return
+    let active = true
+    const timer = window.setTimeout(() => {
+      setCheckingDelivery(true)
+      checkDelivery({ address })
+        .then((result) => {
+          if (!active) return
+          setDeliveryCheck(result)
+          if (result.resolved) setPinnedAddress(address)
+        })
+        .catch(() => { if (active) setDeliveryCheck(null) })
+        .finally(() => { if (active) setCheckingDelivery(false) })
+    }, 900)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [deliveryAddress, checkoutOpen, deliveryCoordinates])
+
   const orderingOpen = Boolean(policy?.isOpen)
   const isTomorrow = menu?.policy.tomorrow === selectedDate
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
-  const deliveryMap = mapLinks(pinnedAddress, deliveryCoordinates)
+  const resolvedCoordinates = deliveryCoordinates
+    || (deliveryCheck?.resolved ? deliveryCheck.coordinates ?? null : null)
+  const deliveryMap = mapLinks(pinnedAddress, resolvedCoordinates)
   const hasDeliveryPin = Boolean(pinnedAddress || deliveryCoordinates)
+  const deliveryDistanceKm = deliveryCheck?.resolved ? deliveryCheck.distanceKm ?? null : null
+  const radiusKm = deliveryCheck?.radiusKm ?? FREE_DELIVERY_RADIUS_KM
+  const outsideRadius = Boolean(deliveryCheck?.resolved && deliveryCheck.withinRadius === false)
 
   const currentMeals = useMemo(
     () => orderMode === 'day' ? (menu?.meals || []) : (weeklyMenus[activeWeekDay]?.meals || []),
@@ -527,10 +552,11 @@ function App() {
     setDeliveryAddress(value)
     setPinnedAddress('')
     setDeliveryCoordinates(null)
+    setDeliveryCheck(null)
     setDeliveryError('')
   }
 
-  const pinDeliveryAddress = () => {
+  const pinDeliveryAddress = async () => {
     const address = deliveryAddress.trim()
     if (address.length < 8) {
       setDeliveryError('Escribe la calle y el número antes de colocar el pin.')
@@ -539,6 +565,15 @@ function App() {
     setPinnedAddress(address)
     setDeliveryCoordinates(null)
     setDeliveryError('')
+    setCheckingDelivery(true)
+    try {
+      const result = await checkDelivery({ address })
+      setDeliveryCheck(result)
+    } catch {
+      setDeliveryCheck(null)
+    } finally {
+      setCheckingDelivery(false)
+    }
   }
 
   const useCurrentLocation = () => {
@@ -553,15 +588,19 @@ function App() {
 
     setLocating(true)
     setDeliveryError('')
-    navigator.geolocation.getCurrentPosition(({ coords }) => {
-      const location = { latitude: coords.latitude, longitude: coords.longitude }
-      setLocating(false)
-      if (!isNearLindavista(location)) {
-        setDeliveryError('La ubicación actual parece estar fuera de Lindavista. Revisa la dirección y pulsa Ubicar dirección.')
-        return
-      }
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      const location: Coordinates = { latitude: coords.latitude, longitude: coords.longitude }
       setDeliveryCoordinates(location)
       setPinnedAddress(deliveryAddress.trim())
+      setCheckingDelivery(true)
+      try {
+        setDeliveryCheck(await checkDelivery({ coordinates: location }))
+      } catch {
+        setDeliveryCheck(null)
+      } finally {
+        setCheckingDelivery(false)
+        setLocating(false)
+      }
     }, () => {
       setLocating(false)
       setDeliveryError('No pudimos obtener tu ubicación. Puedes ubicar la dirección escrita.')
@@ -576,6 +615,10 @@ function App() {
     }
     if (!hasDeliveryPin) {
       setDeliveryError('Ubica la dirección en el mapa antes de confirmar el pedido.')
+      return
+    }
+    if (outsideRadius) {
+      setDeliveryError(`Tu dirección está a ${deliveryDistanceKm?.toFixed(1)} km de la cocina y entregamos dentro de ${radiusKm} km a la redonda.`)
       return
     }
     if (!packageTier) {
@@ -597,7 +640,7 @@ function App() {
           address: deliveryAddress.trim(),
           office: String(form.get('office')),
           pinConfirmed: true,
-          ...(deliveryCoordinates ? { coordinates: deliveryCoordinates } : {}),
+          ...(resolvedCoordinates ? { coordinates: resolvedCoordinates } : {}),
         },
         paymentMethod,
         orderMode,
@@ -801,6 +844,34 @@ function App() {
         )}
       </main>
 
+      <footer className="store-footer">
+        <div className="store-footer__brand">
+          <Logo hero theme="white" />
+          <p>Tu cocina en la oficina. Comida casera y fresca, entregada en tu escritorio.</p>
+        </div>
+        <div className="store-footer__columns">
+          <div>
+            <span>Entregas</span>
+            <strong>Lindavista Sur y San Felipe de Jesús</strong>
+            <small>Envío gratis dentro de {FREE_DELIVERY_RADIUS_KM} km a la redonda</small>
+            <small>De 12:00 a 2:00 pm</small>
+          </div>
+          <div>
+            <span>Pedidos</span>
+            <strong>De 8:00 am a 6:00 pm</strong>
+            <small>Hora de Ciudad de México</small>
+            <small>Pide un día antes para entrar en producción</small>
+          </div>
+          <div>
+            <span>Pagos</span>
+            <strong>{BANK_TRANSFER.bank}</strong>
+            <small>CLABE {BANK_TRANSFER.clabe}</small>
+            <small>Titular: {BANK_TRANSFER.holder}</small>
+          </div>
+        </div>
+        <p className="store-footer__legal">© {new Date().getFullYear()} FoodiePack · Lindavista, Ciudad de México</p>
+      </footer>
+
       <nav className="app-tabbar" aria-label="Navegación">
         <button className={orderMode === 'day' ? 'active' : ''} onClick={() => { setOrderMode('day'); scrollToMenu() }}>
           <Utensils size={20} /><span>Menú</span>
@@ -821,6 +892,7 @@ function App() {
           <button className="dialog-close" onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }} aria-label="Cerrar"><X size={20} /></button>
           {order ? (
             <div className="order-confirmed">
+              <Logo />
               <AcceptedOrderAnimation />
               <p>Pedido {order.id}</p>
               <h2>{order.isWeeklyPlan ? 'Tu semana está lista.' : 'Nos vemos mañana.'}</h2>
@@ -830,11 +902,15 @@ function App() {
                   ? 'Envía tu comprobante de transferencia al WhatsApp del código QR para entrar en producción.'
                   : `Pagarás ${order.paymentMethod === 'card' ? 'con tarjeta' : 'en efectivo'} al recibir.`}
               </small>
+              {typeof order.distanceKm === 'number' && (
+                <span className="confirmed-distance"><Navigation size={13} /> {order.distanceKm.toFixed(1)} km desde la cocina · envío gratis</span>
+              )}
               {order.delivery?.mapUrl && <a className="confirmed-map-link" href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={14} /> Ver dirección guardada</a>}
               <button onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }}>Cerrar</button>
             </div>
           ) : (
             <form onSubmit={placeOrder}>
+              <Logo compact />
               <p>Confirmar pedido</p>
               <h2>{orderMode === 'week' ? 'Plan semanal' : 'Datos de entrega'}</h2>
               {orderMode === 'week' && (
@@ -847,7 +923,7 @@ function App() {
               <div className="delivery-zone-card">
                 <MapPin size={20} />
                 <p><span>Zona disponible</span><strong>Lindavista Sur y San Felipe de Jesús</strong></p>
-                <b>Envío gratis · menos de 3 km</b>
+                <b>Envío gratis · menos de {radiusKm} km</b>
               </div>
               <label>Nombre<input name="name" autoComplete="name" required /></label>
               <label>Teléfono<input name="phone" type="tel" autoComplete="tel" required /></label>
@@ -863,6 +939,23 @@ function App() {
                   <span><i />{hasDeliveryPin ? 'Pin listo' : 'Vista de la zona'}</span>
                   <a href={deliveryMap.external} target="_blank" rel="noreferrer">Abrir en Google Maps <ArrowRight size={13} /></a>
                 </div>
+              </div>
+              <div className={`delivery-radius${outsideRadius ? ' delivery-radius--out' : deliveryDistanceKm !== null ? ' delivery-radius--in' : ''}`} aria-live="polite">
+                {checkingDelivery ? (
+                  <><LoaderCircle size={17} className="spin" /><p><strong>Midiendo la distancia…</strong><span>Comparando tu dirección con la cocina.</span></p></>
+                ) : deliveryDistanceKm !== null ? (
+                  outsideRadius ? (
+                    <><TriangleAlert size={17} /><p><strong>A {deliveryDistanceKm.toFixed(1)} km de la cocina</strong><span>Entregamos dentro de {radiusKm} km a la redonda. Escríbenos por WhatsApp y vemos tu caso.</span></p></>
+                  ) : (
+                    <><Check size={17} /><p><strong>Dentro del radio · {deliveryDistanceKm.toFixed(1)} km</strong><span>Envío gratis confirmado para esta dirección.</span></p></>
+                  )
+                ) : deliveryCheck && !deliveryCheck.resolved ? (
+                  <><TriangleAlert size={17} /><p><strong>No pudimos ubicar esa dirección</strong><span>Revisa la calle y el número, o pulsa «Usar mi ubicación» para medir desde donde estás.</span></p></>
+                ) : hasDeliveryPin ? (
+                  <><MapPin size={17} /><p><strong>Pin colocado, distancia sin verificar</strong><span>No pudimos medirla sola. La cocina revisará la dirección antes de salir.</span></p></>
+                ) : (
+                  <><Navigation size={17} /><p><strong>Medimos los {radiusKm} km en automático</strong><span>Escribe tu dirección y calculamos la distancia a la cocina.</span></p></>
+                )}
               </div>
               {deliveryError && <div className="delivery-error">{deliveryError}</div>}
               <label>Indicaciones opcionales<textarea name="notes" maxLength={300} /></label>
@@ -889,7 +982,7 @@ function App() {
 
               {orderError && <div className="inline-error"><span>{orderError}</span></div>}
               <div className="checkout-dialog__total"><span>Total</span><strong>{money(activeTotal)}</strong></div>
-              <button className="checkout-button" disabled={submitting || !isOnline}>{submitting ? 'Confirmando…' : (isOnline ? 'Confirmar pedido' : 'Sin conexión')}</button>
+              <button className="checkout-button" disabled={submitting || !isOnline || outsideRadius}>{submitting ? 'Confirmando…' : outsideRadius ? `Fuera del radio de ${radiusKm} km` : (isOnline ? 'Confirmar pedido' : 'Sin conexión')}</button>
               <small>Este prototipo no procesa pagos reales.</small>
             </form>
           )}

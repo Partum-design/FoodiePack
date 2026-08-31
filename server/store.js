@@ -143,6 +143,7 @@ function orderFromRow(row) {
   return {
     id: row.id,
     createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
     deliveryDate: row.delivery_date,
     status: row.status,
     paymentMethod: row.payment_method,
@@ -155,6 +156,7 @@ function orderFromRow(row) {
     discountRate: Number(row.discount_rate),
     discountAmount: row.discount_amount,
     total: row.total,
+    distanceKm: row.distance_km === null || row.distance_km === undefined ? null : Number(row.distance_km),
   }
 }
 
@@ -243,9 +245,48 @@ export async function saveOrder(order) {
     discount_rate: order.discountRate,
     discount_amount: order.discountAmount,
     total: order.total,
+    distance_km: order.distanceKm ?? null,
   })
   throwIfSupabaseError('order save', error)
   return order
+}
+
+export const ORDER_STATUSES = ['accepted', 'completed', 'cancelled']
+
+export async function updateOrderStatus(id, status) {
+  if (!ORDER_STATUSES.includes(status)) return null
+
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    const index = database.orders.findIndex((order) => order.id === id)
+    if (index === -1) return null
+    database.orders[index] = { ...database.orders[index], status, updatedAt: new Date().toISOString() }
+    writeLocalDatabase(database)
+    return database.orders[index]
+  }
+
+  const { data, error } = await supabase
+    .from(orderTable)
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .maybeSingle()
+  throwIfSupabaseError('order status update', error)
+  return data ? orderFromRow(data) : null
+}
+
+export async function deleteOrder(id) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    const before = database.orders.length
+    database.orders = database.orders.filter((order) => order.id !== id)
+    writeLocalDatabase(database)
+    return database.orders.length < before
+  }
+
+  const { data, error } = await supabase.from(orderTable).delete().eq('id', id).select('id')
+  throwIfSupabaseError('order delete', error)
+  return (data || []).length > 0
 }
 
 export async function getOrders(limit = 200) {

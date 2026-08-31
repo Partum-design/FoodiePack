@@ -1,16 +1,16 @@
 import { ChangeEvent, CSSProperties, DragEvent, FormEvent, useEffect, useId, useRef, useState } from 'react'
 import {
-  ArrowLeft, Banknote, Check, CheckCircle2, ClipboardList, CreditCard, Eye, EyeOff,
-  ImagePlus, Landmark, Loader2, LogOut, MapPin, PackageOpen, Pencil, Plus, Receipt, Save, ShoppingBag,
-  Trash2, UtensilsCrossed, X,
+  ArrowLeft, Ban, Banknote, Building2, Check, CheckCircle2, ClipboardList, CreditCard, Eye, EyeOff,
+  ImagePlus, Landmark, Loader2, LogOut, MapPin, Navigation, PackageOpen, Pencil, Phone, Plus, Receipt,
+  RefreshCw, RotateCcw, Save, ShoppingBag, StickyNote, Trash2, TriangleAlert, UtensilsCrossed, X,
 } from 'lucide-react'
 import {
-  adminLogin, createAdminProduct, deleteAdminProduct, getAdminMenu, getAdminOrders,
-  getAdminProducts, getMenuDays, saveAdminMenu, updateAdminProduct, uploadAdminImage,
+  adminLogin, createAdminProduct, deleteAdminOrder, deleteAdminProduct, getAdminMenu, getAdminOrders,
+  getAdminProducts, getMenuDays, saveAdminMenu, updateAdminOrderStatus, updateAdminProduct, uploadAdminImage,
 } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
-import type { Meal, MenuDay, SavedOrder } from './types'
+import type { Meal, MenuDay, OrderStatus, SavedOrder } from './types'
 
 const TOKEN_KEY = 'foodiepack:admin-session'
 const placeholderImages = [
@@ -35,6 +35,131 @@ function shortDay(date: string) {
 function longDate(date: string) {
   const value = new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }).format(dateFromKey(date))
   return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  accepted: 'Aceptado',
+  completed: 'Completado',
+  cancelled: 'Cancelado',
+}
+
+const ORDER_FILTERS = [
+  { key: 'all', label: 'Todos' },
+  { key: 'accepted', label: 'Por entregar' },
+  { key: 'completed', label: 'Completados' },
+  { key: 'cancelled', label: 'Cancelados' },
+] as const
+
+type OrderFilter = (typeof ORDER_FILTERS)[number]['key']
+
+function paymentLabel(method: SavedOrder['paymentMethod']) {
+  if (method === 'card') return 'Tarjeta'
+  if (method === 'cash') return 'Efectivo'
+  return 'Transferencia'
+}
+
+function PaymentIcon({ method }: { method: SavedOrder['paymentMethod'] }) {
+  if (method === 'card') return <CreditCard size={13} />
+  if (method === 'cash') return <Banknote size={13} />
+  return <Landmark size={13} />
+}
+
+function OrderCard({ order, index, busy, onStatus, onDelete }: {
+  order: SavedOrder
+  index: number
+  busy: boolean
+  onStatus: (status: OrderStatus) => void
+  onDelete: () => void
+}) {
+  const units = order.items.reduce((sum, item) => sum + item.quantity, 0)
+  const address = order.delivery?.address || order.customer.address || ''
+  const distanceKm = order.distanceKm ?? order.delivery?.distanceKm ?? null
+  const outsideRadius = order.delivery?.withinRadius === false
+
+  return (
+    <article className={`order-card order-card--${order.status}`} style={{ '--i': index } as CSSProperties}>
+      <div className="order-card__head">
+        <div>
+          <strong>{order.id}</strong>
+          {order.isWeeklyPlan && <em className="plan-badge">Plan semanal</em>}
+        </div>
+        <span className={`order-status order-status--${order.status}`}><i />{ORDER_STATUS_LABELS[order.status]}</span>
+      </div>
+
+      <div className="order-card__grid">
+        <div className="order-field">
+          <span>Entrega</span>
+          <strong>{longDate(order.deliveryDate)}</strong>
+          <small>12:00 a 2:00 pm</small>
+        </div>
+        <div className="order-field">
+          <span>Cliente</span>
+          <strong>{order.customer.name}</strong>
+          <a href={`tel:${order.customer.phone}`}><Phone size={11} /> {order.customer.phone}</a>
+        </div>
+        <div className="order-field">
+          <span>Paquete</span>
+          <strong>{order.items[0]?.packageLabel || '—'}</strong>
+          <small>{units} {units === 1 ? 'persona' : 'personas'}{order.items[0]?.repeatGuisado ? ' · repite guisado' : ''}</small>
+        </div>
+        <div className="order-field">
+          <span>Pago</span>
+          <strong className="order-payment"><PaymentIcon method={order.paymentMethod} /> {paymentLabel(order.paymentMethod)}</strong>
+          <small>{order.items[0]?.prepay ? 'Pagado por adelantado' : 'Al recibir'}</small>
+        </div>
+        <div className="order-field order-field--total">
+          <span>Total</span>
+          <strong>{money(order.total)}</strong>
+          {order.discountAmount > 0 && <small className="order-discount">Descuento {money(order.discountAmount)}</small>}
+        </div>
+      </div>
+
+      <div className="order-address-block">
+        <MapPin size={16} />
+        <div>
+          <span>Dirección de entrega</span>
+          <strong>{address || 'Sin dirección registrada'}</strong>
+          {order.delivery?.office && <p><Building2 size={11} /> {order.delivery.office}</p>}
+          <p className="order-address-block__zone">{order.delivery?.zone || 'Lindavista, CDMX'}</p>
+          <div className="order-address-block__links">
+            {order.delivery?.mapUrl && <a href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={11} /> Ver pin en Google Maps</a>}
+            {distanceKm !== null && (
+              <b className={outsideRadius ? 'order-distance order-distance--out' : 'order-distance'}>
+                {outsideRadius ? <TriangleAlert size={11} /> : <Navigation size={11} />}
+                {distanceKm.toFixed(1)} km {outsideRadius ? `· fuera de ${order.delivery?.radiusKm ?? 3} km` : '· dentro del radio'}
+              </b>
+            )}
+            {distanceKm === null && <b className="order-distance order-distance--unknown"><Navigation size={11} /> Distancia sin verificar</b>}
+          </div>
+        </div>
+      </div>
+
+      {order.customer.notes && (
+        <p className="order-notes"><StickyNote size={13} /> {order.customer.notes}</p>
+      )}
+
+      <div className="order-card__actions">
+        {order.status !== 'completed' && (
+          <button className="order-action order-action--complete" onClick={() => onStatus('completed')} disabled={busy}>
+            {busy ? <Loader2 size={13} className="spin" /> : <CheckCircle2 size={13} />} Marcar completado
+          </button>
+        )}
+        {order.status !== 'cancelled' && (
+          <button className="order-action order-action--cancel" onClick={() => onStatus('cancelled')} disabled={busy}>
+            <Ban size={13} /> Cancelar
+          </button>
+        )}
+        {order.status !== 'accepted' && (
+          <button className="order-action" onClick={() => onStatus('accepted')} disabled={busy}>
+            <RotateCcw size={13} /> Reabrir
+          </button>
+        )}
+        <button className="order-action order-action--delete" onClick={onDelete} disabled={busy}>
+          <Trash2 size={13} /> Eliminar
+        </button>
+      </div>
+    </article>
+  )
 }
 
 function resizeImageToBase64(file: File, maxSize = 900, quality = 0.82): Promise<string> {
@@ -300,6 +425,9 @@ function AdminApp() {
   const [products, setProducts] = useState<Meal[]>([])
   const [addingProduct, setAddingProduct] = useState(false)
   const [orders, setOrders] = useState<SavedOrder[]>([])
+  const [orderFilter, setOrderFilter] = useState<OrderFilter>('all')
+  const [orderBusy, setOrderBusy] = useState('')
+  const [ordersTick, setOrdersTick] = useState(0)
   const [loading, setLoading] = useState(false)
   const [productsLoading, setProductsLoading] = useState(false)
   const [dayBusy, setDayBusy] = useState(false)
@@ -351,12 +479,20 @@ function AdminApp() {
 
   useEffect(() => {
     if (!token || tab !== 'orders') return
+    let active = true
     setLoading(true)
+    setError('')
     getAdminOrders(token)
-      .then(({ orders: currentOrders }) => setOrders(currentOrders))
-      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : 'No se pudieron cargar los pedidos'))
-      .finally(() => setLoading(false))
-  }, [tab, token])
+      .then(({ orders: currentOrders }) => { if (active) setOrders(currentOrders) })
+      .catch((requestError) => {
+        if (!active) return
+        const text = requestError instanceof Error ? requestError.message : 'No se pudieron cargar los pedidos'
+        setError(text)
+        if (/sesión|acceso/i.test(text)) logout()
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [tab, token, ordersTick])
 
   if (!token) return <Login onSuccess={setToken} />
 
@@ -411,6 +547,49 @@ function AdminApp() {
     setProducts((current) => current.filter((item) => item.id !== id))
   }
 
+  const flash = (text: string) => {
+    setMessage(text)
+    window.setTimeout(() => setMessage((current) => current === text ? '' : current), 1800)
+  }
+
+  const refreshOrders = () => setOrdersTick((tick) => tick + 1)
+
+  const changeOrderStatus = async (order: SavedOrder, status: OrderStatus) => {
+    if (order.status === status) return
+    if (status === 'cancelled' && !window.confirm(`¿Cancelar el pedido ${order.id} de ${order.customer.name}?`)) return
+    setOrderBusy(order.id)
+    setError('')
+    const previous = orders
+    setOrders((current) => current.map((item) => item.id === order.id ? { ...item, status } : item))
+    try {
+      const { order: saved } = await updateAdminOrderStatus(order.id, status, token)
+      setOrders((current) => current.map((item) => item.id === saved.id ? saved : item))
+      flash(status === 'completed' ? 'Pedido completado' : status === 'cancelled' ? 'Pedido cancelado' : 'Pedido reabierto')
+    } catch (requestError) {
+      setOrders(previous)
+      setError(requestError instanceof Error ? requestError.message : 'No se pudo actualizar el pedido')
+    } finally {
+      setOrderBusy('')
+    }
+  }
+
+  const removeOrder = async (order: SavedOrder) => {
+    if (!window.confirm(`¿Eliminar el pedido ${order.id}? Esta acción no se puede deshacer.`)) return
+    setOrderBusy(order.id)
+    setError('')
+    const previous = orders
+    setOrders((current) => current.filter((item) => item.id !== order.id))
+    try {
+      await deleteAdminOrder(order.id, token)
+      flash('Pedido eliminado')
+    } catch (requestError) {
+      setOrders(previous)
+      setError(requestError instanceof Error ? requestError.message : 'No se pudo eliminar el pedido')
+    } finally {
+      setOrderBusy('')
+    }
+  }
+
   const handleDrop = (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
     setDragOver(false)
@@ -420,12 +599,18 @@ function AdminApp() {
   }
 
   const availableCount = meals.filter((meal) => meal.available).length
-  const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
+  const activeOrders = orders.filter((order) => order.status === 'accepted')
+  const completedOrders = orders.filter((order) => order.status === 'completed')
+  const cancelledOrders = orders.filter((order) => order.status === 'cancelled')
+  const visibleOrders = orderFilter === 'all' ? orders : orders.filter((order) => order.status === orderFilter)
+  const totalRevenue = orders
+    .filter((order) => order.status !== 'cancelled')
+    .reduce((sum, order) => sum + order.total, 0)
 
   return (
     <div className="admin-shell">
       <aside className="admin-nav">
-        <Logo compact />
+        <Logo compact theme="white" />
         <div>
           <button className={tab === 'menu' ? 'selected' : ''} onClick={() => setTab('menu')}><ClipboardList size={15} /> Menús</button>
           <button className={tab === 'orders' ? 'selected' : ''} onClick={() => setTab('orders')}><ShoppingBag size={15} /> Pedidos</button>
@@ -518,38 +703,56 @@ function AdminApp() {
             </section>
           </div>
         </> : <>
-          <header className="admin-page-head"><div><p>Operación</p><h1>Pedidos</h1><span>Aquí llegan los pedidos aceptados.</span></div></header>
+          <header className="admin-page-head">
+            <div><p>Operación</p><h1>Pedidos</h1><span>Marca cada pedido como completado o cancelado, y elimina los que ya no necesites.</span></div>
+            <div className="admin-head-actions">
+              {message && <span className="save-message"><Check size={14} /> {message}</span>}
+              <button className="admin-secondary" onClick={refreshOrders} disabled={loading}>
+                {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} Actualizar
+              </button>
+            </div>
+          </header>
 
           <div className="admin-stats">
-            <div className="admin-stat"><ShoppingBag size={20} /><span><b>{orders.length}</b>Pedidos</span></div>
-            <div className="admin-stat admin-stat--accent"><Receipt size={20} /><span><b>{money(totalRevenue)}</b>Ingresos</span></div>
+            <div className="admin-stat"><ShoppingBag size={20} /><span><b>{activeOrders.length}</b>Por entregar</span></div>
+            <div className="admin-stat admin-stat--accent"><CheckCircle2 size={20} /><span><b>{completedOrders.length}</b>Completados</span></div>
+            <div className="admin-stat"><Ban size={20} /><span><b>{cancelledOrders.length}</b>Cancelados</span></div>
+            <div className="admin-stat"><Receipt size={20} /><span><b>{money(totalRevenue)}</b>Ingresos</span></div>
+          </div>
+
+          <div className="orders-filters" role="tablist" aria-label="Filtrar pedidos">
+            {ORDER_FILTERS.map((filter) => (
+              <button
+                key={filter.key}
+                role="tab"
+                aria-selected={orderFilter === filter.key}
+                className={orderFilter === filter.key ? 'selected' : ''}
+                onClick={() => setOrderFilter(filter.key)}
+              >
+                {filter.label} <b>{filter.key === 'all' ? orders.length : orders.filter((order) => order.status === filter.key).length}</b>
+              </button>
+            ))}
           </div>
 
           {error && <div className="inline-error">{error}</div>}
           {loading && <div className="admin-loading"><Loader2 size={22} className="spin" /> Cargando pedidos…</div>}
-          <div className="orders-table">
-            <div className="orders-table__head"><span>Pedido</span><span>Entrega</span><span>Cliente</span><span>Dirección</span><span>Paquete</span><span>Pago</span><span>Total</span><span>Estado</span></div>
-            {!loading && orders.map((order, index) => (
-              <div className="orders-table__row" key={order.id} style={{ '--i': index } as CSSProperties}>
-                <strong>{order.id}{order.isWeeklyPlan && <em className="plan-badge">Plan semanal</em>}</strong>
-                <span>{longDate(order.deliveryDate)}</span>
-                <span>{order.customer.name}</span>
-                <span className="order-address">
-                  <strong>{order.delivery?.address || order.customer.address || 'Sin dirección'}</strong>
-                  {order.delivery?.office && <small>{order.delivery.office}</small>}
-                  {order.delivery?.mapUrl && <a href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={12} /> Ver pin</a>}
-                </span>
-                <span>{order.items[0]?.packageLabel || '—'} · {order.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
-                <span className="order-payment">
-                  {order.paymentMethod === 'card' ? <CreditCard size={13} /> : order.paymentMethod === 'cash' ? <Banknote size={13} /> : <Landmark size={13} />}
-                  {' '}{order.paymentMethod === 'card' ? 'Tarjeta' : order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}
-                </span>
-                <strong>{money(order.total)}{order.discountAmount > 0 && <small className="order-discount">-{money(order.discountAmount)}</small>}</strong>
-                <b className={order.status === 'accepted' ? '' : 'status-confirmed'}>{order.status === 'accepted' ? 'Aceptado' : 'Confirmado'}</b>
-              </div>
+
+          <div className="orders-list">
+            {!loading && visibleOrders.map((order, index) => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                index={index}
+                busy={orderBusy === order.id}
+                onStatus={(status) => changeOrderStatus(order, status)}
+                onDelete={() => removeOrder(order)}
+              />
             ))}
             {!loading && orders.length === 0 && (
               <div className="admin-empty"><PackageOpen size={26} /><strong>Todavía no hay pedidos</strong>Aquí aparecerán en cuanto lleguen.</div>
+            )}
+            {!loading && orders.length > 0 && visibleOrders.length === 0 && (
+              <div className="admin-empty"><PackageOpen size={26} /><strong>Nada en este filtro</strong>Cambia de pestaña para ver los demás pedidos.</div>
             )}
           </div>
         </>}

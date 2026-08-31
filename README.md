@@ -8,7 +8,23 @@ Aplicación de pedidos para una dark kitchen:
 
 La tienda permite pedir para mañana o armar un plan semanal (hasta 5 días disponibles). El servidor únicamente acepta pedidos entre las 8:00 y las 18:00, usando siempre la zona horaria `America/Mexico_City`. Si el plan cubre los 5 días y el cliente elige pagar por adelantado, se aplica 12% de descuento sobre la comida; el envío se cobra por día entregado.
 
-La entrega está limitada a Lindavista, CDMX. Antes de confirmar, el cliente debe escribir su dirección y oficina, revisar el pin en Google Maps, confirmar la ubicación y elegir método de pago (tarjeta o efectivo). La liga del pin queda guardada con el pedido y aparece en el panel de cocina.
+La entrega está limitada a Lindavista, CDMX. Antes de confirmar, el cliente debe escribir su dirección y oficina, revisar el pin en Google Maps, confirmar la ubicación y elegir método de pago (transferencia, tarjeta o efectivo). La liga del pin queda guardada con el pedido y aparece en el panel de cocina.
+
+## Radio de entrega automático
+
+En cuanto el cliente escribe su dirección, la app mide sola la distancia hasta la cocina y muestra el resultado en el mismo formulario:
+
+- Dentro del radio: confirma el envío gratis y deja continuar.
+- Fuera del radio: muestra los kilómetros reales y bloquea el botón de confirmar.
+- Sin poder ubicar la dirección: pide corregirla o usar la ubicación del dispositivo.
+
+La medición usa las coordenadas del pin cuando el cliente pulsa «Usar mi ubicación» y, si no, resuelve la dirección escrita con Nominatim (OpenStreetMap). El servidor vuelve a medir antes de guardar el pedido, así que la regla no se puede saltar desde el navegador. Los kilómetros quedan guardados en el pedido y se ven en la administración.
+
+La cocina y el radio se configuran con `KITCHEN_LATITUDE`, `KITCHEN_LONGITUDE` y `FREE_DELIVERY_RADIUS_KM`. **Cambia las coordenadas por las de la cocina real**: el valor por omisión es un punto intermedio entre Lindavista Sur y San Felipe de Jesús. Si Nominatim no responde, el pedido se acepta y aparece marcado como «distancia sin verificar» para que la cocina lo revise.
+
+## Administración de pedidos
+
+En `/admin` → pestaña **Pedidos**, cada pedido se puede marcar como completado, cancelar, reabrir o eliminar. Las pestañas de arriba filtran por estado y los totales de ingresos dejan fuera los cancelados. Cada tarjeta muestra la dirección completa, la oficina, el teléfono del cliente, la liga al pin de Google Maps, la distancia detectada y las indicaciones que dejó el cliente.
 
 ## Desarrollo local
 
@@ -37,6 +53,9 @@ PORT=8787
 WEB_ORIGIN=https://tu-dominio.com
 ADMIN_PASSWORD=una-contraseña-larga
 JWT_SECRET=un-secreto-aleatorio-de-al-menos-32-caracteres
+KITCHEN_LATITUDE=19.4939
+KITCHEN_LONGITUDE=-99.1095
+FREE_DELIVERY_RADIUS_KM=3
 SUPABASE_URL=https://icyjsedrzwruihrveyay.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=tu-clave-service-role-de-supabase
 ```
@@ -45,7 +64,7 @@ SUPABASE_SERVICE_ROLE_KEY=tu-clave-service-role-de-supabase
 
 ## Supabase
 
-La migración en `supabase/migrations/` crea las tablas `menu_days` y `orders`, activa RLS y deja el acceso exclusivamente para `service_role`. Con la CLI de Supabase autenticada:
+Las migraciones en `supabase/migrations/` crean las tablas `menu_days`, `orders` y `products`, activan RLS y dejan el acceso exclusivamente para `service_role`. La última agrega el ciclo de vida del pedido (`accepted`, `completed`, `cancelled`), su `updated_at` y la columna `distance_km` con la distancia detectada. Con la CLI de Supabase autenticada:
 
 ```bash
 npx supabase@latest link --project-ref icyjsedrzwruihrveyay
@@ -76,7 +95,9 @@ La web y el API se despliegan juntos en el proyecto Vercel `foodiepack`; no se d
 - Los endpoints de menú y pedidos administrativos requieren token.
 - El inicio de sesión limita intentos por dirección IP.
 - Los precios, disponibilidad, fecha y horario del pedido se vuelven a validar en la API.
-- La API valida que la zona de entrega sea Lindavista y genera la liga de Google Maps en el servidor.
+- La API valida que la zona de entrega sea Lindavista, mide la distancia a la cocina y rechaza los pedidos fuera del radio.
+- La API genera la liga de Google Maps en el servidor.
+- Cambiar el estado o eliminar un pedido requiere token de administración.
 - El pago sigue siendo demostrativo y no realiza cargos reales.
 
 ```bash

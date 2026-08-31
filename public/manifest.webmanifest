@@ -1,10 +1,16 @@
 {
-  "name": "FoodiePack",
+  "name": "FoodiePack — Tu cocina en la oficina",
   "short_name": "FoodiePack",
-  "description": "Tu cocina en la oficina",
+  "description": "Comida casera y fresca entregada en tu oficina en Lindavista, CDMX.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f6f1e6",
   "theme_color": "#0b4b39",
-  "icons": []
+  "lang": "es-MX",
+  "icons": [
+    { "src": "/assets/brand/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }

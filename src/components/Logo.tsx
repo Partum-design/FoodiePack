@@ -1,20 +1,25 @@
 type LogoProps = {
+  /** Marca reducida para barras compactas. */
   compact?: boolean
-  /** Renders the full official logo artwork instead of the compact CSS lockup. */
+  /** Lockup grande para portada, acceso y preloader. */
   hero?: boolean
-  /** Which official artwork to use when `hero` is set: for light or dark backgrounds. */
+  /** Arte oficial según el fondo: verde/naranja sobre claros, blanco/naranja sobre oscuros. */
   theme?: 'color' | 'white'
 }
 
+const ARTWORK = {
+  color: '/assets/brand/logo-verde-naranja.png',
+  white: '/assets/brand/logo-blanco-naranja.png',
+}
+
 export default function Logo({ compact = false, hero = false, theme = 'color' }: LogoProps) {
-  if (hero) {
-    const src = theme === 'white' ? '/assets/brand/logo-blanco-naranja.png' : '/assets/brand/logo-verde-naranja.png'
-    return <img src={src} alt="FoodiePack — Tu cocina a la oficina" className="logo-hero" />
-  }
   return (
-    <div className={`logo ${compact ? 'logo--compact' : ''}`} aria-label="FoodiePack">
-      <span className="logo__mark" aria-hidden="true"><i /><b /></span>
-      <span className="logo__word"><b>Foodie</b><strong>Pack</strong></span>
-    </div>
+    <img
+      src={ARTWORK[theme]}
+      alt="FoodiePack — Tu cocina a la oficina"
+      className={hero ? 'logo-hero' : `logo-mark${compact ? ' logo-mark--compact' : ''}`}
+      loading={hero ? 'eager' : 'lazy'}
+      decoding="async"
+    />
   )
 }

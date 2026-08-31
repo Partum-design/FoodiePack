@@ -20,6 +20,9 @@ export const REPEAT_GUISADO_SURCHARGE = 15
 export const REPEAT_GUISADO_TIER: PackageTier = 'completo'
 export const WEEKLY_PLAN_DAYS = 5
 
+/** Radio de envío gratis anunciado en la carta. El servidor manda el valor real. */
+export const FREE_DELIVERY_RADIUS_KM = 3
+
 export const BANK_TRANSFER = {
   bank: 'Banamex',
   clabe: '002180702441208124',
@@ -30,6 +33,6 @@ export const ORDER_KEY_POINTS = [
   { title: 'Pedido anticipado', detail: 'Haz tu pedido y pago un día antes para entrar en la producción del día.' },
   { title: 'Comprobante', detail: 'Envíalo al WhatsApp del código QR ubicado al frente, junto con tu menú seleccionado.' },
   { title: 'Horario de entrega', detail: 'Entre 12:00 PM y 2:00 PM.' },
-  { title: 'Envío gratis', detail: 'A menos de 3 km a la redonda (Lindavista Sur y San Felipe de Jesús).' },
+  { title: 'Envío gratis', detail: `A menos de ${FREE_DELIVERY_RADIUS_KM} km a la redonda (Lindavista Sur y San Felipe de Jesús). Lo verificamos solo al escribir tu dirección.` },
   { title: 'Menú actualizado', detail: 'Consulta la carta de cada semana en nuestra página web.' },
 ]

@@ -1,4 +1,4 @@
-import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
+import type { DeliveryCheck, Meal, MenuDay, MenuResponse, OrderPolicy, OrderStatus, PaymentMethod, SavedOrder } from './types'
 
 const configuredUrl = import.meta.env.VITE_API_URL as string | undefined
 const API_URL = (configuredUrl || '/api').replace(/\/$/, '')
@@ -56,6 +56,10 @@ export function createOrder(payload: {
   return request<{ order: SavedOrder }>('/orders', { method: 'POST', body: JSON.stringify(payload) })
 }
 
+export function checkDelivery(payload: { address?: string; coordinates?: { latitude: number; longitude: number } }) {
+  return request<DeliveryCheck>('/delivery/check', { method: 'POST', body: JSON.stringify(payload) })
+}
+
 export function adminLogin(password: string) {
   return request<{ token: string }>('/admin/login', { method: 'POST', body: JSON.stringify({ password }) })
 }
@@ -78,6 +82,21 @@ export function saveAdminMenu(date: string, meals: Meal[], token: string) {
 
 export function getAdminOrders(token: string) {
   return request<{ orders: SavedOrder[] }>('/admin/orders', { headers: adminHeaders(token) })
+}
+
+export function updateAdminOrderStatus(id: string, status: OrderStatus, token: string) {
+  return request<{ order: SavedOrder }>(`/admin/orders/${id}`, {
+    method: 'PATCH',
+    headers: adminHeaders(token),
+    body: JSON.stringify({ status }),
+  })
+}
+
+export function deleteAdminOrder(id: string, token: string) {
+  return request<Record<string, never>>(`/admin/orders/${id}`, {
+    method: 'DELETE',
+    headers: adminHeaders(token),
+  })
 }
 
 export function getAdminProducts(token: string) {

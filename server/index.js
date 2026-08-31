@@ -7,9 +7,12 @@ import helmet from 'helmet'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import {
-  createProduct, deleteProduct, getMenu, getMenus, getOrders, getProducts,
-  saveMenu, saveOrder, storageMode, updateProduct, uploadProductImage,
+  ORDER_STATUSES, createProduct, deleteOrder, deleteProduct, getMenu, getMenus, getOrders,
+  getProducts, saveMenu, saveOrder, storageMode, updateOrderStatus, updateProduct, uploadProductImage,
 } from './store.js'
+import {
+  FREE_DELIVERY_RADIUS_KM, KITCHEN_LOCATION, evaluateDeliveryPoint, resolveDeliveryLocation,
+} from './delivery.js'
 import { addDays, orderPolicy } from './time.js'
 import { PACKAGES, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS } from './packages.js'
 
@@ -92,6 +95,14 @@ const productSchema = z.object({
   image: z.string().min(1).max(300).default('/assets/meals/pollo-citrico.jpg'),
   available: z.boolean().default(true),
 })
+const deliveryCheckSchema = z.object({
+  address: z.string().trim().max(180).optional().default(''),
+  coordinates: z.object({
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+  }).optional(),
+})
+const orderStatusSchema = z.object({ status: z.enum(ORDER_STATUSES) })
 const uploadSchema = z.object({
   fileBase64: z.string().min(1),
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
@@ -124,7 +135,13 @@ function requireAdmin(request, response, next) {
 }
 
 app.get('/api/health', (_request, response) => {
-  response.json({ ok: true, service: 'foodiepack-api', storage: storageMode(), policy: orderPolicy() })
+  response.json({
+    ok: true,
+    service: 'foodiepack-api',
+    storage: storageMode(),
+    policy: orderPolicy(),
+    delivery: { zone: deliveryZone, radiusKm: FREE_DELIVERY_RADIUS_KM, kitchen: KITCHEN_LOCATION },
+  })
 })
 
 app.get('/api/menu', async (request, response) => {
@@ -169,6 +186,17 @@ app.post('/api/orders', async (request, response) => {
     return response.status(409).json({ error: 'Solo puedes reservar dentro de los próximos 5 días disponibles.', policy })
   }
 
+  const location = await resolveDeliveryLocation({
+    address: parsed.data.delivery.address,
+    coordinates: parsed.data.delivery.coordinates,
+  })
+  if (location && !location.withinRadius) {
+    return response.status(409).json({
+      error: `Tu dirección está a ${location.distanceKm.toFixed(1)} km de la cocina y entregamos dentro de ${FREE_DELIVERY_RADIUS_KM} km a la redonda. Escríbenos por WhatsApp para revisar tu caso.`,
+      delivery: location,
+    })
+  }
+
   const { orderMode, packageTier, quantity, repeatGuisado, prepay } = parsed.data
   const pack = PACKAGES[packageTier]
   const canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
@@ -196,8 +224,14 @@ app.post('/api/orders', async (request, response) => {
       zone: deliveryZone,
       address: parsed.data.delivery.address,
       office: parsed.data.delivery.office,
-      mapUrl: googleMapsUrl(parsed.data.delivery),
-      ...(parsed.data.delivery.coordinates ? { coordinates: parsed.data.delivery.coordinates } : {}),
+      mapUrl: googleMapsUrl({ ...parsed.data.delivery, coordinates: parsed.data.delivery.coordinates || location?.coordinates }),
+      ...(parsed.data.delivery.coordinates || location?.coordinates
+        ? { coordinates: parsed.data.delivery.coordinates || location.coordinates }
+        : {}),
+      radiusKm: FREE_DELIVERY_RADIUS_KM,
+      ...(location
+        ? { distanceKm: location.distanceKm, withinRadius: location.withinRadius, locationSource: location.source }
+        : { distanceKm: null, withinRadius: null, locationSource: 'unverified' }),
     },
     items: [{
       packageTier,
@@ -212,9 +246,51 @@ app.post('/api/orders', async (request, response) => {
     discountRate,
     discountAmount,
     total,
+    distanceKm: location ? location.distanceKm : null,
   }
   await saveOrder(order)
   response.status(201).json({ order })
+})
+
+const deliveryCheckAttempts = new Map()
+
+app.post('/api/delivery/check', async (request, response) => {
+  const ip = request.ip
+  const attempt = deliveryCheckAttempts.get(ip) || { count: 0, resetAt: Date.now() + 60_000 }
+  if (Date.now() > attempt.resetAt) {
+    attempt.count = 0
+    attempt.resetAt = Date.now() + 60_000
+  }
+  attempt.count += 1
+  deliveryCheckAttempts.set(ip, attempt)
+  if (attempt.count > 30) return response.status(429).json({ error: 'Demasiadas consultas seguidas. Espera un minuto.' })
+
+  const parsed = deliveryCheckSchema.safeParse(request.body)
+  if (!parsed.success) return response.status(400).json({ error: 'Revisa la dirección' })
+
+  const fromPin = evaluateDeliveryPoint(parsed.data.coordinates)
+  const location = fromPin
+    ? { ...fromPin, source: 'pin', label: '' }
+    : await resolveDeliveryLocation({ address: parsed.data.address })
+
+  if (!location) {
+    return response.json({
+      resolved: false,
+      radiusKm: FREE_DELIVERY_RADIUS_KM,
+      kitchen: KITCHEN_LOCATION,
+    })
+  }
+
+  response.json({
+    resolved: true,
+    radiusKm: FREE_DELIVERY_RADIUS_KM,
+    kitchen: KITCHEN_LOCATION,
+    coordinates: location.coordinates,
+    distanceKm: location.distanceKm,
+    withinRadius: location.withinRadius,
+    source: location.source,
+    label: location.label,
+  })
 })
 
 app.post('/api/admin/login', (request, response) => {
@@ -255,6 +331,20 @@ app.put('/api/admin/menu/:date', requireAdmin, async (request, response) => {
 app.get('/api/admin/orders', requireAdmin, async (_request, response) => {
   const orders = await getOrders()
   response.json({ orders })
+})
+
+app.patch('/api/admin/orders/:id', requireAdmin, async (request, response) => {
+  const parsed = orderStatusSchema.safeParse(request.body)
+  if (!parsed.success) return response.status(400).json({ error: 'Estado no válido' })
+  const order = await updateOrderStatus(request.params.id, parsed.data.status)
+  if (!order) return response.status(404).json({ error: 'Pedido no encontrado' })
+  response.json({ order })
+})
+
+app.delete('/api/admin/orders/:id', requireAdmin, async (request, response) => {
+  const removed = await deleteOrder(request.params.id)
+  if (!removed) return response.status(404).json({ error: 'Pedido no encontrado' })
+  response.status(204).end()
 })
 
 app.get('/api/admin/products', requireAdmin, async (_request, response) => {

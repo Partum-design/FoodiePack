@@ -2,6 +2,24 @@ import type { PackageTier } from './packages'
 
 export type PaymentMethod = 'card' | 'cash' | 'transfer'
 
+export type OrderStatus = 'accepted' | 'completed' | 'cancelled'
+
+export type Coordinates = {
+  latitude: number
+  longitude: number
+}
+
+export type DeliveryCheck = {
+  resolved: boolean
+  radiusKm: number
+  kitchen: Coordinates
+  coordinates?: Coordinates
+  distanceKm?: number
+  withinRadius?: boolean
+  source?: 'pin' | 'address'
+  label?: string
+}
+
 export type Meal = {
   id: string
   name: string
@@ -50,17 +68,19 @@ export type DeliveryLocation = {
   address: string
   office: string
   mapUrl: string
-  coordinates?: {
-    latitude: number
-    longitude: number
-  }
+  coordinates?: Coordinates
+  radiusKm?: number
+  distanceKm?: number | null
+  withinRadius?: boolean | null
+  locationSource?: 'pin' | 'address' | 'unverified'
 }
 
 export type SavedOrder = {
   id: string
   createdAt: string
+  updatedAt?: string
   deliveryDate: string
-  status: string
+  status: OrderStatus
   paymentMethod: PaymentMethod
   isWeeklyPlan: boolean
   customer: {
@@ -83,4 +103,5 @@ export type SavedOrder = {
   discountRate: number
   discountAmount: number
   total: number
+  distanceKm?: number | null
 }
