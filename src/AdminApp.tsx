@@ -436,6 +436,14 @@ function AdminApp() {
       </aside>
 
       <main className="admin-main">
+        <div className="admin-main__brand">
+          <Logo />
+          <div className="admin-main__brand-copy">
+            <strong>FOODIE PACK</strong>
+            <span>foodiepack.com.mx · Administración</span>
+          </div>
+          <span className="admin-main__status"><i /> Sistema operativo</span>
+        </div>
         {tab === 'menu' ? <>
           <header className="admin-page-head">
             <div><p>Menú diario</p><h1>{selectedDate ? longDate(selectedDate) : 'Cargando…'}</h1><span>Arrastra un producto del catálogo al día, o usa el botón "Agregar al día".</span></div>
