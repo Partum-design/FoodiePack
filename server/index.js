@@ -7,8 +7,8 @@ import helmet from 'helmet'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import {
-  createProduct, deleteProduct, getMenu, getMenus, getOrders, getProducts,
-  saveMenu, saveOrder, storageMode, updateProduct, uploadProductImage,
+  createProduct, deleteOrder, deleteProduct, getMenu, getMenus, getOrders, getProducts,
+  saveMenu, saveOrder, storageMode, updateOrderStatus, updateProduct, uploadProductImage,
 } from './store.js'
 import { orderPolicy, upcomingDeliveryDates } from './time.js'
 import { PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS } from './packages.js'
@@ -103,6 +103,7 @@ const productSchema = z.object({
   available: z.boolean().default(true),
   packages: packagesSchema.default([...PACKAGE_ORDER]),
 })
+const orderStatusSchema = z.object({ status: z.enum(['accepted', 'cancelled']) })
 const uploadSchema = z.object({
   fileBase64: z.string().min(1),
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
@@ -276,6 +277,20 @@ app.put('/api/admin/menu/:date', requireAdmin, async (request, response) => {
 app.get('/api/admin/orders', requireAdmin, async (_request, response) => {
   const orders = await getOrders()
   response.json({ orders })
+})
+
+app.patch('/api/admin/orders/:id', requireAdmin, async (request, response) => {
+  const parsed = orderStatusSchema.safeParse(request.body)
+  if (!parsed.success) return response.status(400).json({ error: 'Estado de pedido inválido' })
+  const order = await updateOrderStatus(request.params.id, parsed.data.status)
+  if (!order) return response.status(404).json({ error: 'Pedido no encontrado' })
+  response.json({ order })
+})
+
+app.delete('/api/admin/orders/:id', requireAdmin, async (request, response) => {
+  const removed = await deleteOrder(request.params.id)
+  if (!removed) return response.status(404).json({ error: 'Pedido no encontrado' })
+  response.status(204).end()
 })
 
 app.get('/api/admin/products', requireAdmin, async (_request, response) => {

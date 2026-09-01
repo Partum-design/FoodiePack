@@ -328,6 +328,46 @@ export async function getOrders(limit = 200) {
   return (rows || []).map(orderFromRow)
 }
 
+export async function updateOrderStatus(id, status) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    const order = database.orders.find((item) => item.id === id)
+    if (!order) return null
+    order.status = status
+    writeLocalDatabase(database)
+    return order
+  }
+
+  const { data, error } = await supabase
+    .from(orderTable)
+    .update({ status })
+    .eq('id', id)
+    .select('*')
+    .maybeSingle()
+  throwIfSupabaseError('order status update', error)
+  return data ? orderFromRow(data) : null
+}
+
+export async function deleteOrder(id) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    const previousLength = database.orders.length
+    database.orders = database.orders.filter((item) => item.id !== id)
+    if (database.orders.length === previousLength) return false
+    writeLocalDatabase(database)
+    return true
+  }
+
+  const { data, error } = await supabase
+    .from(orderTable)
+    .delete()
+    .eq('id', id)
+    .select('id')
+    .maybeSingle()
+  throwIfSupabaseError('order delete', error)
+  return Boolean(data)
+}
+
 function productFromRow(row) {
   return {
     id: row.id,

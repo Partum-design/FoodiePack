@@ -1,12 +1,12 @@
 import { ChangeEvent, CSSProperties, DragEvent, FormEvent, useEffect, useId, useRef, useState } from 'react'
 import {
-  ArrowLeft, Banknote, Check, CheckCircle2, ClipboardList, CreditCard, Eye, EyeOff,
+  ArrowLeft, Banknote, Check, CheckCircle2, CircleX, ClipboardList, CreditCard, Eye, EyeOff,
   ImagePlus, Landmark, Loader2, LogOut, MapPin, PackageOpen, Pencil, Plus, Receipt, Save, ShoppingBag,
   Trash2, UtensilsCrossed, X,
 } from 'lucide-react'
 import {
-  adminLogin, createAdminProduct, deleteAdminProduct, getAdminMenu, getAdminOrders,
-  getAdminProducts, getMenuDays, saveAdminMenu, updateAdminProduct, uploadAdminImage,
+  adminLogin, createAdminProduct, deleteAdminOrder, deleteAdminProduct, getAdminMenu, getAdminOrders,
+  getAdminProducts, getMenuDays, saveAdminMenu, updateAdminOrderStatus, updateAdminProduct, uploadAdminImage,
 } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
@@ -31,6 +31,12 @@ function dateFromKey(date: string) {
 
 function shortDay(date: string) {
   return new Intl.DateTimeFormat('es-MX', { weekday: 'short' }).format(dateFromKey(date)).replace('.', '')
+}
+
+function orderStatusLabel(status: string) {
+  if (status === 'cancelled') return 'Cancelado'
+  if (status === 'accepted') return 'Aceptado'
+  return 'Confirmado'
 }
 
 function longDate(date: string) {
@@ -305,6 +311,7 @@ function AdminApp() {
   const [loading, setLoading] = useState(false)
   const [productsLoading, setProductsLoading] = useState(false)
   const [dayBusy, setDayBusy] = useState(false)
+  const [orderBusyId, setOrderBusyId] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -422,7 +429,39 @@ function AdminApp() {
   }
 
   const availableCount = meals.filter((meal) => meal.available).length
-  const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
+  const totalRevenue = orders.reduce((sum, order) => order.status === 'cancelled' ? sum : sum + order.total, 0)
+
+  const cancelOrder = async (order: SavedOrder) => {
+    if (order.status === 'cancelled' || !window.confirm(`¿Cancelar el pedido ${order.id}? Se conservará el registro con estado cancelado.`)) return
+    setOrderBusyId(order.id)
+    setError('')
+    try {
+      const { order: updatedOrder } = await updateAdminOrderStatus(order.id, 'cancelled', token)
+      setOrders((current) => current.map((item) => item.id === updatedOrder.id ? updatedOrder : item))
+      setMessage('Pedido cancelado')
+      window.setTimeout(() => setMessage((current) => current === 'Pedido cancelado' ? '' : current), 1800)
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'No se pudo cancelar el pedido')
+    } finally {
+      setOrderBusyId('')
+    }
+  }
+
+  const removeOrder = async (order: SavedOrder) => {
+    if (!window.confirm(`¿Eliminar definitivamente el pedido ${order.id}? Esta acción no se puede deshacer.`)) return
+    setOrderBusyId(order.id)
+    setError('')
+    try {
+      await deleteAdminOrder(order.id, token)
+      setOrders((current) => current.filter((item) => item.id !== order.id))
+      setMessage('Pedido eliminado')
+      window.setTimeout(() => setMessage((current) => current === 'Pedido eliminado' ? '' : current), 1800)
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'No se pudo eliminar el pedido')
+    } finally {
+      setOrderBusyId('')
+    }
+  }
 
   return (
     <div className="admin-shell">
@@ -528,7 +567,7 @@ function AdminApp() {
             </section>
           </div>
         </> : <>
-          <header className="admin-page-head"><div><p>Operación</p><h1>Pedidos</h1><span>Aquí llegan los pedidos aceptados.</span></div></header>
+          <header className="admin-page-head"><div><p>Foodie Pack · Operación</p><h1>Pedidos</h1><span>Aquí llegan los pedidos aceptados.</span></div></header>
 
           <div className="admin-stats">
             <div className="admin-stat"><ShoppingBag size={20} /><span><b>{orders.length}</b>Pedidos</span></div>
@@ -538,7 +577,7 @@ function AdminApp() {
           {error && <div className="inline-error">{error}</div>}
           {loading && <div className="admin-loading"><Loader2 size={22} className="spin" /> Cargando pedidos…</div>}
           <div className="orders-table">
-            <div className="orders-table__head"><span>Pedido</span><span>Entrega</span><span>Cliente</span><span>Dirección</span><span>Paquete</span><span>Pago</span><span>Total</span><span>Estado</span></div>
+            <div className="orders-table__head"><span>Pedido</span><span>Entrega</span><span>Cliente</span><span>Dirección</span><span>Paquete</span><span>Pago</span><span>Total</span><span>Estado</span><span>Acciones</span></div>
             {!loading && orders.map((order, index) => (
               <div className="orders-table__row" key={order.id} style={{ '--i': index } as CSSProperties}>
                 <strong>{order.id}{order.isWeeklyPlan && <em className="plan-badge">Plan semanal</em>}</strong>
@@ -555,7 +594,11 @@ function AdminApp() {
                   {' '}{order.paymentMethod === 'card' ? 'Tarjeta' : order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}
                 </span>
                 <strong>{money(order.total)}{order.discountAmount > 0 && <small className="order-discount">-{money(order.discountAmount)}</small>}</strong>
-                <b className={order.status === 'accepted' ? '' : 'status-confirmed'}>{order.status === 'accepted' ? 'Aceptado' : 'Confirmado'}</b>
+                <b className={`order-status ${order.status === 'accepted' ? '' : order.status === 'cancelled' ? 'order-status--cancelled' : 'status-confirmed'}`}>{orderStatusLabel(order.status)}</b>
+                <span className="order-actions" aria-label={`Acciones del pedido ${order.id}`}>
+                  <button className="order-action order-action--cancel" type="button" title={order.status === 'cancelled' ? 'Pedido ya cancelado' : 'Cancelar pedido'} disabled={order.status === 'cancelled' || orderBusyId === order.id} onClick={() => cancelOrder(order)}><CircleX size={13} /><span>Cancelar</span></button>
+                  <button className="order-action order-action--delete" type="button" title="Eliminar pedido" disabled={orderBusyId === order.id} onClick={() => removeOrder(order)}><Trash2 size={13} /><span>Eliminar</span></button>
+                </span>
               </div>
             ))}
             {!loading && orders.length === 0 && (

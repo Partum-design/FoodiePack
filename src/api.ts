@@ -82,6 +82,21 @@ export function getAdminOrders(token: string) {
   return request<{ orders: SavedOrder[] }>('/admin/orders', { headers: adminHeaders(token) })
 }
 
+export function updateAdminOrderStatus(id: string, status: 'accepted' | 'cancelled', token: string) {
+  return request<{ order: SavedOrder }>(`/admin/orders/${id}`, {
+    method: 'PATCH',
+    headers: adminHeaders(token),
+    body: JSON.stringify({ status }),
+  })
+}
+
+export function deleteAdminOrder(id: string, token: string) {
+  return request<Record<string, never>>(`/admin/orders/${id}`, {
+    method: 'DELETE',
+    headers: adminHeaders(token),
+  })
+}
+
 export function getAdminProducts(token: string) {
   return request<{ products: Meal[] }>('/admin/products', { headers: adminHeaders(token) })
 }
