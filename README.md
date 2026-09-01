@@ -27,6 +27,8 @@ http://localhost:5173/admin
 
 (el alias `/gestion-cocina` se mantiene por compatibilidad).
 
+En producción, la administración está disponible en `https://foodiepack.com.mx/admin` (el dominio raíz redirige al host canónico `www.foodiepack.com.mx`).
+
 ## Variables de entorno
 
 Copia `.env.example` a `.env` y cambia todos los secretos antes de desplegar:
@@ -34,7 +36,7 @@ Copia `.env.example` a `.env` y cambia todos los secretos antes de desplegar:
 ```env
 VITE_API_URL=/api
 PORT=8787
-WEB_ORIGIN=https://tu-dominio.com
+WEB_ORIGIN=https://foodiepack.com.mx,https://www.foodiepack.com.mx
 ADMIN_PASSWORD=una-contraseña-larga
 JWT_SECRET=un-secreto-aleatorio-de-al-menos-32-caracteres
 SUPABASE_URL=https://icyjsedrzwruihrveyay.supabase.co
