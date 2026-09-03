@@ -1,6 +1,6 @@
 import type { PackageTier } from './packages'
 
-export type PaymentMethod = 'card' | 'cash' | 'transfer'
+export type PaymentMethod = 'card' | 'cash' | 'transfer' | 'terminal'
 
 export type Meal = {
   id: string

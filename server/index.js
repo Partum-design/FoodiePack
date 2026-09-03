@@ -63,7 +63,7 @@ const deliverySchema = z.object({
 const orderSchema = z.object({
   customer: customerSchema,
   delivery: deliverySchema,
-  paymentMethod: z.enum(['cash', 'transfer']),
+  paymentMethod: z.enum(['cash', 'transfer', 'terminal']),
   orderMode: z.enum(['day', 'week']),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   packageTier: z.enum(['economico', 'ejecutivo', 'completo']),

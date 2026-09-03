@@ -1,7 +1,7 @@
 import { ChangeEvent, CSSProperties, DragEvent, FormEvent, useEffect, useId, useRef, useState } from 'react'
 import {
   ArrowLeft, Banknote, Check, CheckCircle2, CircleX, ClipboardList, CreditCard, Eye, EyeOff,
-  ImagePlus, Landmark, Loader2, LogOut, MapPin, PackageOpen, Pencil, Plus, Receipt, Save, ShoppingBag,
+  ImagePlus, Landmark, Loader2, LogOut, MapPin, PackageOpen, Pencil, Phone, Plus, Receipt, Save, ShoppingBag,
   Trash2, UtensilsCrossed, X,
 } from 'lucide-react'
 import {
@@ -582,7 +582,10 @@ function AdminApp() {
               <div className="orders-table__row" key={order.id} style={{ '--i': index } as CSSProperties}>
                 <strong>{order.id}{order.isWeeklyPlan && <em className="plan-badge">Plan semanal</em>}{order.items[0]?.promo2x1 && <em className="plan-badge">2x1</em>}</strong>
                 <span>{longDate(order.deliveryDate)}</span>
-                <span>{order.customer.name}</span>
+                <span className="order-customer">
+                  <strong>{order.customer.name}</strong>
+                  {order.customer.phone && <a href={`tel:${order.customer.phone}`}><Phone size={11} /> {order.customer.phone}</a>}
+                </span>
                 <span className="order-address">
                   <strong>{order.delivery?.address || order.customer.address || 'Sin dirección'}</strong>
                   {order.delivery?.office && <small>{order.delivery.office}</small>}
@@ -590,8 +593,8 @@ function AdminApp() {
                 </span>
                 <span>{order.items[0]?.packageLabel || '—'} · {order.items.reduce((sum, item) => sum + item.quantity, 0)}{order.items[0]?.mealName ? <small className="order-meal-name">{order.items[0].mealName}</small> : null}</span>
                 <span className="order-payment">
-                  {order.paymentMethod === 'card' ? <CreditCard size={13} /> : order.paymentMethod === 'cash' ? <Banknote size={13} /> : <Landmark size={13} />}
-                  {' '}{order.paymentMethod === 'card' ? 'Tarjeta' : order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}
+                  {order.paymentMethod === 'card' || order.paymentMethod === 'terminal' ? <CreditCard size={13} /> : order.paymentMethod === 'cash' ? <Banknote size={13} /> : <Landmark size={13} />}
+                  {' '}{order.paymentMethod === 'card' ? 'Tarjeta' : order.paymentMethod === 'terminal' ? 'Terminal' : order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}
                 </span>
                 <strong>{money(order.total)}{order.discountAmount > 0 && <small className="order-discount">-{money(order.discountAmount)}</small>}</strong>
                 <b className={`order-status ${order.status === 'accepted' ? '' : order.status === 'cancelled' ? 'order-status--cancelled' : 'status-confirmed'}`}>{orderStatusLabel(order.status)}</b>

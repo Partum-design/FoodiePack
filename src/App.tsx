@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, Heart, Landmark, LocateFixed,
+  ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, CreditCard, Heart, Landmark, LocateFixed,
   MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
 } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
+import DeliveryMap from './components/DeliveryMap'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
 import {
@@ -22,21 +23,37 @@ const MAX_WEEKLY_SAVINGS = Math.max(...PACKAGE_ORDER.map((tier) => PACKAGES[tier
 type Coordinates = { latitude: number; longitude: number }
 type OrderMode = 'day' | 'week'
 
-function mapLinks(address: string, coordinates: Coordinates | null) {
-  const query = coordinates
-    ? `${coordinates.latitude},${coordinates.longitude}`
-    : address
-      ? `${address}, ${LINDAVISTA_QUERY}`
-      : LINDAVISTA_QUERY
-
-  return {
-    embed: `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`,
-    external: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
-  }
+function externalMapUrl(coordinates: Coordinates | null) {
+  const query = coordinates ? `${coordinates.latitude},${coordinates.longitude}` : LINDAVISTA_QUERY
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
 }
 
 function isNearLindavista({ latitude, longitude }: Coordinates) {
   return latitude >= 19.472 && latitude <= 19.516 && longitude >= -99.151 && longitude <= -99.106
+}
+
+// Free geocoder with no API key; fine for a single-neighborhood, low-volume storefront.
+async function geocodeLindavista(address: string): Promise<Coordinates | null> {
+  const params = new URLSearchParams({
+    q: `${address}, ${LINDAVISTA_QUERY}`,
+    format: 'jsonv2',
+    limit: '1',
+    countrycodes: 'mx',
+    viewbox: '-99.151,19.516,-99.106,19.472',
+    bounded: '1',
+  })
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+      headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) return null
+    const results = (await response.json()) as Array<{ lat: string; lon: string }>
+    const [first] = results
+    if (!first) return null
+    return { latitude: Number(first.lat), longitude: Number(first.lon) }
+  } catch {
+    return null
+  }
 }
 
 function dateFromKey(date: string) {
@@ -419,10 +436,10 @@ function App() {
   const [order, setOrder] = useState<SavedOrder | null>(null)
   const [orderError, setOrderError] = useState('')
   const [deliveryAddress, setDeliveryAddress] = useState('')
-  const [pinnedAddress, setPinnedAddress] = useState('')
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates | null>(null)
   const [deliveryError, setDeliveryError] = useState('')
   const [locating, setLocating] = useState(false)
+  const [geocoding, setGeocoding] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [favorites, setFavorites] = useState<string[]>(loadFavorites)
   const [activeTag, setActiveTag] = useState<string | null>(null)
@@ -530,8 +547,7 @@ function App() {
   const isNextAvailable = menu?.policy.tomorrow === selectedDate
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
   const selectedMeal = menu?.meals.find((meal) => meal.id === selectedMealId) || null
-  const deliveryMap = mapLinks(pinnedAddress, deliveryCoordinates)
-  const hasDeliveryPin = Boolean(pinnedAddress || deliveryCoordinates)
+  const hasDeliveryPin = Boolean(deliveryCoordinates)
 
   const currentMeals = useMemo(
     () => orderMode === 'day' ? (menu?.meals || []) : (weeklyMenus[activeWeekDay]?.meals || []),
@@ -591,29 +607,35 @@ function App() {
 
   const updateDeliveryAddress = (value: string) => {
     setDeliveryAddress(value)
-    setPinnedAddress('')
     setDeliveryCoordinates(null)
     setDeliveryError('')
   }
 
-  const pinDeliveryAddress = () => {
+  const pinDeliveryAddress = async () => {
     const address = deliveryAddress.trim()
     if (address.length < 8) {
       setDeliveryError('Escribe la calle y el número antes de colocar el pin.')
       return
     }
-    setPinnedAddress(address)
-    setDeliveryCoordinates(null)
+    setGeocoding(true)
     setDeliveryError('')
+    const location = await geocodeLindavista(address)
+    setGeocoding(false)
+    if (!location) {
+      setDeliveryError('No encontramos esa dirección en Lindavista. Mueve el pin en el mapa hasta tu ubicación.')
+      return
+    }
+    setDeliveryCoordinates(location)
+  }
+
+  const moveDeliveryPin = (location: Coordinates) => {
+    setDeliveryCoordinates(location)
+    setDeliveryError(isNearLindavista(location) ? '' : 'Ese punto está fuera de la zona de entrega (Lindavista).')
   }
 
   const useCurrentLocation = () => {
-    if (deliveryAddress.trim().length < 8) {
-      setDeliveryError('Primero escribe la dirección de la oficina.')
-      return
-    }
     if (!navigator.geolocation) {
-      setDeliveryError('Este dispositivo no permite obtener la ubicación. Puedes ubicar la dirección escrita.')
+      setDeliveryError('Este dispositivo no permite obtener la ubicación. Mueve el pin en el mapa manualmente.')
       return
     }
 
@@ -622,16 +644,14 @@ function App() {
     navigator.geolocation.getCurrentPosition(({ coords }) => {
       const location = { latitude: coords.latitude, longitude: coords.longitude }
       setLocating(false)
-      if (!isNearLindavista(location)) {
-        setDeliveryError('La ubicación actual parece estar fuera de Lindavista. Revisa la dirección y pulsa Ubicar dirección.')
-        return
-      }
       setDeliveryCoordinates(location)
-      setPinnedAddress(deliveryAddress.trim())
+      if (!isNearLindavista(location)) {
+        setDeliveryError('Tu ubicación actual parece estar fuera de Lindavista. Mueve el pin hasta la dirección de entrega.')
+      }
     }, () => {
       setLocating(false)
-      setDeliveryError('No pudimos obtener tu ubicación. Puedes ubicar la dirección escrita.')
-    }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 })
+      setDeliveryError('No pudimos obtener tu ubicación precisa. Revisa los permisos del navegador o mueve el pin manualmente.')
+    }, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 })
   }
 
   const placeOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -910,7 +930,9 @@ function App() {
                 {order.items[0]?.promo2x1 ? ', con la promo 2x1 aplicada' : ''}. Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.
                 {' '}{order.paymentMethod === 'transfer'
                   ? 'Envía tu comprobante de transferencia al WhatsApp del código QR para entrar en producción.'
-                  : 'Pagarás en efectivo al recibir.'}
+                  : order.paymentMethod === 'terminal'
+                    ? 'Pediste terminal: el repartidor la llevará para que pagues con tarjeta al recibir.'
+                    : 'Pagarás en efectivo al recibir.'}
               </small>
               {order.delivery?.mapUrl && <a className="confirmed-map-link" href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={14} /> Ver dirección guardada</a>}
               <button onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }}>Cerrar</button>
@@ -942,14 +964,14 @@ function App() {
               <label>Dirección en Lindavista<input name="address" autoComplete="street-address" required minLength={8} value={deliveryAddress} onChange={(event) => updateDeliveryAddress(event.target.value)} placeholder="Calle y número" /></label>
               <label>Empresa, edificio u oficina<input name="office" autoComplete="organization" required minLength={2} placeholder="Empresa, edificio, piso u oficina" /></label>
               <div className="delivery-map-tools">
-                <button type="button" onClick={pinDeliveryAddress}><Navigation size={15} /> Ubicar dirección</button>
+                <button type="button" onClick={pinDeliveryAddress} disabled={geocoding}><Navigation size={15} /> {geocoding ? 'Buscando…' : 'Ubicar dirección'}</button>
                 <button type="button" onClick={useCurrentLocation} disabled={locating}><LocateFixed size={15} /> {locating ? 'Ubicando…' : 'Usar mi ubicación'}</button>
               </div>
               <div className={`delivery-map ${hasDeliveryPin ? 'delivery-map--pinned' : ''}`}>
-                <iframe title="Pin de entrega en Lindavista" src={deliveryMap.embed} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
+                <DeliveryMap coordinates={deliveryCoordinates} onMove={moveDeliveryPin} />
                 <div>
-                  <span><i />{hasDeliveryPin ? 'Pin listo' : 'Vista de la zona'}</span>
-                  <a href={deliveryMap.external} target="_blank" rel="noreferrer">Abrir en Google Maps <ArrowRight size={13} /></a>
+                  <span><i />{hasDeliveryPin ? 'Arrastra el pin para ajustarlo' : 'Toca el mapa o usa tu ubicación'}</span>
+                  <a href={externalMapUrl(deliveryCoordinates)} target="_blank" rel="noreferrer">Abrir en Google Maps <ArrowRight size={13} /></a>
                 </div>
               </div>
               {deliveryError && <div className="delivery-error">{deliveryError}</div>}
@@ -960,6 +982,7 @@ function App() {
                 <div className="payment-method__options">
                   <button type="button" className={paymentMethod === 'transfer' ? 'selected' : ''} onClick={() => setPaymentMethod('transfer')}><Landmark size={16} /> Transferencia</button>
                   <button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => { setPaymentMethod('cash'); setPrepay(false) }}><Banknote size={16} /> Efectivo</button>
+                  <button type="button" className={paymentMethod === 'terminal' ? 'selected' : ''} onClick={() => { setPaymentMethod('terminal'); setPrepay(false) }}><CreditCard size={16} /> Pedir terminal</button>
                 </div>
                 {paymentMethod === 'transfer' && (
                   <div className="bank-transfer-card bank-transfer-card--inline">
@@ -969,6 +992,14 @@ function App() {
                       <strong>{BANK_TRANSFER.bank}</strong>
                       <span>CLABE {BANK_TRANSFER.clabe}</span>
                       <span>Titular: {BANK_TRANSFER.holder}</span>
+                    </div>
+                  </div>
+                )}
+                {paymentMethod === 'terminal' && (
+                  <div className="bank-transfer-card bank-transfer-card--inline">
+                    <CreditCard size={20} />
+                    <div>
+                      <p>El repartidor llevará una terminal para que pagues con tarjeta al recibir tu pedido.</p>
                     </div>
                   </div>
                 )}
