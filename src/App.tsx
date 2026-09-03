@@ -160,7 +160,7 @@ function PromoPopup({ dateLabel, onClose, onExplore }: { dateLabel: string; onCl
         <button className="dialog-close" onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
         <span className="promo-popup__badge"><Sparkles size={13} /> Lanzamiento</span>
         <h2>2x1 <em>en tu pedido</em></h2>
-        <p>Solo el <strong>{dateLabel}</strong>: paga la mitad de tus paquetes y llévate el doble para tu equipo.</p>
+        <p>Solo el <strong>{dateLabel}</strong>: pide paquetes para tu equipo y llévate el doble al mismo precio.</p>
         <button type="button" className="promo-popup__cta" onClick={onExplore}>Aprovechar el 2x1 <ArrowRight size={16} /></button>
         <small>La promo ya está activada en tu pedido.</small>
       </section>
