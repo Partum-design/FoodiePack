@@ -580,7 +580,7 @@ function AdminApp() {
             <div className="orders-table__head"><span>Pedido</span><span>Entrega</span><span>Cliente</span><span>Dirección</span><span>Paquete</span><span>Pago</span><span>Total</span><span>Estado</span><span>Acciones</span></div>
             {!loading && orders.map((order, index) => (
               <div className="orders-table__row" key={order.id} style={{ '--i': index } as CSSProperties}>
-                <strong>{order.id}{order.isWeeklyPlan && <em className="plan-badge">Plan semanal</em>}</strong>
+                <strong>{order.id}{order.isWeeklyPlan && <em className="plan-badge">Plan semanal</em>}{order.items[0]?.promo2x1 && <em className="plan-badge">2x1</em>}</strong>
                 <span>{longDate(order.deliveryDate)}</span>
                 <span>{order.customer.name}</span>
                 <span className="order-address">

@@ -10,8 +10,8 @@ import {
   createProduct, deleteOrder, deleteProduct, getMenu, getMenus, getOrders, getProducts,
   saveMenu, saveOrder, storageMode, updateOrderStatus, updateProduct, uploadProductImage,
 } from './store.js'
-import { orderPolicy, upcomingDeliveryDates } from './time.js'
-import { PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS } from './packages.js'
+import { orderableDates, orderPolicy } from './time.js'
+import { PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER } from './packages.js'
 
 const app = express()
 const port = Number(process.env.PORT || 8787)
@@ -63,13 +63,14 @@ const deliverySchema = z.object({
 const orderSchema = z.object({
   customer: customerSchema,
   delivery: deliverySchema,
-  paymentMethod: z.enum(['card', 'cash', 'transfer']),
+  paymentMethod: z.enum(['cash', 'transfer']),
   orderMode: z.enum(['day', 'week']),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   packageTier: z.enum(['economico', 'ejecutivo', 'completo']),
   quantity: z.number().int().min(1).max(10),
   repeatGuisado: z.boolean().optional().default(false),
   prepay: z.boolean().optional().default(false),
+  promo2x1: z.boolean().optional().default(false),
   mealId: z.string().trim().min(1).max(100).optional(),
 }).superRefine((data, context) => {
   if (data.prepay && data.paymentMethod !== 'transfer') {
@@ -143,7 +144,7 @@ app.get('/api/menu', async (request, response) => {
   const date = typeof request.query.date === 'string' ? request.query.date : policy.tomorrow
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return response.status(400).json({ error: 'Fecha inválida' })
 
-  const eligibleDates = upcomingDeliveryDates(policy.today, WEEKLY_PLAN_DAYS)
+  const eligibleDates = orderableDates(policy.today)
   const meals = await getMenu(date)
   response.json({
     date,
@@ -155,7 +156,7 @@ app.get('/api/menu', async (request, response) => {
 
 app.get('/api/menu-days', async (_request, response) => {
   const policy = orderPolicy()
-  const dates = upcomingDeliveryDates(policy.today, WEEKLY_PLAN_DAYS)
+  const dates = orderableDates(policy.today)
   const menus = await getMenus()
   const days = dates.map((date) => {
     return { date, mealCount: (menus[date] || []).filter((meal) => meal.available).length }
@@ -175,12 +176,12 @@ app.post('/api/orders', async (request, response) => {
     })
   }
 
-  const eligibleDates = upcomingDeliveryDates(policy.today, WEEKLY_PLAN_DAYS)
+  const eligibleDates = orderableDates(policy.today)
   if (!eligibleDates.includes(parsed.data.date)) {
-    return response.status(409).json({ error: 'Solo puedes reservar dentro de los próximos 5 días disponibles.', policy })
+    return response.status(409).json({ error: 'Por ahora solo recibimos pedidos para el lunes 7 de septiembre.', policy })
   }
 
-  const { orderMode, packageTier, quantity, repeatGuisado, prepay } = parsed.data
+  const { orderMode, packageTier, quantity, repeatGuisado, prepay, promo2x1 } = parsed.data
   let selectedMeal = null
   if (orderMode === 'day') {
     const menu = await getMenu(parsed.data.date)
@@ -193,6 +194,7 @@ app.post('/api/orders', async (request, response) => {
   }
   const pack = PACKAGES[packageTier]
   const canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
+  const appliedPromo2x1 = orderMode === 'day' && promo2x1
 
   let subtotal
   let discountAmount = 0
@@ -200,7 +202,10 @@ app.post('/api/orders', async (request, response) => {
     subtotal = pack.weeklyRegular * quantity
     discountAmount = prepay ? (pack.weeklyRegular - pack.weeklyPrepay) * quantity : 0
   } else {
-    subtotal = pack.dailyPrice * quantity + (canRepeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0)
+    const surcharge = canRepeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0
+    subtotal = pack.dailyPrice * quantity + surcharge
+    const paidQuantity = appliedPromo2x1 ? Math.ceil(quantity / 2) : quantity
+    discountAmount = appliedPromo2x1 ? pack.dailyPrice * (quantity - paidQuantity) : 0
   }
   const discountRate = subtotal > 0 ? Number((discountAmount / subtotal).toFixed(4)) : 0
   const total = subtotal - discountAmount
@@ -227,6 +232,7 @@ app.post('/api/orders', async (request, response) => {
       unitPrice: orderMode === 'week' ? (prepay ? pack.weeklyPrepay : pack.weeklyRegular) : pack.dailyPrice,
       repeatGuisado: canRepeatGuisado,
       prepay: orderMode === 'week' && prepay,
+      promo2x1: appliedPromo2x1,
       ...(selectedMeal ? { mealId: selectedMeal.id, mealName: selectedMeal.name, menuDate: parsed.data.date } : {}),
     }],
     subtotal,

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, CreditCard, Heart, Landmark, LocateFixed,
+  ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, Heart, Landmark, LocateFixed,
   MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
 } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
@@ -135,6 +135,22 @@ function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: nu
   )
 }
 
+function PromoPopup({ dateLabel, onClose, onExplore }: { dateLabel: string; onClose: () => void; onExplore: () => void }) {
+  return (
+    <>
+      <button className="modal-backdrop" aria-label="Cerrar" onClick={onClose} />
+      <section className="promo-popup" role="dialog" aria-modal="true" aria-label="Promoción de lanzamiento 2x1">
+        <button className="dialog-close" onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
+        <span className="promo-popup__badge"><Sparkles size={13} /> Lanzamiento</span>
+        <h2>2x1 <em>en tu pedido</em></h2>
+        <p>Solo el <strong>{dateLabel}</strong>: paga la mitad de tus paquetes y llévate el doble para tu equipo.</p>
+        <button type="button" className="promo-popup__cta" onClick={onExplore}>Aprovechar el 2x1 <ArrowRight size={16} /></button>
+        <small>La promo ya está activada en tu pedido.</small>
+      </section>
+    </>
+  )
+}
+
 function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, selectedMealId, onChoosePackage }: {
   meal: Meal
   index: number
@@ -251,22 +267,26 @@ function PackagesSection({ selected, onSelect }: { selected: PackageTier | null;
   )
 }
 
-function OrderSummary({ packageTier, quantity, repeatGuisado, deliveryDate, meal, canOrder, onQuantity, onToggleRepeat, onCheckout }: {
+function OrderSummary({ packageTier, quantity, repeatGuisado, promo2x1, deliveryDate, meal, canOrder, onQuantity, onToggleRepeat, onTogglePromo2x1, onCheckout }: {
   packageTier: PackageTier | null
   quantity: number
   repeatGuisado: boolean
+  promo2x1: boolean
   deliveryDate: string
   meal: Meal | null
   canOrder: boolean
   onQuantity: (change: number) => void
   onToggleRepeat: () => void
+  onTogglePromo2x1: () => void
   onCheckout: () => void
 }) {
   const pack = packageTier ? PACKAGES[packageTier] : null
   const canRepeat = packageTier === REPEAT_GUISADO_TIER
   const surcharge = pack && canRepeat && repeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0
   const subtotal = pack ? pack.dailyPrice * quantity : 0
-  const total = subtotal + surcharge
+  const paidQuantity = promo2x1 ? Math.ceil(quantity / 2) : quantity
+  const promoDiscount = pack && promo2x1 ? pack.dailyPrice * (quantity - paidQuantity) : 0
+  const total = subtotal + surcharge - promoDiscount
 
   return (
     <aside className="order-summary" id="pedido">
@@ -290,6 +310,14 @@ function OrderSummary({ packageTier, quantity, repeatGuisado, deliveryDate, meal
               <button onClick={() => onQuantity(1)} aria-label="Agregar una persona"><Plus size={12} /></button>
             </div>
           </div>
+          <label className="weekly-discount promo-toggle">
+            <input type="checkbox" checked={promo2x1} onChange={onTogglePromo2x1} />
+            <span>
+              <strong>Promo 2x1 · {deliveryDate ? fullDate(deliveryDate).toLowerCase() : 'lanzamiento'}</strong>
+              <small>Paga la mitad de tus paquetes, llévate todos</small>
+            </span>
+            <b>-{money(promoDiscount)}</b>
+          </label>
           {canRepeat && (
             <label className="repeat-guisado">
               <input type="checkbox" checked={repeatGuisado} onChange={onToggleRepeat} />
@@ -302,6 +330,7 @@ function OrderSummary({ packageTier, quantity, repeatGuisado, deliveryDate, meal
       <div className="summary-totals">
         <p><span>Paquete</span><strong>{money(subtotal)}</strong></p>
         {surcharge > 0 && <p><span>Repetir guisado</span><strong>{money(surcharge)}</strong></p>}
+        {promoDiscount > 0 && <p className="summary-discount"><span>Promo 2x1</span><strong>-{money(promoDiscount)}</strong></p>}
         <p><span>Envío</span><strong>Gratis</strong></p>
         <p className="summary-total"><span>Total</span><strong>{money(total)}</strong></p>
       </div>
@@ -382,7 +411,9 @@ function App() {
   const [quantity, setQuantity] = useState(1)
   const [repeatGuisado, setRepeatGuisado] = useState(false)
   const [prepay, setPrepay] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
+  const [promo2x1, setPromo2x1] = useState(true)
+  const [showPromoPopup, setShowPromoPopup] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer')
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [order, setOrder] = useState<SavedOrder | null>(null)
@@ -421,6 +452,13 @@ function App() {
       document.body.style.overflow = ''
     }
   }, [])
+
+  useEffect(() => {
+    if (preloading) return
+    if (sessionStorage.getItem('foodiepack:v2:promo-2x1-seen')) return
+    const timer = window.setTimeout(() => setShowPromoPopup(true), 500)
+    return () => window.clearTimeout(timer)
+  }, [preloading])
 
   useEffect(() => {
     const goOnline = () => setIsOnline(true)
@@ -488,7 +526,7 @@ function App() {
   }, [menu, selectedMealId])
 
   const orderingOpen = Boolean(policy?.isOpen)
-  const isTomorrow = menu?.policy.tomorrow === selectedDate
+  const promoDateLabel = policy?.tomorrow ? fullDate(policy.tomorrow) : 'lunes 7 de septiembre'
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
   const selectedMeal = menu?.meals.find((meal) => meal.id === selectedMealId) || null
   const deliveryMap = mapLinks(pinnedAddress, deliveryCoordinates)
@@ -510,13 +548,26 @@ function App() {
   const activePackage = packageTier ? PACKAGES[packageTier] : null
   const canRepeatGuisado = packageTier === REPEAT_GUISADO_TIER
   const daySurcharge = activePackage && canRepeatGuisado && repeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0
-  const dayTotal = activePackage ? activePackage.dailyPrice * quantity + daySurcharge : 0
+  const dayPaidQuantity = promo2x1 ? Math.ceil(quantity / 2) : quantity
+  const dayPromoDiscount = activePackage && promo2x1 ? activePackage.dailyPrice * (quantity - dayPaidQuantity) : 0
+  const dayTotal = activePackage ? activePackage.dailyPrice * quantity + daySurcharge - dayPromoDiscount : 0
   const weekRegularTotal = activePackage ? activePackage.weeklyRegular * quantity : 0
   const weekSpecialTotal = activePackage ? activePackage.weeklyPrepay * quantity : 0
   const weekSavings = weekRegularTotal - weekSpecialTotal
   const weekTotal = prepay ? weekSpecialTotal : weekRegularTotal
   const activeTotal = orderMode === 'week' ? weekTotal : dayTotal
   const badgeCount = activePackage ? quantity : 0
+
+  const dismissPromoPopup = () => {
+    setShowPromoPopup(false)
+    sessionStorage.setItem('foodiepack:v2:promo-2x1-seen', '1')
+  }
+
+  const explorePromoPopup = () => {
+    setPromo2x1(true)
+    dismissPromoPopup()
+    document.querySelector('#paquetes')?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   const toggleFavorite = (mealId: string) => {
     setFavorites((current) => current.includes(mealId) ? current.filter((id) => id !== mealId) : [...current, mealId])
@@ -624,6 +675,7 @@ function App() {
         quantity,
         repeatGuisado: orderMode === 'day' && canRepeatGuisado && repeatGuisado,
         prepay: orderMode === 'week' && prepay,
+        promo2x1: orderMode === 'day' && promo2x1,
         ...(orderMode === 'day' && selectedMealId ? { mealId: selectedMealId } : {}),
       })
       setOrder(response.order)
@@ -632,6 +684,7 @@ function App() {
       setQuantity(1)
       setRepeatGuisado(false)
       setPrepay(false)
+      setPromo2x1(true)
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : 'No se pudo confirmar el pedido'
       setOrderError(message)
@@ -655,7 +708,7 @@ function App() {
       )}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <header className={`store-header ${headerScrolled ? 'store-header--scrolled' : ''}`}>
-        <a href="/" aria-label="Inicio"><Logo /></a>
+        <a className="store-header__logo" href="/" aria-label="Inicio"><Logo horizontal /></a>
         <div className="store-header__delivery">
           <span>Envío gratis</span>
           <button onClick={scrollToMenu}>Lindavista, CDMX <ChevronDown size={14} /></button>
@@ -672,7 +725,7 @@ function App() {
             <div className="brand-landing__logo"><Logo hero theme="white" /></div>
             <p>FoodiePack · Lindavista</p>
             <h1 id="landing-title">Tu cocina<br />en la <em>oficina.</em></h1>
-            <span>Pide hoy y el próximo día hábil te llevamos comida fresca hasta tu oficina en Lindavista.</span>
+            <span>Pide hoy y te llevamos comida fresca el {promoDateLabel.toLowerCase()} hasta tu oficina en Lindavista. <strong>¡2x1 de lanzamiento!</strong></span>
             <div className="brand-landing__actions">
               <a href="#paquetes" onClick={(event) => { event.preventDefault(); scrollToPackages() }}>Ver paquetes <ArrowRight size={17} /></a>
               <small><Clock3 size={15} /> Pide hoy de 8:00 am a 6:00 pm</small>
@@ -683,7 +736,7 @@ function App() {
               <div className="landing-date"><span>Entrega</span><strong>{menu?.policy.tomorrow ? dateFromKey(menu.policy.tomorrow).getDate() : '...'}</strong><small>{menu?.policy.tomorrow ? new Intl.DateTimeFormat('es-MX', { month: 'short' }).format(dateFromKey(menu.policy.tomorrow)).replace('.', '') : 'pronto'}</small></div>
             </div>
             <div className="landing-caption">
-              <span>Del menú de mañana</span>
+              <span>2x1 de lanzamiento</span>
               <strong>{featuredMeal?.name || 'Cocinando el menú…'}</strong>
               <b>Desde {money(PACKAGES.economico.dailyPrice)}/día</b>
             </div>
@@ -711,7 +764,7 @@ function App() {
         <section className="menu-column">
           <div className={`order-window ${orderingOpen ? 'order-window--open' : ''}`}>
             <span className="order-window__status"><i />{orderingOpen ? 'Pedidos abiertos' : 'Pedidos cerrados'}</span>
-            <p>Reserva hasta 5 días</p>
+            <p>Disponible solo el {promoDateLabel.toLowerCase()}</p>
             <strong>8:00 am a 6:00 pm</strong>
             <small>Hora de Ciudad de México</small>
           </div>
@@ -724,17 +777,17 @@ function App() {
           {orderMode === 'day' ? (
             <>
               <div className="menu-title">
-                <p>{isTomorrow ? 'Entrega de mañana' : 'Próximamente'}</p>
+                <p>Pedido de lanzamiento · 2x1</p>
                 <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
-                <span>{isTomorrow
-                  ? (orderingOpen ? 'Haz tu pedido hoy. Lo cocinamos el próximo día hábil por la mañana.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
-                  : 'Puedes revisar este menú. Las reservaciones abren el día anterior a las 8:00 am.'}</span>
+                <span>{orderingOpen
+                  ? 'Haz tu pedido hoy antes de las 6:00 pm. Lo cocinamos para ese día por la mañana.'
+                  : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.'}</span>
               </div>
 
               <div className="date-strip" aria-label="Próximos menús">
                 {days.map((day, index) => (
                   <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}>
-                    <span>{index === 0 ? 'Próximo día hábil' : dayName(day.date)}</span>
+                    <span>{index === 0 ? 'Día de lanzamiento' : dayName(day.date)}</span>
                     <strong>{dateFromKey(day.date).getDate()}</strong>
                     <small>{day.mealCount} opciones</small>
                   </button>
@@ -752,7 +805,7 @@ function App() {
               <div className="date-strip" aria-label="Días de tu plan semanal">
                 {days.map((day, index) => (
                   <button key={day.date} className={activeWeekDay === day.date ? 'selected' : ''} onClick={() => setActiveWeekDay(day.date)}>
-                    <span>{index === 0 ? 'Próximo día hábil' : dayName(day.date)}</span>
+                    <span>{index === 0 ? 'Día de lanzamiento' : dayName(day.date)}</span>
                     <strong>{dateFromKey(day.date).getDate()}</strong>
                     <small>{day.mealCount} opciones</small>
                   </button>
@@ -806,11 +859,13 @@ function App() {
             packageTier={packageTier}
             quantity={quantity}
             repeatGuisado={repeatGuisado}
+            promo2x1={promo2x1}
             deliveryDate={selectedDate}
             meal={selectedMeal}
             canOrder={orderingOpen}
             onQuantity={changeQuantity}
             onToggleRepeat={() => setRepeatGuisado((value) => !value)}
+            onTogglePromo2x1={() => setPromo2x1((value) => !value)}
             onCheckout={() => setCheckoutOpen(true)}
           />
         ) : (
@@ -848,12 +903,13 @@ function App() {
             <div className="order-confirmed">
               <AcceptedOrderAnimation />
               <p>Pedido {order.id}</p>
-              <h2>{order.isWeeklyPlan ? 'Tu semana está lista.' : 'Nos vemos el próximo día hábil.'}</h2>
+              <h2>{order.isWeeklyPlan ? 'Tu semana está lista.' : `Nos vemos el ${promoDateLabel.toLowerCase()}.`}</h2>
               <small>
-                La cocina aceptó tu pedido{order.isWeeklyPlan ? ', con tu paquete semanal' : ''}. Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.
+                La cocina aceptó tu pedido{order.isWeeklyPlan ? ', con tu paquete semanal' : ''}
+                {order.items[0]?.promo2x1 ? ', con la promo 2x1 aplicada' : ''}. Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.
                 {' '}{order.paymentMethod === 'transfer'
                   ? 'Envía tu comprobante de transferencia al WhatsApp del código QR para entrar en producción.'
-                  : `Pagarás ${order.paymentMethod === 'card' ? 'con tarjeta' : 'en efectivo'} al recibir.`}
+                  : 'Pagarás en efectivo al recibir.'}
               </small>
               {order.delivery?.mapUrl && <a className="confirmed-map-link" href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={14} /> Ver dirección guardada</a>}
               <button onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }}>Cerrar</button>
@@ -867,6 +923,12 @@ function App() {
                   <CalendarDays size={16} />
                   <p><span>{activePackage?.label || 'Sin paquete'} · {quantity} {quantity === 1 ? 'persona' : 'personas'}</span>
                     <strong>{prepay ? `Ahorras ${money(weekSavings)}` : 'Pago regular, sin adelanto'}</strong></p>
+                </div>
+              )}
+              {orderMode === 'day' && promo2x1 && dayPromoDiscount > 0 && (
+                <div className="weekly-recap">
+                  <Sparkles size={16} />
+                  <p><span>Promo 2x1 aplicada</span><strong>Ahorras {money(dayPromoDiscount)}</strong></p>
                 </div>
               )}
               <div className="delivery-zone-card">
@@ -894,9 +956,8 @@ function App() {
 
               <div className="payment-method">
                 <span>Método de pago</span>
-                <div className="payment-method__options payment-method__options--three">
+                <div className="payment-method__options">
                   <button type="button" className={paymentMethod === 'transfer' ? 'selected' : ''} onClick={() => setPaymentMethod('transfer')}><Landmark size={16} /> Transferencia</button>
-                  <button type="button" className={paymentMethod === 'card' ? 'selected' : ''} onClick={() => { setPaymentMethod('card'); setPrepay(false) }}><CreditCard size={16} /> Tarjeta</button>
                   <button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => { setPaymentMethod('cash'); setPrepay(false) }}><Banknote size={16} /> Efectivo</button>
                 </div>
                 {paymentMethod === 'transfer' && (
@@ -919,6 +980,10 @@ function App() {
             </form>
           )}
         </section>
+      )}
+
+      {showPromoPopup && !checkoutOpen && (
+        <PromoPopup dateLabel={promoDateLabel.toLowerCase()} onClose={dismissPromoPopup} onExplore={explorePromoPopup} />
       )}
     </div>
   )

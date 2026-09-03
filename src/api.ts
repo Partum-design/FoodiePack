@@ -53,6 +53,7 @@ export function createOrder(payload: {
   quantity: number
   repeatGuisado: boolean
   prepay: boolean
+  promo2x1: boolean
   mealId?: string
 }) {
   return request<{ order: SavedOrder }>('/orders', { method: 'POST', body: JSON.stringify(payload) })
