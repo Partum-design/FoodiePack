@@ -132,11 +132,16 @@ function WeekMenuApp() {
     lines.push(`📦 Paquete: ${pack.label} (${money(pack.dailyPrice)}/día)`)
     lines.push(`👥 Para: ${quantity} ${quantity === 1 ? 'persona' : 'personas'}`)
     lines.push('')
-    days.forEach((day) => {
-      const meal = menus[day.date]?.meals.find((item) => item.id === selections[day.date])
-      const weekday = dayName(day.date, true)
-      lines.push(`🗓️ ${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${shortDate(day.date)}: ${meal ? meal.name : 'Sorpréndanme con el guisado del día'}`)
-    })
+    const chosenDays = days.filter((day) => selections[day.date])
+    if (chosenDays.length > 0) {
+      chosenDays.forEach((day) => {
+        const meal = menus[day.date]?.meals.find((item) => item.id === selections[day.date])
+        const weekday = dayName(day.date, true)
+        lines.push(`🗓️ ${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${shortDate(day.date)}: ${meal?.name}`)
+      })
+    } else {
+      lines.push('Todavía no elegí mi comida de cada día, ¿me ayudan con las opciones?')
+    }
     lines.push('')
     lines.push('Quedo al pendiente para confirmar dirección, horario y forma de pago. ¡Gracias! 🙌')
     return lines.join('\n')
