@@ -526,7 +526,8 @@ function App() {
   }, [menu, selectedMealId])
 
   const orderingOpen = Boolean(policy?.isOpen)
-  const promoDateLabel = policy?.tomorrow ? fullDate(policy.tomorrow) : 'lunes 7 de septiembre'
+  const promoDateLabel = policy?.tomorrow ? fullDate(policy.tomorrow) : 'el próximo día hábil'
+  const isTomorrow = menu?.policy.tomorrow === selectedDate
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
   const selectedMeal = menu?.meals.find((meal) => meal.id === selectedMealId) || null
   const deliveryMap = mapLinks(pinnedAddress, deliveryCoordinates)
@@ -725,7 +726,7 @@ function App() {
             <div className="brand-landing__logo"><Logo hero theme="white" /></div>
             <p>FoodiePack · Lindavista</p>
             <h1 id="landing-title">Tu cocina<br />en la <em>oficina.</em></h1>
-            <span>Pide hoy y te llevamos comida fresca el {promoDateLabel.toLowerCase()} hasta tu oficina en Lindavista. <strong>¡2x1 de lanzamiento!</strong></span>
+            <span>Pide hoy y el próximo día hábil te llevamos comida fresca hasta tu oficina en Lindavista. <strong>¡2x1 de lanzamiento!</strong></span>
             <div className="brand-landing__actions">
               <a href="#paquetes" onClick={(event) => { event.preventDefault(); scrollToPackages() }}>Ver paquetes <ArrowRight size={17} /></a>
               <small><Clock3 size={15} /> Pide hoy de 8:00 am a 6:00 pm</small>
@@ -764,7 +765,7 @@ function App() {
         <section className="menu-column">
           <div className={`order-window ${orderingOpen ? 'order-window--open' : ''}`}>
             <span className="order-window__status"><i />{orderingOpen ? 'Pedidos abiertos' : 'Pedidos cerrados'}</span>
-            <p>Disponible solo el {promoDateLabel.toLowerCase()}</p>
+            <p>Reserva hasta 5 días</p>
             <strong>8:00 am a 6:00 pm</strong>
             <small>Hora de Ciudad de México</small>
           </div>
@@ -777,17 +778,17 @@ function App() {
           {orderMode === 'day' ? (
             <>
               <div className="menu-title">
-                <p>Pedido de lanzamiento · 2x1</p>
+                <p>{isTomorrow ? 'Entrega de mañana' : 'Próximamente'}</p>
                 <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
-                <span>{orderingOpen
-                  ? 'Haz tu pedido hoy antes de las 6:00 pm. Lo cocinamos para ese día por la mañana.'
-                  : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.'}</span>
+                <span>{isTomorrow
+                  ? (orderingOpen ? 'Haz tu pedido hoy. Lo cocinamos el próximo día hábil por la mañana.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
+                  : 'Puedes revisar este menú. Las reservaciones abren el día anterior a las 8:00 am.'}</span>
               </div>
 
               <div className="date-strip" aria-label="Próximos menús">
                 {days.map((day, index) => (
                   <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}>
-                    <span>{index === 0 ? 'Día de lanzamiento' : dayName(day.date)}</span>
+                    <span>{index === 0 ? 'Próximo día hábil' : dayName(day.date)}</span>
                     <strong>{dateFromKey(day.date).getDate()}</strong>
                     <small>{day.mealCount} opciones</small>
                   </button>
@@ -805,7 +806,7 @@ function App() {
               <div className="date-strip" aria-label="Días de tu plan semanal">
                 {days.map((day, index) => (
                   <button key={day.date} className={activeWeekDay === day.date ? 'selected' : ''} onClick={() => setActiveWeekDay(day.date)}>
-                    <span>{index === 0 ? 'Día de lanzamiento' : dayName(day.date)}</span>
+                    <span>{index === 0 ? 'Próximo día hábil' : dayName(day.date)}</span>
                     <strong>{dateFromKey(day.date).getDate()}</strong>
                     <small>{day.mealCount} opciones</small>
                   </button>
@@ -903,7 +904,7 @@ function App() {
             <div className="order-confirmed">
               <AcceptedOrderAnimation />
               <p>Pedido {order.id}</p>
-              <h2>{order.isWeeklyPlan ? 'Tu semana está lista.' : `Nos vemos el ${promoDateLabel.toLowerCase()}.`}</h2>
+              <h2>{order.isWeeklyPlan ? 'Tu semana está lista.' : `Nos vemos el ${fullDate(order.deliveryDate).toLowerCase()}.`}</h2>
               <small>
                 La cocina aceptó tu pedido{order.isWeeklyPlan ? ', con tu paquete semanal' : ''}
                 {order.items[0]?.promo2x1 ? ', con la promo 2x1 aplicada' : ''}. Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.

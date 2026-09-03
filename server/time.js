@@ -50,13 +50,6 @@ export function upcomingDeliveryDates(dateKey, count = 5) {
   return Array.from({ length: count }, (_, index) => addBusinessDays(dateKey, index + 1))
 }
 
-// Launch is scoped to a single delivery day. Once this date has passed, ordering closes.
-export const PROMO_ORDER_DATE = '2026-09-07'
-
-export function orderableDates(today) {
-  return today <= PROMO_ORDER_DATE ? [PROMO_ORDER_DATE] : []
-}
-
 export function orderPolicy(now = resolveNow()) {
   const parts = partsInMexico(now)
   const today = `${parts.year}-${parts.month}-${parts.day}`
@@ -66,7 +59,7 @@ export function orderPolicy(now = resolveNow()) {
   return {
     timeZone: BUSINESS_TIME_ZONE,
     today,
-    tomorrow: PROMO_ORDER_DATE,
+    tomorrow: addBusinessDays(today, 1),
     isOpen,
     opensAt: '08:00',
     closesAt: '18:00',

@@ -98,6 +98,7 @@ export const mealTemplates = [
 ]
 
 const nextWeekMealImages = {
+  almendrado: '/assets/meals/next-week/almendrado-puerco.jpg',
   alambreLunes: '/assets/meals/next-week/alambre-puerco-lunes.jpg',
   longaniza: '/assets/meals/next-week/longaniza-verde.jpg',
   picadillo: '/assets/meals/next-week/picadillo.jpg',
@@ -130,6 +131,26 @@ export const nextWeekMenus = {
   '2026-09-04': [
     { id: 'menu-2026-09-04-chuleta-morita', name: 'Chuleta ahumada en salsa morita', description: 'Chuleta ahumada en salsa morita, con la base y guarnición del día.', price: 60, protein: 34, kcal: 610, tags: ['Guisado del día'], image: nextWeekMealImages.chuleta, available: true, packages: [...PACKAGE_ORDER] },
     { id: 'menu-2026-09-04-calabacita-mexicana', name: 'Calabacita mexicana', description: 'Calabacita a la mexicana, opción ligera con la base del día.', price: 60, protein: 10, kcal: 390, tags: ['Vegetariano'], image: nextWeekMealImages.calabacita, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-07': [
+    { id: 'producto-d2cb5df24d', name: 'Almendrado de puerco', description: 'Almendrado de puerco en salsa de almendra tostada, con la base y guarnición del día.', price: 60, protein: 31, kcal: 580, tags: ['Guisado del día'], image: nextWeekMealImages.almendrado, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'producto-373220e7e5', name: 'Longaniza en salsa verde', description: 'Longaniza en salsa verde, con opción de huevo y la base del día.', price: 60, protein: 27, kcal: 590, tags: ['Guisado del día'], image: nextWeekMealImages.longaniza, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-08': [
+    { id: 'producto-cef79b2c68', name: 'Picadillo', description: 'Picadillo casero con verduras y la base del día: arroz, frijoles, huevo o pasta.', price: 60, protein: 29, kcal: 540, tags: ['Guisado del día'], image: nextWeekMealImages.picadillo, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'producto-7de3a66b2f', name: 'Huevo en pasilla', description: 'Huevo en salsa de chile pasilla con tomates y la base del día.', price: 60, protein: 21, kcal: 460, tags: ['Vegetariano'], image: nextWeekMealImages.huevoPasilla, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-09': [
+    { id: 'producto-2d1345e16b', name: 'Albóndigas', description: 'Albóndigas caseras en salsa, servidas con la base y guarnición del día.', price: 60, protein: 32, kcal: 570, tags: ['Guisado del día'], image: nextWeekMealImages.albondigas, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'producto-8badce0fd9', name: 'Papas con rajas', description: 'Papas con rajas y crema, una opción vegetariana para acompañar la base del día.', price: 60, protein: 12, kcal: 430, tags: ['Vegetariano'], image: nextWeekMealImages.papasRajas, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-10': [
+    { id: 'producto-a22f841e32', name: 'Alambre de puerco', description: 'Alambre de puerco con verduras, preparado al momento.', price: 60, protein: 30, kcal: 560, tags: ['Guisado del día'], image: nextWeekMealImages.alambreJueves, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'producto-dbe39f4d60', name: 'Salchicha mexicana', description: 'Salchicha a la mexicana con la base y guarnición del día.', price: 60, protein: 24, kcal: 520, tags: ['Guisado del día'], image: nextWeekMealImages.salchicha, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-11': [
+    { id: 'producto-7e997a1ec8', name: 'Chuleta ahumada en salsa morita', description: 'Chuleta ahumada en salsa morita, con la base y guarnición del día.', price: 60, protein: 34, kcal: 610, tags: ['Guisado del día'], image: nextWeekMealImages.chuleta, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'producto-2374544f1a', name: 'Calabacita mexicana', description: 'Calabacita a la mexicana, opción ligera con la base del día.', price: 60, protein: 10, kcal: 390, tags: ['Vegetariano'], image: nextWeekMealImages.calabacita, available: true, packages: [...PACKAGE_ORDER] },
   ],
 }
 
