@@ -50,6 +50,19 @@ export function upcomingDeliveryDates(dateKey, count = 5) {
   return Array.from({ length: count }, (_, index) => addBusinessDays(dateKey, index + 1))
 }
 
+// Ordering does not open before this date, no matter how early "today" is.
+export const MIN_ORDER_DATE = '2026-09-07'
+
+export function eligibleOrderDates(today, count = 5) {
+  const dates = []
+  let cursor = today
+  while (dates.length < count) {
+    cursor = addBusinessDays(cursor, 1)
+    if (cursor >= MIN_ORDER_DATE) dates.push(cursor)
+  }
+  return dates
+}
+
 export function orderPolicy(now = resolveNow()) {
   const parts = partsInMexico(now)
   const today = `${parts.year}-${parts.month}-${parts.day}`
@@ -59,7 +72,7 @@ export function orderPolicy(now = resolveNow()) {
   return {
     timeZone: BUSINESS_TIME_ZONE,
     today,
-    tomorrow: addBusinessDays(today, 1),
+    tomorrow: eligibleOrderDates(today, 1)[0],
     isOpen,
     opensAt: '08:00',
     closesAt: '18:00',

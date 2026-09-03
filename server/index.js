@@ -10,7 +10,7 @@ import {
   createProduct, deleteOrder, deleteProduct, getMenu, getMenus, getOrders, getProducts,
   saveMenu, saveOrder, storageMode, updateOrderStatus, updateProduct, uploadProductImage,
 } from './store.js'
-import { orderPolicy, upcomingDeliveryDates } from './time.js'
+import { eligibleOrderDates, orderPolicy } from './time.js'
 import { PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS } from './packages.js'
 
 const app = express()
@@ -144,7 +144,7 @@ app.get('/api/menu', async (request, response) => {
   const date = typeof request.query.date === 'string' ? request.query.date : policy.tomorrow
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return response.status(400).json({ error: 'Fecha inválida' })
 
-  const eligibleDates = upcomingDeliveryDates(policy.today, WEEKLY_PLAN_DAYS)
+  const eligibleDates = eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
   const meals = await getMenu(date)
   response.json({
     date,
@@ -156,7 +156,7 @@ app.get('/api/menu', async (request, response) => {
 
 app.get('/api/menu-days', async (_request, response) => {
   const policy = orderPolicy()
-  const dates = upcomingDeliveryDates(policy.today, WEEKLY_PLAN_DAYS)
+  const dates = eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
   const menus = await getMenus()
   const days = dates.map((date) => {
     return { date, mealCount: (menus[date] || []).filter((meal) => meal.available).length }
@@ -176,7 +176,7 @@ app.post('/api/orders', async (request, response) => {
     })
   }
 
-  const eligibleDates = upcomingDeliveryDates(policy.today, WEEKLY_PLAN_DAYS)
+  const eligibleDates = eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
   if (!eligibleDates.includes(parsed.data.date)) {
     return response.status(409).json({ error: 'Solo puedes reservar dentro de los próximos 5 días disponibles.', policy })
   }

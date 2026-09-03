@@ -527,7 +527,7 @@ function App() {
 
   const orderingOpen = Boolean(policy?.isOpen)
   const promoDateLabel = policy?.tomorrow ? fullDate(policy.tomorrow) : 'el próximo día hábil'
-  const isTomorrow = menu?.policy.tomorrow === selectedDate
+  const isNextAvailable = menu?.policy.tomorrow === selectedDate
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
   const selectedMeal = menu?.meals.find((meal) => meal.id === selectedMealId) || null
   const deliveryMap = mapLinks(pinnedAddress, deliveryCoordinates)
@@ -726,7 +726,7 @@ function App() {
             <div className="brand-landing__logo"><Logo hero theme="white" /></div>
             <p>FoodiePack · Lindavista</p>
             <h1 id="landing-title">Tu cocina<br />en la <em>oficina.</em></h1>
-            <span>Pide hoy y el próximo día hábil te llevamos comida fresca hasta tu oficina en Lindavista. <strong>¡2x1 de lanzamiento!</strong></span>
+            <span>Resérvalo hoy y te llevamos comida fresca hasta tu oficina en Lindavista. <strong>¡2x1 de lanzamiento!</strong></span>
             <div className="brand-landing__actions">
               <a href="#paquetes" onClick={(event) => { event.preventDefault(); scrollToPackages() }}>Ver paquetes <ArrowRight size={17} /></a>
               <small><Clock3 size={15} /> Pide hoy de 8:00 am a 6:00 pm</small>
@@ -778,11 +778,11 @@ function App() {
           {orderMode === 'day' ? (
             <>
               <div className="menu-title">
-                <p>{isTomorrow ? 'Entrega de mañana' : 'Próximamente'}</p>
+                <p>{isNextAvailable ? 'Próxima entrega disponible' : 'Próximamente'}</p>
                 <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
-                <span>{isTomorrow
-                  ? (orderingOpen ? 'Haz tu pedido hoy. Lo cocinamos el próximo día hábil por la mañana.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
-                  : 'Puedes revisar este menú. Las reservaciones abren el día anterior a las 8:00 am.'}</span>
+                <span>{isNextAvailable
+                  ? (orderingOpen ? 'Haz tu pedido hoy antes de las 6:00 pm para reservar este día.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
+                  : 'Puedes revisar este menú. Las reservaciones abren cuando sea el próximo día disponible.'}</span>
               </div>
 
               <div className="date-strip" aria-label="Próximos menús">
