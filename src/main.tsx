@@ -11,13 +11,21 @@ import './styles.css'
 import App from './App'
 
 const AdminApp = lazy(() => import('./AdminApp'))
+const WeekMenuApp = lazy(() => import('./WeekMenuApp'))
 const currentPath = window.location.pathname.replace(/\/$/, '')
 const isAdminRoute = currentPath === '/admin' || currentPath === '/gestion-cocina'
+const isWeekMenuRoute = currentPath === '/menu-semana' || currentPath === '/semana'
+
+function Route() {
+  if (isAdminRoute) return <AdminApp />
+  if (isWeekMenuRoute) return <WeekMenuApp />
+  return <App />
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <Suspense fallback={<div className="route-loading">Cargando…</div>}>
-      {isAdminRoute ? <AdminApp /> : <App />}
+      <Route />
     </Suspense>
   </React.StrictMode>,
 )

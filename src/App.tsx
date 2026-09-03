@@ -7,14 +7,14 @@ import { createOrder, getMenu, getMenuDays } from './api'
 import DeliveryMap from './components/DeliveryMap'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
+import { dateFromKey, dayName, fullDate } from './lib/dates'
+import { money } from './lib/format'
+import { useReveal } from './lib/useReveal'
 import {
   BANK_TRANSFER, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER,
 } from './packages'
 import type { PackageTier } from './packages'
 import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
-
-const money = (value: number) =>
-  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value)
 
 const DELIVERY_ZONE = 'Lindavista, CDMX' as const
 const LINDAVISTA_QUERY = 'Lindavista, Gustavo A. Madero, Ciudad de México'
@@ -56,19 +56,6 @@ async function geocodeLindavista(address: string): Promise<Coordinates | null> {
   }
 }
 
-function dateFromKey(date: string) {
-  return new Date(`${date}T12:00:00`)
-}
-
-function dayName(date: string, long = false) {
-  return new Intl.DateTimeFormat('es-MX', { weekday: long ? 'long' : 'short' }).format(dateFromKey(date)).replace('.', '')
-}
-
-function fullDate(date: string) {
-  const value = new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }).format(dateFromKey(date))
-  return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
 function loadFavorites() {
   try {
     return JSON.parse(localStorage.getItem('foodiepack:v2:favorites') || '[]') as string[]
@@ -78,32 +65,6 @@ function loadFavorites() {
 }
 
 type Toast = { id: number; message: string; tone: 'success' | 'error' | 'info' }
-
-function useReveal<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null)
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const node = ref.current
-    if (!node) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setVisible(true)
-      return
-    }
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          setVisible(true)
-          observer.disconnect()
-        }
-      })
-    }, { threshold: 0.15 })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-
-  return { ref, visible }
-}
 
 function BrandPreloader() {
   return (
