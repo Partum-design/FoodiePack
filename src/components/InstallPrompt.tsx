@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Download, Share, SquarePlus, X } from 'lucide-react'
-import Logo from './Logo'
 
 const DISMISSED_KEY = 'foodiepack:install-dismissed'
 
@@ -63,7 +62,7 @@ function InstallPrompt() {
 
   return (
     <div className="install-banner" role="complementary" aria-label="Instalar la app de FoodiePack">
-      <div className="install-banner__logo"><Logo compact /></div>
+      <div className="install-banner__logo"><img src="/favicon.png" alt="FoodiePack" /></div>
       {deferredPrompt ? (
         <>
           <p><strong>Instala FoodiePack</strong><span>Pide más rápido desde tu pantalla de inicio.</span></p>
