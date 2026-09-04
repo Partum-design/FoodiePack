@@ -12,8 +12,7 @@ import {
 } from './store.js'
 import { eligibleOrderDates, orderPolicy } from './time.js'
 import {
-  GARNISH_CHOICE_TIER, GARNISH_OPTIONS, PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER,
-  WEEKLY_PLAN_DAYS,
+  GARNISH_OPTIONS, PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS,
 } from './packages.js'
 
 const app = express()
@@ -199,7 +198,7 @@ app.post('/api/orders', async (request, response) => {
   const pack = PACKAGES[packageTier]
   const canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
   const appliedPromo2x1 = orderMode === 'day' && promo2x1
-  const chosenGarnish = packageTier === GARNISH_CHOICE_TIER ? (garnish || 'arroz') : undefined
+  const chosenGarnish = garnish || 'arroz'
 
   let subtotal
   let discountAmount = 0

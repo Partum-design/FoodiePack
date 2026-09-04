@@ -33,9 +33,6 @@ export const GARNISH_OPTIONS: Array<{ value: Garnish; label: string }> = [
   { value: 'frijoles', label: 'Frijoles' },
 ]
 
-// Only Económico offers one guarnición to choose; Ejecutivo and Foodie+ already include both.
-export const GARNISH_CHOICE_TIER: PackageTier = 'economico'
-
 export const REPEAT_GUISADO_SURCHARGE = 15
 export const REPEAT_GUISADO_TIER: PackageTier = 'completo'
 export const WEEKLY_PLAN_DAYS = 5

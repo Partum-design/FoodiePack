@@ -11,8 +11,8 @@ import { dateFromKey, dayName, fullDate } from './lib/dates'
 import { money } from './lib/format'
 import { useReveal } from './lib/useReveal'
 import {
-  BANK_TRANSFER, GARNISH_CHOICE_TIER, GARNISH_OPTIONS, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES,
-  REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER,
+  BANK_TRANSFER, GARNISH_OPTIONS, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE,
+  REPEAT_GUISADO_TIER,
 } from './packages'
 import type { Garnish, PackageTier } from './packages'
 import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
@@ -326,7 +326,7 @@ function OrderSummary({ packageTier, quantity, repeatGuisado, promo2x1, garnish,
               <b>+{money(REPEAT_GUISADO_SURCHARGE)}</b>
             </label>
           )}
-          {packageTier === GARNISH_CHOICE_TIER && <GarnishPicker garnish={garnish} onGarnish={onGarnish} />}
+          <GarnishPicker garnish={garnish} onGarnish={onGarnish} />
         </div>
       )}
       <div className="summary-totals">
@@ -384,7 +384,7 @@ function WeeklySummary({ packageTier, quantity, prepay, garnish, canOrder, onQua
             </span>
             <b>-{money(savings)}</b>
           </label>
-          {packageTier === GARNISH_CHOICE_TIER && <GarnishPicker garnish={garnish} onGarnish={onGarnish} />}
+          <GarnishPicker garnish={garnish} onGarnish={onGarnish} />
         </div>
       )}
       <div className="summary-totals">
@@ -686,7 +686,7 @@ function App() {
         repeatGuisado: orderMode === 'day' && canRepeatGuisado && repeatGuisado,
         prepay: orderMode === 'week' && prepay,
         promo2x1: orderMode === 'day' && promo2x1,
-        ...(packageTier === GARNISH_CHOICE_TIER ? { garnish } : {}),
+        garnish,
         ...(orderMode === 'day' && selectedMealId ? { mealId: selectedMealId } : {}),
       })
       setOrder(response.order)
@@ -950,12 +950,10 @@ function App() {
                   <p><span>Promo 2x1 aplicada</span><strong>Ahorras {money(dayPromoDiscount)}</strong></p>
                 </div>
               )}
-              {packageTier === GARNISH_CHOICE_TIER && (
-                <div className="weekly-recap">
-                  <Utensils size={16} />
-                  <p><span>Guarnición elegida</span><strong>{garnish === 'arroz' ? 'Arroz' : 'Frijoles'}</strong></p>
-                </div>
-              )}
+              <div className="weekly-recap">
+                <Utensils size={16} />
+                <p><span>Guarnición elegida</span><strong>{garnish === 'arroz' ? 'Arroz' : 'Frijoles'}</strong></p>
+              </div>
               <div className="delivery-zone-card">
                 <MapPin size={20} />
                 <p><span>Zona disponible</span><strong>Lindavista Sur y San Felipe de Jesús</strong></p>
