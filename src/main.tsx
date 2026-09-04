@@ -9,6 +9,7 @@ import '@fontsource/dm-sans/600.css'
 import '@fontsource/dm-sans/700.css'
 import './styles.css'
 import App from './App'
+import InstallPrompt from './components/InstallPrompt'
 
 const AdminApp = lazy(() => import('./AdminApp'))
 const WeekMenuApp = lazy(() => import('./WeekMenuApp'))
@@ -22,8 +23,15 @@ function Route() {
   return <App />
 }
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    {!isAdminRoute && <InstallPrompt />}
     <Suspense fallback={<div className="route-loading">Cargando…</div>}>
       <Route />
     </Suspense>
