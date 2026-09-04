@@ -8,8 +8,8 @@ import Logo from './components/Logo'
 import { dayName, fullDate, shortDate } from './lib/dates'
 import { money } from './lib/format'
 import { useReveal } from './lib/useReveal'
-import { PACKAGE_ORDER, PACKAGES } from './packages'
-import type { PackageTier } from './packages'
+import { GARNISH_CHOICE_TIER, GARNISH_OPTIONS, PACKAGE_ORDER, PACKAGES } from './packages'
+import type { Garnish, PackageTier } from './packages'
 import type { Meal, MenuDay, MenuResponse, OrderPolicy } from './types'
 
 // Mexico City mobile number for FoodiePack's WhatsApp line.
@@ -68,6 +68,7 @@ function WeekMenuApp() {
   const [retryTick, setRetryTick] = useState(0)
   const [packageTier, setPackageTier] = useState<PackageTier>('ejecutivo')
   const [quantity, setQuantity] = useState(1)
+  const [garnish, setGarnish] = useState<Garnish>('arroz')
   const [selections, setSelections] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -131,6 +132,9 @@ function WeekMenuApp() {
     lines.push('')
     lines.push(`📦 Paquete: ${pack.label} (${money(pack.dailyPrice)}/día)`)
     lines.push(`👥 Para: ${quantity} ${quantity === 1 ? 'persona' : 'personas'}`)
+    if (packageTier === GARNISH_CHOICE_TIER) {
+      lines.push(`🍚 Guarnición: ${garnish === 'arroz' ? 'Arroz' : 'Frijoles'}`)
+    }
     lines.push('')
     const chosenDays = days.filter((day) => selections[day.date])
     if (chosenDays.length > 0) {
@@ -145,7 +149,7 @@ function WeekMenuApp() {
     lines.push('')
     lines.push('Quedo al pendiente para confirmar dirección, horario y forma de pago. ¡Gracias! 🙌')
     return lines.join('\n')
-  }, [pack, quantity, days, menus, selections])
+  }, [pack, quantity, garnish, packageTier, days, menus, selections])
 
   const whatsappHref = buildWhatsAppUrl(whatsappMessage)
 
@@ -206,6 +210,23 @@ function WeekMenuApp() {
             <button type="button" onClick={() => changeQuantity(1)} aria-label="Agregar una persona"><Plus size={14} /></button>
           </div>
         </div>
+        {packageTier === GARNISH_CHOICE_TIER && (
+          <div className="week-garnish">
+            <span>¿Arroz o frijoles?</span>
+            <div>
+              {GARNISH_OPTIONS.map((option) => (
+                <button
+                  type="button"
+                  key={option.value}
+                  className={garnish === option.value ? 'selected' : ''}
+                  onClick={() => setGarnish(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="week-block" aria-labelledby="week-days-title">

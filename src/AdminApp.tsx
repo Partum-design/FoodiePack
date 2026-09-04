@@ -591,7 +591,7 @@ function AdminApp() {
                   {order.delivery?.office && <small>{order.delivery.office}</small>}
                   {order.delivery?.mapUrl && <a href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={12} /> Ver pin</a>}
                 </span>
-                <span>{order.items[0]?.packageLabel || '—'} · {order.items.reduce((sum, item) => sum + item.quantity, 0)}{order.items[0]?.mealName ? <small className="order-meal-name">{order.items[0].mealName}</small> : null}</span>
+                <span>{order.items[0]?.packageLabel || '—'} · {order.items.reduce((sum, item) => sum + item.quantity, 0)}{order.items[0]?.mealName ? <small className="order-meal-name">{order.items[0].mealName}</small> : null}{order.items[0]?.garnish ? <small className="order-meal-name">Guarnición: {order.items[0].garnish === 'arroz' ? 'Arroz' : 'Frijoles'}</small> : null}</span>
                 <span className="order-payment">
                   {order.paymentMethod === 'card' || order.paymentMethod === 'terminal' ? <CreditCard size={13} /> : order.paymentMethod === 'cash' ? <Banknote size={13} /> : <Landmark size={13} />}
                   {' '}{order.paymentMethod === 'card' ? 'Tarjeta' : order.paymentMethod === 'terminal' ? 'Terminal' : order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}

@@ -1,4 +1,4 @@
-import type { PackageTier } from './packages'
+import type { Garnish, PackageTier } from './packages'
 
 export type PaymentMethod = 'card' | 'cash' | 'transfer' | 'terminal'
 
@@ -44,6 +44,7 @@ export type PackageOrderInput = {
   quantity: number
   repeatGuisado: boolean
   prepay: boolean
+  garnish?: Garnish
 }
 
 export type DeliveryLocation = {
@@ -79,6 +80,7 @@ export type SavedOrder = {
     repeatGuisado: boolean
     prepay: boolean
     promo2x1?: boolean
+    garnish?: Garnish
     mealId?: string
     mealName?: string
     menuDate?: string

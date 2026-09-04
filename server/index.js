@@ -11,7 +11,10 @@ import {
   saveMenu, saveOrder, storageMode, updateOrderStatus, updateProduct, uploadProductImage,
 } from './store.js'
 import { eligibleOrderDates, orderPolicy } from './time.js'
-import { PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS } from './packages.js'
+import {
+  GARNISH_CHOICE_TIER, GARNISH_OPTIONS, PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER,
+  WEEKLY_PLAN_DAYS,
+} from './packages.js'
 
 const app = express()
 const port = Number(process.env.PORT || 8787)
@@ -71,6 +74,7 @@ const orderSchema = z.object({
   repeatGuisado: z.boolean().optional().default(false),
   prepay: z.boolean().optional().default(false),
   promo2x1: z.boolean().optional().default(false),
+  garnish: z.enum(GARNISH_OPTIONS).optional(),
   mealId: z.string().trim().min(1).max(100).optional(),
 }).superRefine((data, context) => {
   if (data.prepay && data.paymentMethod !== 'transfer') {
@@ -181,7 +185,7 @@ app.post('/api/orders', async (request, response) => {
     return response.status(409).json({ error: 'Solo puedes reservar dentro de los próximos 5 días disponibles.', policy })
   }
 
-  const { orderMode, packageTier, quantity, repeatGuisado, prepay, promo2x1 } = parsed.data
+  const { orderMode, packageTier, quantity, repeatGuisado, prepay, promo2x1, garnish } = parsed.data
   let selectedMeal = null
   if (orderMode === 'day') {
     const menu = await getMenu(parsed.data.date)
@@ -195,6 +199,7 @@ app.post('/api/orders', async (request, response) => {
   const pack = PACKAGES[packageTier]
   const canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
   const appliedPromo2x1 = orderMode === 'day' && promo2x1
+  const chosenGarnish = packageTier === GARNISH_CHOICE_TIER ? (garnish || 'arroz') : undefined
 
   let subtotal
   let discountAmount = 0
@@ -233,6 +238,7 @@ app.post('/api/orders', async (request, response) => {
       repeatGuisado: canRepeatGuisado,
       prepay: orderMode === 'week' && prepay,
       promo2x1: appliedPromo2x1,
+      ...(chosenGarnish ? { garnish: chosenGarnish } : {}),
       ...(selectedMeal ? { mealId: selectedMeal.id, mealName: selectedMeal.name, menuDate: parsed.data.date } : {}),
     }],
     subtotal,

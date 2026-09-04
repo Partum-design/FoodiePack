@@ -1,3 +1,4 @@
+import type { Garnish } from './packages'
 import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
 import type { PackageTier } from './packages'
 
@@ -54,6 +55,7 @@ export function createOrder(payload: {
   repeatGuisado: boolean
   prepay: boolean
   promo2x1: boolean
+  garnish?: Garnish
   mealId?: string
 }) {
   return request<{ order: SavedOrder }>('/orders', { method: 'POST', body: JSON.stringify(payload) })

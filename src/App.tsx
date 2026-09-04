@@ -11,9 +11,10 @@ import { dateFromKey, dayName, fullDate } from './lib/dates'
 import { money } from './lib/format'
 import { useReveal } from './lib/useReveal'
 import {
-  BANK_TRANSFER, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER,
+  BANK_TRANSFER, GARNISH_CHOICE_TIER, GARNISH_OPTIONS, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES,
+  REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER,
 } from './packages'
-import type { PackageTier } from './packages'
+import type { Garnish, PackageTier } from './packages'
 import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
 
 const DELIVERY_ZONE = 'Lindavista, CDMX' as const
@@ -192,6 +193,26 @@ function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, 
   )
 }
 
+function GarnishPicker({ garnish, onGarnish }: { garnish: Garnish; onGarnish: (value: Garnish) => void }) {
+  return (
+    <div className="garnish-picker">
+      <span>Elige tu guarnición</span>
+      <div>
+        {GARNISH_OPTIONS.map((option) => (
+          <button
+            type="button"
+            key={option.value}
+            className={garnish === option.value ? 'selected' : ''}
+            onClick={() => onGarnish(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function PackagePicker({ selected, onSelect }: { selected: PackageTier | null; onSelect: (tier: PackageTier) => void }) {
   return (
     <div className="package-grid">
@@ -245,17 +266,19 @@ function PackagesSection({ selected, onSelect }: { selected: PackageTier | null;
   )
 }
 
-function OrderSummary({ packageTier, quantity, repeatGuisado, promo2x1, deliveryDate, meal, canOrder, onQuantity, onToggleRepeat, onTogglePromo2x1, onCheckout }: {
+function OrderSummary({ packageTier, quantity, repeatGuisado, promo2x1, garnish, deliveryDate, meal, canOrder, onQuantity, onToggleRepeat, onTogglePromo2x1, onGarnish, onCheckout }: {
   packageTier: PackageTier | null
   quantity: number
   repeatGuisado: boolean
   promo2x1: boolean
+  garnish: Garnish
   deliveryDate: string
   meal: Meal | null
   canOrder: boolean
   onQuantity: (change: number) => void
   onToggleRepeat: () => void
   onTogglePromo2x1: () => void
+  onGarnish: (value: Garnish) => void
   onCheckout: () => void
 }) {
   const pack = packageTier ? PACKAGES[packageTier] : null
@@ -303,6 +326,7 @@ function OrderSummary({ packageTier, quantity, repeatGuisado, promo2x1, delivery
               <b>+{money(REPEAT_GUISADO_SURCHARGE)}</b>
             </label>
           )}
+          {packageTier === GARNISH_CHOICE_TIER && <GarnishPicker garnish={garnish} onGarnish={onGarnish} />}
         </div>
       )}
       <div className="summary-totals">
@@ -318,13 +342,15 @@ function OrderSummary({ packageTier, quantity, repeatGuisado, promo2x1, delivery
   )
 }
 
-function WeeklySummary({ packageTier, quantity, prepay, canOrder, onQuantity, onTogglePrepay, onCheckout }: {
+function WeeklySummary({ packageTier, quantity, prepay, garnish, canOrder, onQuantity, onTogglePrepay, onGarnish, onCheckout }: {
   packageTier: PackageTier | null
   quantity: number
   prepay: boolean
+  garnish: Garnish
   canOrder: boolean
   onQuantity: (change: number) => void
   onTogglePrepay: () => void
+  onGarnish: (value: Garnish) => void
   onCheckout: () => void
 }) {
   const pack = packageTier ? PACKAGES[packageTier] : null
@@ -358,6 +384,7 @@ function WeeklySummary({ packageTier, quantity, prepay, canOrder, onQuantity, on
             </span>
             <b>-{money(savings)}</b>
           </label>
+          {packageTier === GARNISH_CHOICE_TIER && <GarnishPicker garnish={garnish} onGarnish={onGarnish} />}
         </div>
       )}
       <div className="summary-totals">
@@ -389,6 +416,7 @@ function App() {
   const [quantity, setQuantity] = useState(1)
   const [repeatGuisado, setRepeatGuisado] = useState(false)
   const [prepay, setPrepay] = useState(false)
+  const [garnish, setGarnish] = useState<Garnish>('arroz')
   const [promo2x1, setPromo2x1] = useState(true)
   const [showPromoPopup, setShowPromoPopup] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer')
@@ -658,6 +686,7 @@ function App() {
         repeatGuisado: orderMode === 'day' && canRepeatGuisado && repeatGuisado,
         prepay: orderMode === 'week' && prepay,
         promo2x1: orderMode === 'day' && promo2x1,
+        ...(packageTier === GARNISH_CHOICE_TIER ? { garnish } : {}),
         ...(orderMode === 'day' && selectedMealId ? { mealId: selectedMealId } : {}),
       })
       setOrder(response.order)
@@ -667,6 +696,7 @@ function App() {
       setRepeatGuisado(false)
       setPrepay(false)
       setPromo2x1(true)
+      setGarnish('arroz')
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : 'No se pudo confirmar el pedido'
       setOrderError(message)
@@ -842,12 +872,14 @@ function App() {
             quantity={quantity}
             repeatGuisado={repeatGuisado}
             promo2x1={promo2x1}
+            garnish={garnish}
             deliveryDate={selectedDate}
             meal={selectedMeal}
             canOrder={orderingOpen}
             onQuantity={changeQuantity}
             onToggleRepeat={() => setRepeatGuisado((value) => !value)}
             onTogglePromo2x1={() => setPromo2x1((value) => !value)}
+            onGarnish={setGarnish}
             onCheckout={() => setCheckoutOpen(true)}
           />
         ) : (
@@ -855,9 +887,11 @@ function App() {
             packageTier={packageTier}
             quantity={quantity}
             prepay={prepay}
+            garnish={garnish}
             canOrder={orderingOpen}
             onQuantity={changeQuantity}
             onTogglePrepay={() => setPrepay((value) => !value)}
+            onGarnish={setGarnish}
             onCheckout={() => setCheckoutOpen(true)}
           />
         )}
@@ -889,6 +923,7 @@ function App() {
               <small>
                 La cocina aceptó tu pedido{order.isWeeklyPlan ? ', con tu paquete semanal' : ''}
                 {order.items[0]?.promo2x1 ? ', con la promo 2x1 aplicada' : ''}. Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.
+                {order.items[0]?.garnish && <> Guarnición: {order.items[0].garnish === 'arroz' ? 'arroz' : 'frijoles'}.</>}
                 {' '}{order.paymentMethod === 'transfer'
                   ? 'Envía tu comprobante de transferencia al WhatsApp del código QR para entrar en producción.'
                   : order.paymentMethod === 'terminal'
@@ -913,6 +948,12 @@ function App() {
                 <div className="weekly-recap">
                   <Sparkles size={16} />
                   <p><span>Promo 2x1 aplicada</span><strong>Ahorras {money(dayPromoDiscount)}</strong></p>
+                </div>
+              )}
+              {packageTier === GARNISH_CHOICE_TIER && (
+                <div className="weekly-recap">
+                  <Utensils size={16} />
+                  <p><span>Guarnición elegida</span><strong>{garnish === 'arroz' ? 'Arroz' : 'Frijoles'}</strong></p>
                 </div>
               )}
               <div className="delivery-zone-card">

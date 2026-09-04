@@ -194,6 +194,7 @@ button:active:not(:disabled) { transform: scale(.96); }
 .counter { display: grid; grid-template-columns: 20px 17px 20px; align-items: center; justify-items: center; }.counter button { width: 20px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; color: var(--green); background: transparent; }.counter span { font-size: 9px; font-weight: 700; }
 .summary-empty { min-height: 165px; display: grid; place-items: center; align-content: center; gap: 9px; color: #89938e; text-align: center; }.summary-empty p { margin: 0; max-width: 150px; font-size: 10px; line-height: 1.5; }
 .repeat-guisado { margin-top: 10px; padding: 10px 12px; display: flex; align-items: center; gap: 9px; border-radius: 14px; background: #fdf3e5; cursor: pointer; }.repeat-guisado input { width: 16px; height: 16px; accent-color: var(--orange); }.repeat-guisado span { flex: 1; color: var(--ink); font-size: 10px; font-weight: 600; }.repeat-guisado b { color: #b96837; font-size: 9px; }
+.garnish-picker { margin-top: 10px; padding: 10px 12px; border-radius: 14px; background: #f6f7f2; }.garnish-picker > span { display: block; margin-bottom: 8px; color: var(--green); font-size: 10px; font-weight: 700; }.garnish-picker > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.garnish-picker button { min-height: 34px; padding: 0 6px; border: 1px solid var(--line); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--green); background: white; font-size: 10px; font-weight: 700; }.garnish-picker button.selected { color: white; background: var(--green); border-color: var(--green); }
 .weekly-discount { margin: 12px 14px 0; padding: 11px 12px; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; border-radius: 14px; background: var(--green-pale); cursor: pointer; }
 .weekly-discount input { width: 16px; height: 16px; accent-color: var(--green); }
 .weekly-discount span { display: grid; gap: 2px; }
@@ -414,6 +415,11 @@ button:active:not(:disabled) { transform: scale(.96); }
 
 .week-quantity { margin-top: 18px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-radius: 18px; background: var(--white); box-shadow: 0 1px 2px rgba(7,56,44,.06); }
 .week-quantity > span { color: var(--ink); font-size: 12px; font-weight: 600; }
+.week-garnish { margin-top: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-radius: 18px; background: var(--white); box-shadow: 0 1px 2px rgba(7,56,44,.06); }
+.week-garnish > span { color: var(--ink); font-size: 12px; font-weight: 600; }
+.week-garnish > div { display: flex; gap: 8px; }
+.week-garnish button { min-height: 34px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; color: var(--green); background: transparent; font-size: 11px; font-weight: 700; }
+.week-garnish button.selected { color: white; background: var(--green); border-color: var(--green); }
 .counter--lg { grid-template-columns: 34px 30px 34px; }
 .counter--lg button { width: 34px; height: 34px; border-color: var(--green); }
 .counter--lg span { font-size: 14px; }
@@ -460,6 +466,9 @@ button:active:not(:disabled) { transform: scale(.96); }
   .week-hero p { font-size: 12px; }
   .week-package-grid { grid-template-columns: 1fr; }
   .week-quantity { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .week-garnish { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .week-garnish > div { width: 100%; }
+  .week-garnish button { flex: 1; }
   .week-day__meals { grid-template-columns: repeat(2, 1fr); }
   .week-summary-bar { left: 10px; right: 10px; padding: 10px 10px 10px 16px; }
   .week-summary-bar__cta { padding: 0 16px; font-size: 11px; }
