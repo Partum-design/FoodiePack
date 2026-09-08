@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ArrowRight, Calendar, Check, Loader2, MessageCircle, Minus, Plus, RefreshCw, Wand2,
+  ArrowRight, Calendar, Check, Loader2, MessageCircle, Minus, Plus, RefreshCw, Utensils, Wand2,
 } from 'lucide-react'
 import { getMenu, getMenuDays } from './api'
 import FloatingDecor from './components/FloatingDecor'
@@ -9,7 +9,7 @@ import { dayName, fullDate, shortDate } from './lib/dates'
 import { money } from './lib/format'
 import { useReveal } from './lib/useReveal'
 import {
-  DOUBLE_GARNISH_OPTIONS, GARNISH_OPTIONS, garnishChoiceLabel, PACKAGE_ORDER, PACKAGES,
+  DOUBLE_GARNISH_OPTIONS, GARNISH_OPTIONS, garnishChoiceLabel, PACKAGE_ORDER, PACKAGES, UTENSILS_SURCHARGE,
 } from './packages'
 import type { GarnishChoice, PackageTier } from './packages'
 import type { Meal, MenuDay, MenuResponse, OrderPolicy } from './types'
@@ -93,6 +93,7 @@ function WeekMenuApp() {
   const [quantity, setQuantity] = useState(1)
   const [garnishSelections, setGarnishSelections] = useState<Record<string, GarnishChoice>>({})
   const [selections, setSelections] = useState<Record<string, string>>({})
+  const [wantsUtensils, setWantsUtensils] = useState(false)
 
   const isDoubleGarnish = packageTier === 'completo'
   const defaultGarnish: GarnishChoice = isDoubleGarnish ? 'mixto' : 'arroz'
@@ -167,6 +168,7 @@ function WeekMenuApp() {
     lines.push('')
     lines.push(`📦 Paquete: ${pack.label} (${money(pack.dailyPrice)}/día)`)
     lines.push(`👥 Para: ${quantity} ${quantity === 1 ? 'persona' : 'personas'}`)
+    lines.push(`🍴 Cubiertos: ${wantsUtensils ? `Sí (+${money(UTENSILS_SURCHARGE)})` : 'No, ya tengo'}`)
     lines.push('')
     const chosenDays = days.filter((day) => selections[day.date])
     if (chosenDays.length > 0) {
@@ -184,7 +186,7 @@ function WeekMenuApp() {
     lines.push('')
     lines.push('Quedo al pendiente para confirmar dirección, horario y forma de pago. ¡Gracias! 🙌')
     return lines.join('\n')
-  }, [pack, quantity, days, menus, selections, garnishSelections, defaultGarnish, isDoubleGarnish])
+  }, [pack, quantity, wantsUtensils, days, menus, selections, garnishSelections, defaultGarnish, isDoubleGarnish])
 
   const whatsappHref = buildWhatsAppUrl(whatsappMessage)
 
@@ -243,6 +245,17 @@ function WeekMenuApp() {
             <button type="button" onClick={() => changeQuantity(-1)} aria-label="Quitar una persona"><Minus size={14} /></button>
             <span>{quantity}</span>
             <button type="button" onClick={() => changeQuantity(1)} aria-label="Agregar una persona"><Plus size={14} /></button>
+          </div>
+        </div>
+        <div className="week-utensils">
+          <span><Utensils size={14} /> ¿Quieres cubiertos? (+{money(UTENSILS_SURCHARGE)})</span>
+          <div>
+            <button type="button" className={!wantsUtensils ? 'selected' : ''} onClick={() => setWantsUtensils(false)}>
+              No, ya tengo
+            </button>
+            <button type="button" className={wantsUtensils ? 'selected' : ''} onClick={() => setWantsUtensils(true)}>
+              Sí, agrégalos
+            </button>
           </div>
         </div>
       </section>

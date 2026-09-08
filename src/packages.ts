@@ -52,6 +52,7 @@ export function garnishChoiceLabel(choice: GarnishChoice, isDouble: boolean): st
 export const REPEAT_GUISADO_SURCHARGE = 15
 export const REPEAT_GUISADO_TIER: PackageTier = 'completo'
 export const WEEKLY_PLAN_DAYS = 5
+export const UTENSILS_SURCHARGE = 5
 
 export const BANK_TRANSFER = {
   bank: 'Banamex',
