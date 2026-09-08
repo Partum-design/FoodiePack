@@ -33,6 +33,22 @@ export const GARNISH_OPTIONS: Array<{ value: Garnish; label: string }> = [
   { value: 'frijoles', label: 'Frijoles' },
 ]
 
+// For packages with 2 guarniciones (Foodie+/completo): either both the same
+// (value reused as "2 arroz" / "2 frijoles") or one of each ("mixto").
+export type GarnishChoice = Garnish | 'mixto'
+
+export const DOUBLE_GARNISH_OPTIONS: Array<{ value: GarnishChoice; label: string }> = [
+  { value: 'arroz', label: '2 arroz' },
+  { value: 'frijoles', label: '2 frijoles' },
+  { value: 'mixto', label: 'Uno y uno' },
+]
+
+export function garnishChoiceLabel(choice: GarnishChoice, isDouble: boolean): string {
+  if (choice === 'mixto') return 'Arroz y frijoles'
+  const base = choice === 'arroz' ? 'Arroz' : 'Frijoles'
+  return isDouble ? `2 ${base.toLowerCase()}` : base
+}
+
 export const REPEAT_GUISADO_SURCHARGE = 15
 export const REPEAT_GUISADO_TIER: PackageTier = 'completo'
 export const WEEKLY_PLAN_DAYS = 5

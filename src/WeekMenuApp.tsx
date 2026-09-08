@@ -8,8 +8,10 @@ import Logo from './components/Logo'
 import { dayName, fullDate, shortDate } from './lib/dates'
 import { money } from './lib/format'
 import { useReveal } from './lib/useReveal'
-import { GARNISH_OPTIONS, PACKAGE_ORDER, PACKAGES } from './packages'
-import type { Garnish, PackageTier } from './packages'
+import {
+  DOUBLE_GARNISH_OPTIONS, GARNISH_OPTIONS, garnishChoiceLabel, PACKAGE_ORDER, PACKAGES,
+} from './packages'
+import type { GarnishChoice, PackageTier } from './packages'
 import type { Meal, MenuDay, MenuResponse, OrderPolicy } from './types'
 
 // Mexico City mobile number for FoodiePack's WhatsApp line.
@@ -19,14 +21,18 @@ function buildWhatsAppUrl(message: string) {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
 }
 
-function DayCard({ day, meals, selectedMealId, onChoose }: {
+function DayCard({ day, meals, selectedMealId, onChoose, garnishChoice, isDoubleGarnish, onGarnish }: {
   day: MenuDay
   meals: Meal[]
   selectedMealId: string | null
   onChoose: (mealId: string) => void
+  garnishChoice: GarnishChoice
+  isDoubleGarnish: boolean
+  onGarnish: (value: GarnishChoice) => void
 }) {
   const { ref, visible } = useReveal<HTMLDivElement>()
   const done = Boolean(selectedMealId)
+  const garnishOptions = isDoubleGarnish ? DOUBLE_GARNISH_OPTIONS : GARNISH_OPTIONS
   return (
     <div ref={ref} className={`week-day reveal ${visible ? 'reveal--visible' : ''}`}>
       <div className="week-day__head">
@@ -55,6 +61,23 @@ function DayCard({ day, meals, selectedMealId, onChoose }: {
         ))}
         {meals.length === 0 && <p className="week-day__empty">La cocina todavía no publica el menú de este día.</p>}
       </div>
+      {meals.length > 0 && (
+        <div className="week-day__garnish">
+          <span>{isDoubleGarnish ? '¿Cómo quieres tus 2 guarniciones?' : '¿Arroz o frijoles?'}</span>
+          <div>
+            {garnishOptions.map((option) => (
+              <button
+                type="button"
+                key={option.value}
+                className={garnishChoice === option.value ? 'selected' : ''}
+                onClick={() => onGarnish(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -68,8 +91,16 @@ function WeekMenuApp() {
   const [retryTick, setRetryTick] = useState(0)
   const [packageTier, setPackageTier] = useState<PackageTier>('ejecutivo')
   const [quantity, setQuantity] = useState(1)
-  const [garnish, setGarnish] = useState<Garnish>('arroz')
+  const [garnishSelections, setGarnishSelections] = useState<Record<string, GarnishChoice>>({})
   const [selections, setSelections] = useState<Record<string, string>>({})
+
+  const isDoubleGarnish = packageTier === 'completo'
+  const defaultGarnish: GarnishChoice = isDoubleGarnish ? 'mixto' : 'arroz'
+
+  // Guarniciones válidas dependen del paquete elegido (1 vs 2 guarniciones).
+  useEffect(() => {
+    setGarnishSelections({})
+  }, [packageTier])
 
   useEffect(() => {
     document.title = 'FoodiePack · Menú de la semana'
@@ -113,6 +144,10 @@ function WeekMenuApp() {
     })
   }
 
+  const chooseGarnish = (date: string, value: GarnishChoice) => {
+    setGarnishSelections((current) => ({ ...current, [date]: value }))
+  }
+
   const autoFillWeek = () => {
     setSelections((current) => {
       const next = { ...current }
@@ -132,14 +167,16 @@ function WeekMenuApp() {
     lines.push('')
     lines.push(`📦 Paquete: ${pack.label} (${money(pack.dailyPrice)}/día)`)
     lines.push(`👥 Para: ${quantity} ${quantity === 1 ? 'persona' : 'personas'}`)
-    lines.push(`🍚 Guarnición: ${garnish === 'arroz' ? 'Arroz' : 'Frijoles'}`)
     lines.push('')
     const chosenDays = days.filter((day) => selections[day.date])
     if (chosenDays.length > 0) {
       chosenDays.forEach((day) => {
         const meal = menus[day.date]?.meals.find((item) => item.id === selections[day.date])
         const weekday = dayName(day.date, true)
-        lines.push(`🗓️ ${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${shortDate(day.date)}: ${meal?.name}`)
+        const dayGarnish = garnishSelections[day.date] ?? defaultGarnish
+        const garnishLabel = garnishChoiceLabel(dayGarnish, isDoubleGarnish)
+        const garnishTag = isDoubleGarnish ? 'Guarniciones' : 'Guarnición'
+        lines.push(`🗓️ ${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${shortDate(day.date)}: ${meal?.name} — 🍚 ${garnishTag}: ${garnishLabel}`)
       })
     } else {
       lines.push('Todavía no elegí mi comida de cada día, ¿me ayudan con las opciones?')
@@ -147,7 +184,7 @@ function WeekMenuApp() {
     lines.push('')
     lines.push('Quedo al pendiente para confirmar dirección, horario y forma de pago. ¡Gracias! 🙌')
     return lines.join('\n')
-  }, [pack, quantity, garnish, days, menus, selections])
+  }, [pack, quantity, days, menus, selections, garnishSelections, defaultGarnish, isDoubleGarnish])
 
   const whatsappHref = buildWhatsAppUrl(whatsappMessage)
 
@@ -208,32 +245,17 @@ function WeekMenuApp() {
             <button type="button" onClick={() => changeQuantity(1)} aria-label="Agregar una persona"><Plus size={14} /></button>
           </div>
         </div>
-        <div className="week-garnish">
-          <span>¿Arroz o frijoles?</span>
-          <div>
-            {GARNISH_OPTIONS.map((option) => (
-              <button
-                type="button"
-                key={option.value}
-                className={garnish === option.value ? 'selected' : ''}
-                onClick={() => setGarnish(option.value)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
       </section>
 
       <section className="week-block" aria-labelledby="week-days-title">
         <div className="week-block__head">
           <span className="week-step">2</span>
-          <h2 id="week-days-title">Elige tu comida de cada día</h2>
+          <h2 id="week-days-title">Elige tu comida y guarnición de cada día</h2>
         </div>
         <button type="button" className="week-autofill" onClick={autoFillWeek} disabled={loading || totalDays === 0}>
           <Wand2 size={16} /> Elegir toda la semana automáticamente
         </button>
-        <p className="week-autofill-hint">Te llenamos los 5 días con un toque. Si quieres cambiar algún platillo, solo tócalo.</p>
+        <p className="week-autofill-hint">Te llenamos los 5 días con un toque. Si quieres cambiar algún platillo o guarnición, solo tócalo.</p>
 
         {loading && <div className="week-days__loading"><Loader2 size={22} className="spin" /> Cargando el menú de la semana…</div>}
 
@@ -245,6 +267,9 @@ function WeekMenuApp() {
               meals={menus[day.date]?.meals || []}
               selectedMealId={selections[day.date] || null}
               onChoose={(mealId) => chooseMeal(day.date, mealId)}
+              garnishChoice={garnishSelections[day.date] ?? defaultGarnish}
+              isDoubleGarnish={isDoubleGarnish}
+              onGarnish={(value) => chooseGarnish(day.date, value)}
             />
           ))}
         </div>
