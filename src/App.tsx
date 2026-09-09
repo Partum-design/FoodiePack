@@ -188,6 +188,11 @@ function PackagePicker({ selected, onSelect }: { selected: PackageTier | null; o
               <li><span>Semanal regular · 5 días</span><strong>{money(pack.weeklyRegular)}</strong></li>
               <li><span>Pago por adelantado</span><strong>{money(pack.weeklyPrepay)}</strong></li>
             </ul>
+            <ul className="package-card__includes">
+              {pack.includes.map((item) => (
+                <li key={item}><Check size={13} /> {item}</li>
+              ))}
+            </ul>
             <button type="button" className={isSelected ? 'selected' : ''} onClick={() => onSelect(tier)}>
               {isSelected ? <><Check size={15} /> Elegido</> : 'Elegir este paquete'}
             </button>

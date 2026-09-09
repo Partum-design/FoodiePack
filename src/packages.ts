@@ -6,12 +6,23 @@ export type PackageDefinition = {
   dailyPrice: number
   weeklyRegular: number
   weeklyPrepay: number
+  includes: string[]
 }
 
 export const PACKAGES: Record<PackageTier, PackageDefinition> = {
-  economico: { tier: 'economico', label: 'Económico', dailyPrice: 60, weeklyRegular: 300, weeklyPrepay: 290 },
-  ejecutivo: { tier: 'ejecutivo', label: 'Ejecutivo', dailyPrice: 75, weeklyRegular: 375, weeklyPrepay: 365 },
-  completo: { tier: 'completo', label: 'Completo Foodie', dailyPrice: 90, weeklyRegular: 450, weeklyPrepay: 430 },
+  economico: {
+    tier: 'economico', label: 'Económico', dailyPrice: 60, weeklyRegular: 300, weeklyPrepay: 290,
+    includes: ['Agua embotellada de 355 ml incluida'],
+  },
+  ejecutivo: {
+    tier: 'ejecutivo', label: 'Ejecutivo', dailyPrice: 75, weeklyRegular: 375, weeklyPrepay: 365,
+    // Solo esta semana (9-12 sep): la próxima semana se quita este extra.
+    includes: ['Agua embotellada de 355 ml incluida', 'Incluye huevo esta semana'],
+  },
+  completo: {
+    tier: 'completo', label: 'Completo Foodie', dailyPrice: 90, weeklyRegular: 450, weeklyPrepay: 430,
+    includes: ['Agua embotellada de 355 ml incluida', 'Incluye huevo'],
+  },
 }
 
 export const PACKAGE_ORDER: PackageTier[] = ['economico', 'ejecutivo', 'completo']

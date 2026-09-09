@@ -98,6 +98,9 @@ button:active:not(:disabled) { transform: scale(.96); }
 .package-card li { display: flex; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
 .package-card li:first-child { border-top: 0; padding-top: 0; }
 .package-card li strong { color: var(--ink); font-size: 11px; }
+.package-card__includes { margin: 0 0 16px; padding: 0; list-style: none; display: grid; gap: 6px; }
+.package-card__includes li { display: flex; align-items: center; gap: 6px; padding: 0; border-top: 0; color: var(--green); font-size: 10.5px; font-weight: 600; }
+.package-card__includes li svg { flex: none; }
 .package-card button { width: 100%; min-height: 44px; border: 1px solid var(--green); border-radius: 999px; color: var(--green); background: transparent; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 7px; }
 .package-card button:hover { background: var(--green-pale); }
 .package-card button.selected { color: white; background: var(--green); }
