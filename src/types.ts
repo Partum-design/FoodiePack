@@ -36,6 +36,7 @@ export type SpecialDay = {
   packagePrice?: number
   packageIncludes?: string[]
   addons?: SpecialDayAddon[]
+  image?: string
 }
 
 export type MenuResponse = {

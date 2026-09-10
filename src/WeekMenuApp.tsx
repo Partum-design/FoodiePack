@@ -46,10 +46,13 @@ function DayCard({ day, meals, selectedMealId, onChoose, garnishChoice, isDouble
           <b className="week-day__check"><Check size={12} /> Menú especial</b>
         </div>
         <div className="week-day__special">
-          <strong>{specialDay.packageName} · {money(specialDay.packagePrice || 0)}</strong>
-          {specialDay.packageIncludes && specialDay.packageIncludes.length > 0 && (
-            <span>Incluye {specialDay.packageIncludes.join(', ').toLowerCase()}.</span>
-          )}
+          {specialDay.image && <img src={specialDay.image} alt={specialDay.packageName || 'Menú especial'} loading="lazy" decoding="async" />}
+          <div>
+            <strong>{specialDay.packageName} · {money(specialDay.packagePrice || 0)}</strong>
+            {specialDay.packageIncludes && specialDay.packageIncludes.length > 0 && (
+              <span>Incluye {specialDay.packageIncludes.join(', ').toLowerCase()}.</span>
+            )}
+          </div>
         </div>
       </div>
     )

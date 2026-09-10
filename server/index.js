@@ -126,6 +126,7 @@ const specialDaySchema = z.object({
   packagePrice: z.number().int().min(0).max(5000).optional(),
   packageIncludes: z.array(z.string().trim().min(1).max(80)).max(10).optional().default([]),
   addons: z.array(specialDayAddonSchema).max(5).optional().default([]),
+  image: z.string().min(1).max(300).optional(),
 }).superRefine((data, context) => {
   if (data.kind === 'special_package') {
     if (!data.packageName) context.addIssue({ code: z.ZodIssueCode.custom, path: ['packageName'], message: 'Escribe el nombre del menú especial.' })

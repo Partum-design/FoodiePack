@@ -196,18 +196,25 @@ function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, 
 function SpecialDayCard({ specialDay }: { specialDay: SpecialDay }) {
   return (
     <div className="special-day-card">
-      <span className="special-day-card__badge"><Sparkles size={13} /> Menú especial de este día</span>
-      <h2>{specialDay.packageName}</h2>
-      {specialDay.reason && <p>{specialDay.reason}</p>}
-      <strong className="special-day-card__price">{money(specialDay.packagePrice || 0)}<small>precio único</small></strong>
-      {Boolean(specialDay.packageIncludes?.length) && (
-        <ul className="special-day-card__includes">
-          {specialDay.packageIncludes!.map((item) => <li key={item}><Check size={13} /> {item}</li>)}
-        </ul>
+      {specialDay.image && (
+        <div className="special-day-card__media">
+          <img src={specialDay.image} alt={specialDay.packageName || 'Menú especial'} loading="lazy" decoding="async" />
+        </div>
       )}
-      {Boolean(specialDay.addons?.length) && (
-        <p className="special-day-card__hint">Puedes agregar extras desde tu pedido, a la derecha →</p>
-      )}
+      <div className="special-day-card__body">
+        <span className="special-day-card__badge"><Sparkles size={13} /> Menú especial de este día</span>
+        <h2>{specialDay.packageName}</h2>
+        {specialDay.reason && <p>{specialDay.reason}</p>}
+        <strong className="special-day-card__price">{money(specialDay.packagePrice || 0)}<small>precio único</small></strong>
+        {Boolean(specialDay.packageIncludes?.length) && (
+          <ul className="special-day-card__includes">
+            {specialDay.packageIncludes!.map((item) => <li key={item}><Check size={13} /> {item}</li>)}
+          </ul>
+        )}
+        {Boolean(specialDay.addons?.length) && (
+          <p className="special-day-card__hint">Puedes agregar extras desde tu pedido, a la derecha →</p>
+        )}
+      </div>
     </div>
   )
 }

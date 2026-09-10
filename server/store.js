@@ -519,6 +519,7 @@ function specialDayFromRow(row) {
     packagePrice: row.package_price ?? undefined,
     packageIncludes: row.package_includes || [],
     addons: row.addons || [],
+    image: row.image || undefined,
   }
 }
 
@@ -532,6 +533,7 @@ function specialDayToRow(date, specialDay) {
     package_price: specialDay.kind === 'special_package' ? specialDay.packagePrice : null,
     package_includes: specialDay.kind === 'special_package' ? (specialDay.packageIncludes || []) : [],
     addons: specialDay.kind === 'special_package' ? (specialDay.addons || []) : [],
+    image: specialDay.kind === 'special_package' ? (specialDay.image || null) : null,
   }
 }
 

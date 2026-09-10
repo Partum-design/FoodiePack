@@ -309,10 +309,11 @@ type SpecialDayDraft = {
   packagePrice: string
   packageIncludesText: string
   addons: Array<{ name: string; price: string }>
+  image: string
 }
 
 function emptySpecialDayDraft(): SpecialDayDraft {
-  return { date: '', kind: 'special_package', label: '', reason: '', packageName: '', packagePrice: '', packageIncludesText: '', addons: [] }
+  return { date: '', kind: 'special_package', label: '', reason: '', packageName: '', packagePrice: '', packageIncludesText: '', addons: [], image: '' }
 }
 
 function draftFromSpecialDay(day: SpecialDay): SpecialDayDraft {
@@ -325,6 +326,7 @@ function draftFromSpecialDay(day: SpecialDay): SpecialDayDraft {
     packagePrice: day.packagePrice != null ? String(day.packagePrice) : '',
     packageIncludesText: (day.packageIncludes || []).join(', '),
     addons: (day.addons || []).map((addon) => ({ name: addon.name, price: String(addon.price) })),
+    image: day.image || '',
   }
 }
 
@@ -336,14 +338,33 @@ function SpecialDayRow({ specialDay, token, isNew, onSaved, onDeleted, onCancelN
   onDeleted: (date: string) => void
   onCancelNew?: () => void
 }) {
+  const fileInputId = useId()
   const [editing, setEditing] = useState(Boolean(isNew))
   const [draft, setDraft] = useState<SpecialDayDraft>(() => specialDay ? draftFromSpecialDay(specialDay) : emptySpecialDayDraft())
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [localError, setLocalError] = useState('')
 
   const field = <K extends keyof SpecialDayDraft>(key: K, value: SpecialDayDraft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }))
+
+  const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setLocalError('')
+    try {
+      const base64 = await resizeImageToBase64(file)
+      const { url } = await uploadAdminImage(base64, 'image/jpeg', token)
+      field('image', url)
+    } catch (uploadError) {
+      setLocalError(uploadError instanceof Error ? uploadError.message : 'No se pudo subir la imagen')
+    } finally {
+      setUploading(false)
+      event.target.value = ''
+    }
+  }
 
   const startEdit = () => {
     if (specialDay) setDraft(draftFromSpecialDay(specialDay))
@@ -378,6 +399,7 @@ function SpecialDayRow({ specialDay, token, isNew, onSaved, onDeleted, onCancelN
         packagePrice: Number(draft.packagePrice) || 0,
         packageIncludes: draft.packageIncludesText.split(',').map((item) => item.trim()).filter(Boolean),
         addons: draft.addons.map((addon) => ({ name: addon.name.trim(), price: Number(addon.price) || 0 })).filter((addon) => addon.name),
+        ...(draft.image ? { image: draft.image } : {}),
       } : { packageIncludes: [], addons: [] }),
     }
     try {
@@ -424,6 +446,13 @@ function SpecialDayRow({ specialDay, token, isNew, onSaved, onDeleted, onCancelN
                   <label>Precio único<input type="number" min="0" value={draft.packagePrice} onChange={(event) => field('packagePrice', event.target.value)} /></label>
                 </div>
                 <label>Incluye (separado por comas)<input value={draft.packageIncludesText} onChange={(event) => field('packageIncludesText', event.target.value)} placeholder="Crema, Tostadas, Verdura" /></label>
+                <div className="special-day-image-picker">
+                  {draft.image && <div className="special-day-image-picker__preview" style={{ backgroundImage: `url(${draft.image})` }} />}
+                  <label className="image-upload-btn" htmlFor={fileInputId}>
+                    {uploading ? <Loader2 size={12} className="spin" /> : <ImagePlus size={12} />} {uploading ? 'Subiendo…' : draft.image ? 'Cambiar foto' : 'Subir foto'}
+                  </label>
+                  <input id={fileInputId} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={handleFile} />
+                </div>
                 <div className="special-day-addons-editor">
                   <span>Extras opcionales</span>
                   {draft.addons.map((addon, index) => (
@@ -446,6 +475,9 @@ function SpecialDayRow({ specialDay, token, isNew, onSaved, onDeleted, onCancelN
         </>
       ) : specialDay ? (
         <>
+          {specialDay.kind === 'special_package' && specialDay.image && (
+            <div className="editor-photo" style={{ backgroundImage: `url(${specialDay.image})` }} />
+          )}
           <div className="editor-fields product-view">
             <strong>{longDate(specialDay.date)}</strong>
             <p>{specialDay.kind === 'closed' ? (specialDay.reason || 'Cerrado, sin pedidos') : `${specialDay.packageName} · ${money(specialDay.packagePrice || 0)}`}</p>

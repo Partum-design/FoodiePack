@@ -361,6 +361,7 @@ button:active:not(:disabled) { transform: scale(.96); }
   .menu-title { padding: 24px 0 20px; }.menu-title h1 { max-width: 340px; font-size: 34px; }.menu-title > span { max-width: 340px; line-height: 1.5; }
   .date-strip { margin: 0 -16px; padding: 0 16px 2px; overflow-x: auto; }.date-strip button { flex: 0 0 82px; min-height: 78px; }
   .meal-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }.meal-card { border-radius: 18px; }.meal-card__content { padding: 11px 12px 12px; }.meal-card h2 { font-size: 15px; }.meal-card__content > p { display: none; }.meal-card__bottom { flex-wrap: wrap; gap: 6px; }.meal-card__bottom span { font-size: 8px; }
+  .special-day-card { flex-direction: column; padding: 20px; }.special-day-card__media { width: 100%; aspect-ratio: 16 / 9; }
   .weekly-promo__inner { padding: 24px 16px; }.weekly-promo__copy h2 { font-size: 26px; }
   .packages-section { width: 100%; padding: 40px 16px; }.packages-section__head h2 { font-size: 27px; }
   .order-summary { position: static; margin: 22px 16px 0; scroll-margin-top: 76px; }
@@ -458,7 +459,9 @@ button:active:not(:disabled) { transform: scale(.96); }
 .week-day__garnish > div { display: flex; flex-wrap: wrap; gap: 6px; }
 .week-day__garnish button { min-height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--green); background: transparent; font-size: 10px; font-weight: 700; }
 .week-day__garnish button.selected { color: white; background: var(--green); border-color: var(--green); }
-.week-day__special { margin-top: 14px; padding: 12px 14px; display: grid; gap: 4px; border-radius: 14px; background: var(--green-pale); }
+.week-day__special { margin-top: 14px; padding: 10px; display: flex; align-items: center; gap: 12px; border-radius: 14px; background: var(--green-pale); }
+.week-day__special img { flex-shrink: 0; width: 56px; height: 56px; border-radius: 12px; object-fit: cover; }
+.week-day__special > div { display: grid; gap: 4px; min-width: 0; }
 .week-day__special strong { color: var(--green-dark); font-size: 13px; }
 .week-day__special span { color: var(--muted); font-size: 10.5px; }
 
@@ -501,10 +504,13 @@ button:active:not(:disabled) { transform: scale(.96); }
 .date-strip button.date-strip__special small { color: var(--orange); font-weight: 700; }
 .date-strip button.date-strip__special.selected small { color: white; }
 
-.special-day-card { grid-column: 1 / -1; padding: 28px 24px; border-radius: 22px; background: var(--white); box-shadow: 0 1px 2px rgba(7,56,44,.06); }
+.special-day-card { grid-column: 1 / -1; display: flex; gap: 24px; padding: 24px; border-radius: 22px; background: var(--white); box-shadow: 0 1px 2px rgba(7,56,44,.06); }
+.special-day-card__media { flex-shrink: 0; width: 220px; aspect-ratio: 1; overflow: hidden; border-radius: 18px; background: var(--green-pale); }
+.special-day-card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.special-day-card__body { min-width: 0; }
 .special-day-card__badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; color: var(--green-dark); background: var(--lime); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
 .special-day-card h2 { margin: 14px 0 4px; color: var(--green); font: 600 28px/1.1 'Fredoka', sans-serif; }
-.special-day-card > p { margin: 0; max-width: 46ch; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.special-day-card__body > p { margin: 0; max-width: 46ch; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .special-day-card__price { display: flex; align-items: baseline; gap: 8px; margin-top: 14px; color: var(--green-dark); font: 700 30px/1 'Fredoka', sans-serif; }
 .special-day-card__price small { color: var(--muted); font: 600 10px/1 'DM Sans', sans-serif; text-transform: uppercase; letter-spacing: .4px; }
 .special-day-card__includes { list-style: none; margin: 18px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
@@ -522,6 +528,8 @@ button:active:not(:disabled) { transform: scale(.96); }
 .editor-fields > .special-day-kind-toggle { display: flex; gap: 6px; margin-bottom: 4px; }
 .special-day-kind-toggle button { flex: 1; min-height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: 10px; color: var(--green); background: white; font-size: 10px; font-weight: 700; }
 .special-day-kind-toggle button.selected { color: white; background: var(--green); border-color: var(--green); }
+.editor-fields > .special-day-image-picker { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.special-day-image-picker__preview { width: 40px; height: 40px; border-radius: 10px; background-size: cover; background-position: center; }
 .editor-fields > .special-day-addons-editor { display: grid; gap: 6px; margin-top: 4px; }
 .special-day-addons-editor > span { color: var(--muted); font-size: 9px; }
 .special-day-addons-editor__row { display: grid; grid-template-columns: 1fr 70px 28px; gap: 6px; align-items: center; }
