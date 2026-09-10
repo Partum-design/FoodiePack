@@ -31,8 +31,30 @@ function DayCard({ day, meals, selectedMealId, onChoose, garnishChoice, isDouble
   onGarnish: (value: GarnishChoice) => void
 }) {
   const { ref, visible } = useReveal<HTMLDivElement>()
-  const done = Boolean(selectedMealId)
+  const specialDay = day.specialDay?.kind === 'special_package' ? day.specialDay : null
+  const done = specialDay ? true : Boolean(selectedMealId)
   const garnishOptions = isDoubleGarnish ? DOUBLE_GARNISH_OPTIONS : GARNISH_OPTIONS
+
+  if (specialDay) {
+    return (
+      <div ref={ref} className={`week-day reveal ${visible ? 'reveal--visible' : ''}`}>
+        <div className="week-day__head">
+          <div>
+            <strong>{dayName(day.date, true)}</strong>
+            <span>{fullDate(day.date)}</span>
+          </div>
+          <b className="week-day__check"><Check size={12} /> Menú especial</b>
+        </div>
+        <div className="week-day__special">
+          <strong>{specialDay.packageName} · {money(specialDay.packagePrice || 0)}</strong>
+          {specialDay.packageIncludes && specialDay.packageIncludes.length > 0 && (
+            <span>Incluye {specialDay.packageIncludes.join(', ').toLowerCase()}.</span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div ref={ref} className={`week-day reveal ${visible ? 'reveal--visible' : ''}`}>
       <div className="week-day__head">
@@ -130,7 +152,7 @@ function WeekMenuApp() {
   const pack = PACKAGES[packageTier]
   const totalDays = days.length
   const selectedCount = useMemo(
-    () => days.filter((day) => selections[day.date]).length,
+    () => days.filter((day) => selections[day.date] || day.specialDay?.kind === 'special_package').length,
     [days, selections],
   )
 
@@ -170,15 +192,20 @@ function WeekMenuApp() {
     lines.push(`👥 Para: ${quantity} ${quantity === 1 ? 'persona' : 'personas'}`)
     lines.push(`🍴 Cubiertos: ${wantsUtensils ? `Sí (+${money(UTENSILS_SURCHARGE)})` : 'No, ya tengo'}`)
     lines.push('')
-    const chosenDays = days.filter((day) => selections[day.date])
+    const chosenDays = days.filter((day) => selections[day.date] || day.specialDay?.kind === 'special_package')
     if (chosenDays.length > 0) {
       chosenDays.forEach((day) => {
-        const meal = menus[day.date]?.meals.find((item) => item.id === selections[day.date])
         const weekday = dayName(day.date, true)
+        const label = `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${shortDate(day.date)}`
+        if (day.specialDay?.kind === 'special_package') {
+          lines.push(`🗓️ ${label}: ${day.specialDay.packageName} (${money(day.specialDay.packagePrice || 0)}, menú especial)`)
+          return
+        }
+        const meal = menus[day.date]?.meals.find((item) => item.id === selections[day.date])
         const dayGarnish = garnishSelections[day.date] ?? defaultGarnish
         const garnishLabel = garnishChoiceLabel(dayGarnish, isDoubleGarnish)
         const garnishTag = isDoubleGarnish ? 'Guarniciones' : 'Guarnición'
-        lines.push(`🗓️ ${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${shortDate(day.date)}: ${meal?.name} — 🍚 ${garnishTag}: ${garnishLabel}`)
+        lines.push(`🗓️ ${label}: ${meal?.name} — 🍚 ${garnishTag}: ${garnishLabel}`)
       })
     } else {
       lines.push('Todavía no elegí mi comida de cada día, ¿me ayudan con las opciones?')

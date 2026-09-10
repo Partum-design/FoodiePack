@@ -1,5 +1,5 @@
 import type { Garnish } from './packages'
-import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
+import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder, SpecialDay } from './types'
 import type { PackageTier } from './packages'
 
 const configuredUrl = import.meta.env.VITE_API_URL as string | undefined
@@ -50,13 +50,14 @@ export function createOrder(payload: {
   paymentMethod: PaymentMethod
   orderMode: 'day' | 'week'
   date: string
-  packageTier: PackageTier
+  packageTier?: PackageTier
   quantity: number
   repeatGuisado: boolean
   prepay: boolean
   promo2x1: boolean
   garnish?: Garnish
   mealId?: string
+  specialAddons?: string[]
 }) {
   return request<{ order: SavedOrder }>('/orders', { method: 'POST', body: JSON.stringify(payload) })
 }
@@ -132,5 +133,24 @@ export function uploadAdminImage(fileBase64: string, contentType: string, token:
     method: 'POST',
     headers: adminHeaders(token),
     body: JSON.stringify({ fileBase64, contentType }),
+  })
+}
+
+export function getAdminSpecialDays(token: string) {
+  return request<{ specialDays: SpecialDay[] }>('/admin/special-days', { headers: adminHeaders(token) })
+}
+
+export function saveAdminSpecialDay(date: string, specialDay: Omit<SpecialDay, 'date'>, token: string) {
+  return request<{ specialDay: SpecialDay }>(`/admin/special-days/${date}`, {
+    method: 'PUT',
+    headers: adminHeaders(token),
+    body: JSON.stringify(specialDay),
+  })
+}
+
+export function deleteAdminSpecialDay(date: string, token: string) {
+  return request<Record<string, never>>(`/admin/special-days/${date}`, {
+    method: 'DELETE',
+    headers: adminHeaders(token),
   })
 }

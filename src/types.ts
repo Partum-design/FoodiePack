@@ -25,16 +25,31 @@ export type OrderPolicy = {
   currentTime: string
 }
 
+export type SpecialDayAddon = { name: string; price: number }
+
+export type SpecialDay = {
+  date: string
+  kind: 'closed' | 'special_package'
+  label: string
+  reason: string
+  packageName?: string
+  packagePrice?: number
+  packageIncludes?: string[]
+  addons?: SpecialDayAddon[]
+}
+
 export type MenuResponse = {
   date: string
   meals: Meal[]
   canOrder: boolean
   policy: OrderPolicy
+  specialDay?: SpecialDay | null
 }
 
 export type MenuDay = {
   date: string
   mealCount: number
+  specialDay?: SpecialDay | null
 }
 
 export type PackageOrderInput = {

@@ -1,17 +1,18 @@
 import { ChangeEvent, CSSProperties, DragEvent, FormEvent, useEffect, useId, useRef, useState } from 'react'
 import {
-  ArrowLeft, Banknote, Check, CheckCircle2, CircleX, ClipboardList, CreditCard, Eye, EyeOff,
+  ArrowLeft, Banknote, CalendarOff, Check, CheckCircle2, CircleX, ClipboardList, CreditCard, Eye, EyeOff,
   ImagePlus, Landmark, Loader2, LogOut, MapPin, PackageOpen, Pencil, Phone, Plus, Receipt, Save, ShoppingBag,
   Trash2, UtensilsCrossed, X,
 } from 'lucide-react'
 import {
-  adminLogin, createAdminProduct, deleteAdminOrder, deleteAdminProduct, getAdminMenu, getAdminOrders,
-  getAdminProducts, getMenuDays, saveAdminMenu, updateAdminOrderStatus, updateAdminProduct, uploadAdminImage,
+  adminLogin, createAdminProduct, deleteAdminOrder, deleteAdminProduct, deleteAdminSpecialDay, getAdminMenu,
+  getAdminOrders, getAdminProducts, getAdminSpecialDays, getMenuDays, saveAdminMenu, saveAdminSpecialDay,
+  updateAdminOrderStatus, updateAdminProduct, uploadAdminImage,
 } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
 import { PACKAGE_ORDER } from './packages'
-import type { Meal, MenuDay, SavedOrder } from './types'
+import type { Meal, MenuDay, SavedOrder, SpecialDay } from './types'
 
 const TOKEN_KEY = 'foodiepack:admin-session'
 const placeholderImages = [
@@ -299,9 +300,231 @@ function ProductCard({
   )
 }
 
+type SpecialDayDraft = {
+  date: string
+  kind: 'closed' | 'special_package'
+  label: string
+  reason: string
+  packageName: string
+  packagePrice: string
+  packageIncludesText: string
+  addons: Array<{ name: string; price: string }>
+}
+
+function emptySpecialDayDraft(): SpecialDayDraft {
+  return { date: '', kind: 'special_package', label: '', reason: '', packageName: '', packagePrice: '', packageIncludesText: '', addons: [] }
+}
+
+function draftFromSpecialDay(day: SpecialDay): SpecialDayDraft {
+  return {
+    date: day.date,
+    kind: day.kind,
+    label: day.label,
+    reason: day.reason || '',
+    packageName: day.packageName || '',
+    packagePrice: day.packagePrice != null ? String(day.packagePrice) : '',
+    packageIncludesText: (day.packageIncludes || []).join(', '),
+    addons: (day.addons || []).map((addon) => ({ name: addon.name, price: String(addon.price) })),
+  }
+}
+
+function SpecialDayRow({ specialDay, token, isNew, onSaved, onDeleted, onCancelNew }: {
+  specialDay?: SpecialDay
+  token: string
+  isNew?: boolean
+  onSaved: (day: SpecialDay, wasNew: boolean) => void
+  onDeleted: (date: string) => void
+  onCancelNew?: () => void
+}) {
+  const [editing, setEditing] = useState(Boolean(isNew))
+  const [draft, setDraft] = useState<SpecialDayDraft>(() => specialDay ? draftFromSpecialDay(specialDay) : emptySpecialDayDraft())
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [localError, setLocalError] = useState('')
+
+  const field = <K extends keyof SpecialDayDraft>(key: K, value: SpecialDayDraft[K]) =>
+    setDraft((current) => ({ ...current, [key]: value }))
+
+  const startEdit = () => {
+    if (specialDay) setDraft(draftFromSpecialDay(specialDay))
+    setLocalError('')
+    setEditing(true)
+  }
+
+  const cancel = () => {
+    if (isNew) { onCancelNew?.(); return }
+    if (specialDay) setDraft(draftFromSpecialDay(specialDay))
+    setLocalError('')
+    setEditing(false)
+  }
+
+  const addAddon = () => field('addons', [...draft.addons, { name: '', price: '' }])
+  const updateAddon = (index: number, patch: Partial<{ name: string; price: string }>) =>
+    field('addons', draft.addons.map((addon, i) => i === index ? { ...addon, ...patch } : addon))
+  const removeAddon = (index: number) => field('addons', draft.addons.filter((_, i) => i !== index))
+
+  const save = async () => {
+    const date = isNew ? draft.date : specialDay?.date
+    if (!date) { setLocalError('Elige una fecha.'); return }
+    if (!draft.label.trim()) { setLocalError('Escribe una etiqueta para identificar este día.'); return }
+    setSaving(true)
+    setLocalError('')
+    const payload = {
+      kind: draft.kind,
+      label: draft.label.trim(),
+      reason: draft.reason.trim(),
+      ...(draft.kind === 'special_package' ? {
+        packageName: draft.packageName.trim(),
+        packagePrice: Number(draft.packagePrice) || 0,
+        packageIncludes: draft.packageIncludesText.split(',').map((item) => item.trim()).filter(Boolean),
+        addons: draft.addons.map((addon) => ({ name: addon.name.trim(), price: Number(addon.price) || 0 })).filter((addon) => addon.name),
+      } : { packageIncludes: [], addons: [] }),
+    }
+    try {
+      const { specialDay: saved } = await saveAdminSpecialDay(date, payload, token)
+      onSaved(saved, Boolean(isNew))
+      if (!isNew) setEditing(false)
+    } catch (saveError) {
+      setLocalError(saveError instanceof Error ? saveError.message : 'No se pudo guardar el día especial')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!specialDay) return
+    if (!window.confirm(`¿Eliminar el día especial del ${longDate(specialDay.date)}?`)) return
+    setDeleting(true)
+    setLocalError('')
+    try {
+      await deleteAdminSpecialDay(specialDay.date, token)
+      onDeleted(specialDay.date)
+    } catch (deleteError) {
+      setLocalError(deleteError instanceof Error ? deleteError.message : 'No se pudo eliminar')
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <article className={`editor-row special-day-row${isNew ? ' catalog-card--new' : ''}`}>
+      {editing ? (
+        <>
+          <div className="editor-fields">
+            {isNew && <label>Fecha<input type="date" value={draft.date} onChange={(event) => field('date', event.target.value)} required /></label>}
+            <div className="special-day-kind-toggle">
+              <button type="button" className={draft.kind === 'special_package' ? 'selected' : ''} onClick={() => field('kind', 'special_package')}>Menú especial</button>
+              <button type="button" className={draft.kind === 'closed' ? 'selected' : ''} onClick={() => field('kind', 'closed')}>Día cerrado</button>
+            </div>
+            <label>Etiqueta interna<input value={draft.label} onChange={(event) => field('label', event.target.value)} placeholder="Menú especial de pozole" /></label>
+            <label>Mensaje para el cliente<input value={draft.reason} onChange={(event) => field('reason', event.target.value)} placeholder="Solo pozole este día, precio único." /></label>
+            {draft.kind === 'special_package' && (
+              <>
+                <div>
+                  <label>Nombre del menú<input value={draft.packageName} onChange={(event) => field('packageName', event.target.value)} placeholder="Pozole" /></label>
+                  <label>Precio único<input type="number" min="0" value={draft.packagePrice} onChange={(event) => field('packagePrice', event.target.value)} /></label>
+                </div>
+                <label>Incluye (separado por comas)<input value={draft.packageIncludesText} onChange={(event) => field('packageIncludesText', event.target.value)} placeholder="Crema, Tostadas, Verdura" /></label>
+                <div className="special-day-addons-editor">
+                  <span>Extras opcionales</span>
+                  {draft.addons.map((addon, index) => (
+                    <div key={index} className="special-day-addons-editor__row">
+                      <input value={addon.name} onChange={(event) => updateAddon(index, { name: event.target.value })} placeholder="Agua de sabor" />
+                      <input type="number" min="0" value={addon.price} onChange={(event) => updateAddon(index, { price: event.target.value })} placeholder="15" />
+                      <button type="button" onClick={() => removeAddon(index)} aria-label="Quitar extra"><X size={13} /></button>
+                    </div>
+                  ))}
+                  <button type="button" className="admin-secondary" onClick={addAddon}><Plus size={13} /> Agregar extra</button>
+                </div>
+              </>
+            )}
+            {localError && <span className="inline-error inline-error--tight">{localError}</span>}
+          </div>
+          <div className="editor-controls">
+            <button className="admin-primary" disabled={saving} onClick={save} type="button">{saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />} Guardar</button>
+            <button className="admin-secondary" onClick={cancel} type="button"><X size={14} /> Cancelar</button>
+          </div>
+        </>
+      ) : specialDay ? (
+        <>
+          <div className="editor-fields product-view">
+            <strong>{longDate(specialDay.date)}</strong>
+            <p>{specialDay.kind === 'closed' ? (specialDay.reason || 'Cerrado, sin pedidos') : `${specialDay.packageName} · ${money(specialDay.packagePrice || 0)}`}</p>
+            {specialDay.kind === 'special_package' && Boolean(specialDay.packageIncludes?.length) && (
+              <div className="product-view__tags">{specialDay.packageIncludes!.map((item) => <span key={item}>{item}</span>)}</div>
+            )}
+            {localError && <span className="inline-error inline-error--tight">{localError}</span>}
+          </div>
+          <div className="editor-controls">
+            <button className="edit-toggle" onClick={startEdit} type="button"><Pencil size={12} /> Editar</button>
+            <button className="delete-meal" onClick={remove} disabled={deleting} type="button">{deleting ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />} Eliminar</button>
+          </div>
+        </>
+      ) : null}
+    </article>
+  )
+}
+
+function SpecialDaysPanel({ token }: { token: string }) {
+  const [specialDays, setSpecialDays] = useState<SpecialDay[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [addingNew, setAddingNew] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    getAdminSpecialDays(token)
+      .then(({ specialDays: list }) => setSpecialDays([...list].sort((a, b) => a.date.localeCompare(b.date))))
+      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : 'No se pudieron cargar los días especiales'))
+      .finally(() => setLoading(false))
+  }, [token])
+
+  const handleSaved = (day: SpecialDay, wasNew: boolean) => {
+    setSpecialDays((current) => {
+      const next = wasNew ? [...current, day] : current.map((item) => item.date === day.date ? day : item)
+      return next.sort((a, b) => a.date.localeCompare(b.date))
+    })
+    if (wasNew) setAddingNew(false)
+  }
+
+  const handleDeleted = (date: string) => setSpecialDays((current) => current.filter((item) => item.date !== date))
+
+  return (
+    <>
+      <header className="admin-page-head">
+        <div>
+          <p>Días especiales</p>
+          <h1>Feriados y menús especiales</h1>
+          <span>Cierra un día por feriado, o crea un paquete de precio único fuera de los 3 paquetes estándar (como el menú de pozole).</span>
+        </div>
+        <div className="admin-head-actions">
+          <button className="admin-primary" onClick={() => setAddingNew(true)} disabled={addingNew}><Plus size={14} /> Nuevo día especial</button>
+        </div>
+      </header>
+
+      {error && <div className="inline-error">{error}</div>}
+
+      {loading ? (
+        <div className="admin-loading"><Loader2 size={22} className="spin" /> Cargando…</div>
+      ) : (
+        <div className="special-days-list">
+          {addingNew && (
+            <SpecialDayRow isNew token={token} onSaved={handleSaved} onDeleted={handleDeleted} onCancelNew={() => setAddingNew(false)} />
+          )}
+          {!addingNew && specialDays.length === 0 && (
+            <div className="admin-empty"><PackageOpen size={26} /><strong>Sin días especiales</strong>Agrega un feriado o un menú de precio único cuando lo necesites.</div>
+          )}
+          {specialDays.map((day) => (
+            <SpecialDayRow key={day.date} specialDay={day} token={token} onSaved={handleSaved} onDeleted={handleDeleted} />
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
 function AdminApp() {
   const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY) || '')
-  const [tab, setTab] = useState<'menu' | 'orders'>('menu')
+  const [tab, setTab] = useState<'menu' | 'orders' | 'special'>('menu')
   const [days, setDays] = useState<MenuDay[]>([])
   const [selectedDate, setSelectedDate] = useState('')
   const [meals, setMeals] = useState<Meal[]>([])
@@ -469,6 +692,7 @@ function AdminApp() {
         <Logo compact />
         <div>
           <button className={tab === 'menu' ? 'selected' : ''} onClick={() => setTab('menu')}><ClipboardList size={15} /> Menús</button>
+          <button className={tab === 'special' ? 'selected' : ''} onClick={() => setTab('special')}><CalendarOff size={15} /> Días especiales</button>
           <button className={tab === 'orders' ? 'selected' : ''} onClick={() => setTab('orders')}><ShoppingBag size={15} /> Pedidos</button>
         </div>
         <button className="logout-button" onClick={logout}><LogOut size={15} /> Salir</button>
@@ -566,6 +790,8 @@ function AdminApp() {
               </div>
             </section>
           </div>
+        </> : tab === 'special' ? <>
+          <SpecialDaysPanel token={token} />
         </> : <>
           <header className="admin-page-head"><div><p>Foodie Pack · Operación</p><h1>Pedidos</h1><span>Aquí llegan los pedidos aceptados.</span></div></header>
 

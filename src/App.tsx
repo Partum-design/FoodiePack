@@ -15,7 +15,7 @@ import {
   REPEAT_GUISADO_TIER,
 } from './packages'
 import type { Garnish, PackageTier } from './packages'
-import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
+import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder, SpecialDay } from './types'
 
 const DELIVERY_ZONE = 'Lindavista, CDMX' as const
 const LINDAVISTA_QUERY = 'Lindavista, Gustavo A. Madero, Ciudad de México'
@@ -193,6 +193,25 @@ function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, 
   )
 }
 
+function SpecialDayCard({ specialDay }: { specialDay: SpecialDay }) {
+  return (
+    <div className="special-day-card">
+      <span className="special-day-card__badge"><Sparkles size={13} /> Menú especial de este día</span>
+      <h2>{specialDay.packageName}</h2>
+      {specialDay.reason && <p>{specialDay.reason}</p>}
+      <strong className="special-day-card__price">{money(specialDay.packagePrice || 0)}<small>precio único</small></strong>
+      {Boolean(specialDay.packageIncludes?.length) && (
+        <ul className="special-day-card__includes">
+          {specialDay.packageIncludes!.map((item) => <li key={item}><Check size={13} /> {item}</li>)}
+        </ul>
+      )}
+      {Boolean(specialDay.addons?.length) && (
+        <p className="special-day-card__hint">Puedes agregar extras desde tu pedido, a la derecha →</p>
+      )}
+    </div>
+  )
+}
+
 function GarnishPicker({ garnish, onGarnish }: { garnish: Garnish; onGarnish: (value: Garnish) => void }) {
   return (
     <div className="garnish-picker">
@@ -266,7 +285,10 @@ function PackagesSection({ selected, onSelect }: { selected: PackageTier | null;
   )
 }
 
-function OrderSummary({ packageTier, quantity, repeatGuisado, promo2x1, garnish, deliveryDate, meal, canOrder, onQuantity, onToggleRepeat, onTogglePromo2x1, onGarnish, onCheckout }: {
+function OrderSummary({
+  packageTier, quantity, repeatGuisado, promo2x1, garnish, deliveryDate, meal, canOrder, specialDay, specialAddons,
+  onQuantity, onToggleRepeat, onTogglePromo2x1, onGarnish, onToggleAddon, onCheckout,
+}: {
   packageTier: PackageTier | null
   quantity: number
   repeatGuisado: boolean
@@ -275,10 +297,13 @@ function OrderSummary({ packageTier, quantity, repeatGuisado, promo2x1, garnish,
   deliveryDate: string
   meal: Meal | null
   canOrder: boolean
+  specialDay: SpecialDay | null
+  specialAddons: string[]
   onQuantity: (change: number) => void
   onToggleRepeat: () => void
   onTogglePromo2x1: () => void
   onGarnish: (value: Garnish) => void
+  onToggleAddon: (name: string) => void
   onCheckout: () => void
 }) {
   const pack = packageTier ? PACKAGES[packageTier] : null
@@ -287,20 +312,47 @@ function OrderSummary({ packageTier, quantity, repeatGuisado, promo2x1, garnish,
   const subtotal = pack ? pack.dailyPrice * quantity : 0
   const paidQuantity = promo2x1 ? Math.ceil(quantity / 2) : quantity
   const promoDiscount = pack && promo2x1 ? pack.dailyPrice * (quantity - paidQuantity) : 0
-  const total = subtotal + surcharge - promoDiscount
+  const addonsUnit = specialDay ? specialAddons.reduce((sum, name) => sum + (specialDay.addons?.find((addon) => addon.name === name)?.price || 0), 0) : 0
+  const specialUnit = specialDay ? (specialDay.packagePrice || 0) + addonsUnit : 0
+  const specialSubtotal = specialUnit * quantity
+  const total = specialDay ? specialSubtotal : subtotal + surcharge - promoDiscount
+  const ready = specialDay ? true : Boolean(pack && meal)
 
   return (
     <aside className="order-summary" id="pedido">
       <div className="order-summary__head">
         <span>Tu pedido</span>
-        <strong>{pack ? pack.label : 'Elige un paquete'}</strong>
+        <strong>{specialDay ? specialDay.packageName : (pack ? pack.label : 'Elige un paquete')}</strong>
       </div>
       <div className="order-summary__date">
         <Clock3 size={18} />
         <p><span>Entrega</span><strong>{deliveryDate ? fullDate(deliveryDate) : 'Próximo día hábil'} · 12:00 a 2:00 pm</strong></p>
       </div>
-      {(!pack || !meal) && <div className="summary-empty"><ShoppingBag size={24} /><p>{pack ? 'Elige una comida del menú para continuar.' : 'Elige una comida y uno de los 3 paquetes para continuar.'}</p></div>}
-      {pack && (
+      {!specialDay && (!pack || !meal) && <div className="summary-empty"><ShoppingBag size={24} /><p>{pack ? 'Elige una comida del menú para continuar.' : 'Elige una comida y uno de los 3 paquetes para continuar.'}</p></div>}
+      {specialDay && (
+        <div className="summary-items">
+          <div className="summary-package">
+            <p><strong>{specialDay.packageName}</strong><span>{money(specialDay.packagePrice || 0)} · precio único</span></p>
+            <div className="counter">
+              <button onClick={() => onQuantity(-1)} aria-label="Quitar una persona"><Minus size={12} /></button>
+              <span>{quantity}</span>
+              <button onClick={() => onQuantity(1)} aria-label="Agregar una persona"><Plus size={12} /></button>
+            </div>
+          </div>
+          {Boolean(specialDay.addons?.length) && (
+            <div className="special-day-addons">
+              {specialDay.addons!.map((addon) => (
+                <label key={addon.name}>
+                  <input type="checkbox" checked={specialAddons.includes(addon.name)} onChange={() => onToggleAddon(addon.name)} />
+                  <span>{addon.name}</span>
+                  <b>+{money(addon.price)}</b>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {!specialDay && pack && (
         <div className="summary-items">
           {meal && <div className="summary-meal"><span>Comida elegida</span><strong>{meal.name}</strong></div>}
           <div className="summary-package">
@@ -330,13 +382,19 @@ function OrderSummary({ packageTier, quantity, repeatGuisado, promo2x1, garnish,
         </div>
       )}
       <div className="summary-totals">
-        <p><span>Paquete</span><strong>{money(subtotal)}</strong></p>
-        {surcharge > 0 && <p><span>Repetir guisado</span><strong>{money(surcharge)}</strong></p>}
-        {promoDiscount > 0 && <p className="summary-discount"><span>Promo 2x1</span><strong>-{money(promoDiscount)}</strong></p>}
+        {specialDay ? (
+          <p><span>{specialDay.packageName}</span><strong>{money(specialSubtotal)}</strong></p>
+        ) : (
+          <>
+            <p><span>Paquete</span><strong>{money(subtotal)}</strong></p>
+            {surcharge > 0 && <p><span>Repetir guisado</span><strong>{money(surcharge)}</strong></p>}
+            {promoDiscount > 0 && <p className="summary-discount"><span>Promo 2x1</span><strong>-{money(promoDiscount)}</strong></p>}
+          </>
+        )}
         <p><span>Envío</span><strong>Gratis</strong></p>
         <p className="summary-total"><span>Total</span><strong>{money(total)}</strong></p>
       </div>
-      <button className="checkout-button" disabled={!pack || !meal || !canOrder} onClick={onCheckout}>Continuar <ArrowRight size={17} /></button>
+      <button className="checkout-button" disabled={!ready || !canOrder} onClick={onCheckout}>Continuar <ArrowRight size={17} /></button>
       <small>Pedido de demostración. No se realizará un cargo real.</small>
     </aside>
   )
@@ -417,6 +475,7 @@ function App() {
   const [repeatGuisado, setRepeatGuisado] = useState(false)
   const [prepay, setPrepay] = useState(false)
   const [garnish, setGarnish] = useState<Garnish>('arroz')
+  const [specialAddons, setSpecialAddons] = useState<string[]>([])
   const [promo2x1, setPromo2x1] = useState(true)
   const [showPromoPopup, setShowPromoPopup] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer')
@@ -531,12 +590,18 @@ function App() {
     if (selectedMealId && menu && !menu.meals.some((meal) => meal.id === selectedMealId)) setSelectedMealId(null)
   }, [menu, selectedMealId])
 
+  useEffect(() => {
+    setSpecialAddons([])
+  }, [selectedDate])
+
   const orderingOpen = Boolean(policy?.isOpen)
   const promoDateLabel = policy?.tomorrow ? fullDate(policy.tomorrow) : 'el próximo día hábil'
   const isNextAvailable = menu?.policy.tomorrow === selectedDate
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
   const selectedMeal = menu?.meals.find((meal) => meal.id === selectedMealId) || null
   const hasDeliveryPin = Boolean(deliveryCoordinates)
+  const specialDay = orderMode === 'day' ? (menu?.specialDay ?? null) : null
+  const isSpecialDay = specialDay?.kind === 'special_package'
 
   const currentMeals = useMemo(
     () => orderMode === 'day' ? (menu?.meals || []) : (weeklyMenus[activeWeekDay]?.meals || []),
@@ -561,8 +626,11 @@ function App() {
   const weekSpecialTotal = activePackage ? activePackage.weeklyPrepay * quantity : 0
   const weekSavings = weekRegularTotal - weekSpecialTotal
   const weekTotal = prepay ? weekSpecialTotal : weekRegularTotal
-  const activeTotal = orderMode === 'week' ? weekTotal : dayTotal
-  const badgeCount = activePackage ? quantity : 0
+  const specialAddonsUnit = specialDay ? specialAddons.reduce((sum, name) => sum + (specialDay.addons?.find((addon) => addon.name === name)?.price || 0), 0) : 0
+  const specialUnitPrice = specialDay ? (specialDay.packagePrice || 0) + specialAddonsUnit : 0
+  const specialTotal = specialUnitPrice * quantity
+  const activeTotal = isSpecialDay ? specialTotal : (orderMode === 'week' ? weekTotal : dayTotal)
+  const badgeCount = isSpecialDay ? quantity : (activePackage ? quantity : 0)
 
   const dismissPromoPopup = () => {
     setShowPromoPopup(false)
@@ -592,6 +660,10 @@ function App() {
 
   const changeQuantity = (change: number) => {
     setQuantity((current) => Math.min(10, Math.max(1, current + change)))
+  }
+
+  const toggleSpecialAddon = (name: string) => {
+    setSpecialAddons((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name])
   }
 
   const updateDeliveryAddress = (value: string) => {
@@ -653,7 +725,7 @@ function App() {
       setDeliveryError('Ubica la dirección en el mapa antes de confirmar el pedido.')
       return
     }
-    if (!packageTier) {
+    if (!isSpecialDay && !packageTier) {
       setOrderError('Elige uno de los 3 paquetes antes de continuar.')
       return
     }
@@ -681,13 +753,14 @@ function App() {
         paymentMethod,
         orderMode,
         date: orderMode === 'day' ? selectedDate : (policy?.tomorrow || days[0]?.date || ''),
-        packageTier,
+        ...(isSpecialDay ? {} : { packageTier: packageTier! }),
         quantity,
-        repeatGuisado: orderMode === 'day' && canRepeatGuisado && repeatGuisado,
+        repeatGuisado: orderMode === 'day' && !isSpecialDay && canRepeatGuisado && repeatGuisado,
         prepay: orderMode === 'week' && prepay,
-        promo2x1: orderMode === 'day' && promo2x1,
-        garnish,
-        ...(orderMode === 'day' && selectedMealId ? { mealId: selectedMealId } : {}),
+        promo2x1: orderMode === 'day' && !isSpecialDay && promo2x1,
+        ...(isSpecialDay ? {} : { garnish }),
+        ...(orderMode === 'day' && !isSpecialDay && selectedMealId ? { mealId: selectedMealId } : {}),
+        ...(isSpecialDay ? { specialAddons } : {}),
       })
       setOrder(response.order)
       setPackageTier(null)
@@ -697,6 +770,7 @@ function App() {
       setPrepay(false)
       setPromo2x1(true)
       setGarnish('arroz')
+      setSpecialAddons([])
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : 'No se pudo confirmar el pedido'
       setOrderError(message)
@@ -791,17 +865,19 @@ function App() {
               <div className="menu-title">
                 <p>{isNextAvailable ? 'Próxima entrega disponible' : 'Próximamente'}</p>
                 <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
-                <span>{isNextAvailable
-                  ? (orderingOpen ? 'Haz tu pedido hoy antes de las 6:00 pm para reservar este día.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
-                  : 'Puedes revisar este menú. Las reservaciones abren cuando sea el próximo día disponible.'}</span>
+                <span>{isSpecialDay && specialDay
+                  ? specialDay.reason
+                  : (isNextAvailable
+                    ? (orderingOpen ? 'Haz tu pedido hoy antes de las 6:00 pm para reservar este día.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
+                    : 'Puedes revisar este menú. Las reservaciones abren cuando sea el próximo día disponible.')}</span>
               </div>
 
               <div className="date-strip" aria-label="Próximos menús">
                 {days.map((day, index) => (
-                  <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}>
+                  <button key={day.date} className={`${selectedDate === day.date ? 'selected' : ''} ${day.specialDay ? 'date-strip__special' : ''}`} onClick={() => setSelectedDate(day.date)}>
                     <span>{index === 0 ? 'Próximo día hábil' : dayName(day.date)}</span>
                     <strong>{dateFromKey(day.date).getDate()}</strong>
-                    <small>{day.mealCount} opciones</small>
+                    <small>{day.specialDay ? (day.specialDay.packageName || 'Especial') : `${day.mealCount} opciones`}</small>
                   </button>
                 ))}
               </div>
@@ -833,37 +909,43 @@ function App() {
             </div>
           )}
 
-          {!isLoadingCurrent && Boolean(currentMeals.length) && (
-            <div className="filter-chips" aria-label="Filtrar menú">
-              <button className={!activeTag && !onlyFavorites ? 'selected' : ''} onClick={() => { setActiveTag(null); setOnlyFavorites(false) }}>Todo</button>
-              {availableTags.map((tag) => (
-                <button key={tag} className={activeTag === tag ? 'selected' : ''} onClick={() => setActiveTag((current) => current === tag ? null : tag)}>{tag}</button>
-              ))}
-              <button className={`filter-chips__favorite ${onlyFavorites ? 'selected' : ''}`} onClick={() => setOnlyFavorites((value) => !value)}>
-                <Heart size={12} fill={onlyFavorites ? 'currentColor' : 'none'} /> Favoritos{favorites.length > 0 ? ` (${favorites.length})` : ''}
-              </button>
-            </div>
-          )}
+          {orderMode === 'day' && isSpecialDay && specialDay ? (
+            <SpecialDayCard specialDay={specialDay} />
+          ) : (
+            <>
+              {!isLoadingCurrent && Boolean(currentMeals.length) && (
+                <div className="filter-chips" aria-label="Filtrar menú">
+                  <button className={!activeTag && !onlyFavorites ? 'selected' : ''} onClick={() => { setActiveTag(null); setOnlyFavorites(false) }}>Todo</button>
+                  {availableTags.map((tag) => (
+                    <button key={tag} className={activeTag === tag ? 'selected' : ''} onClick={() => setActiveTag((current) => current === tag ? null : tag)}>{tag}</button>
+                  ))}
+                  <button className={`filter-chips__favorite ${onlyFavorites ? 'selected' : ''}`} onClick={() => setOnlyFavorites((value) => !value)}>
+                    <Heart size={12} fill={onlyFavorites ? 'currentColor' : 'none'} /> Favoritos{favorites.length > 0 ? ` (${favorites.length})` : ''}
+                  </button>
+                </div>
+              )}
 
-          <div className="meal-grid">
-            {isLoadingCurrent && Array.from({ length: 4 }, (_, index) => <div className="meal-skeleton" key={index} />)}
-            {!isLoadingCurrent && visibleMeals.map((meal, index) => (
-              <DishCard
-                key={meal.id}
-                meal={meal}
-                index={index}
-                isFavorite={favorites.includes(meal.id)}
-                onToggleFavorite={() => toggleFavorite(meal.id)}
-                selectedPackage={packageTier}
-                selectedMealId={selectedMealId}
-                onChoosePackage={chooseMealPackage}
-              />
-            ))}
-            {!isLoadingCurrent && currentMeals.length === 0 && <div className="menu-empty"><h2>Menú pendiente</h2><p>La cocina todavía no publica las opciones para este día.</p></div>}
-            {!isLoadingCurrent && Boolean(currentMeals.length) && visibleMeals.length === 0 && (
-              <div className="menu-empty"><h2>Sin resultados</h2><p>Ningún platillo coincide con este filtro. Prueba con otro.</p></div>
-            )}
-          </div>
+              <div className="meal-grid">
+                {isLoadingCurrent && Array.from({ length: 4 }, (_, index) => <div className="meal-skeleton" key={index} />)}
+                {!isLoadingCurrent && visibleMeals.map((meal, index) => (
+                  <DishCard
+                    key={meal.id}
+                    meal={meal}
+                    index={index}
+                    isFavorite={favorites.includes(meal.id)}
+                    onToggleFavorite={() => toggleFavorite(meal.id)}
+                    selectedPackage={packageTier}
+                    selectedMealId={selectedMealId}
+                    onChoosePackage={chooseMealPackage}
+                  />
+                ))}
+                {!isLoadingCurrent && currentMeals.length === 0 && <div className="menu-empty"><h2>Menú pendiente</h2><p>La cocina todavía no publica las opciones para este día.</p></div>}
+                {!isLoadingCurrent && Boolean(currentMeals.length) && visibleMeals.length === 0 && (
+                  <div className="menu-empty"><h2>Sin resultados</h2><p>Ningún platillo coincide con este filtro. Prueba con otro.</p></div>
+                )}
+              </div>
+            </>
+          )}
         </section>
 
         {orderMode === 'day' ? (
@@ -876,10 +958,13 @@ function App() {
             deliveryDate={selectedDate}
             meal={selectedMeal}
             canOrder={orderingOpen}
+            specialDay={isSpecialDay ? specialDay : null}
+            specialAddons={specialAddons}
             onQuantity={changeQuantity}
             onToggleRepeat={() => setRepeatGuisado((value) => !value)}
             onTogglePromo2x1={() => setPromo2x1((value) => !value)}
             onGarnish={setGarnish}
+            onToggleAddon={toggleSpecialAddon}
             onCheckout={() => setCheckoutOpen(true)}
           />
         ) : (
@@ -944,16 +1029,25 @@ function App() {
                     <strong>{prepay ? `Ahorras ${money(weekSavings)}` : 'Pago regular, sin adelanto'}</strong></p>
                 </div>
               )}
-              {orderMode === 'day' && promo2x1 && dayPromoDiscount > 0 && (
+              {orderMode === 'day' && isSpecialDay && specialDay && (
+                <div className="weekly-recap">
+                  <Sparkles size={16} />
+                  <p><span>{specialDay.packageName} · {quantity} {quantity === 1 ? 'persona' : 'personas'}</span>
+                    <strong>{specialAddons.length > 0 ? specialAddons.join(', ') : 'Sin extras'}</strong></p>
+                </div>
+              )}
+              {orderMode === 'day' && !isSpecialDay && promo2x1 && dayPromoDiscount > 0 && (
                 <div className="weekly-recap">
                   <Sparkles size={16} />
                   <p><span>Promo 2x1 aplicada</span><strong>Ahorras {money(dayPromoDiscount)}</strong></p>
                 </div>
               )}
-              <div className="weekly-recap">
-                <Utensils size={16} />
-                <p><span>Guarnición elegida</span><strong>{garnish === 'arroz' ? 'Arroz' : 'Frijoles'}</strong></p>
-              </div>
+              {!isSpecialDay && (
+                <div className="weekly-recap">
+                  <Utensils size={16} />
+                  <p><span>Guarnición elegida</span><strong>{garnish === 'arroz' ? 'Arroz' : 'Frijoles'}</strong></p>
+                </div>
+              )}
               <div className="delivery-zone-card">
                 <MapPin size={20} />
                 <p><span>Zona disponible</span><strong>Lindavista Sur y San Felipe de Jesús</strong></p>

@@ -7,10 +7,11 @@ import helmet from 'helmet'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import {
-  createProduct, deleteOrder, deleteProduct, getMenu, getMenus, getOrders, getProducts,
-  saveMenu, saveOrder, storageMode, updateOrderStatus, updateProduct, uploadProductImage,
+  createProduct, deleteOrder, deleteProduct, deleteSpecialDay, getMenu, getMenus, getOrders, getProducts,
+  getSpecialDays, saveMenu, saveOrder, saveSpecialDay, storageMode, updateOrderStatus, updateProduct,
+  uploadProductImage,
 } from './store.js'
-import { eligibleOrderDates, orderPolicy } from './time.js'
+import { addBusinessDays, MIN_ORDER_DATE, orderPolicy } from './time.js'
 import {
   GARNISH_OPTIONS, PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS,
 } from './packages.js'
@@ -68,20 +69,20 @@ const orderSchema = z.object({
   paymentMethod: z.enum(['cash', 'transfer', 'terminal']),
   orderMode: z.enum(['day', 'week']),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  packageTier: z.enum(['economico', 'ejecutivo', 'completo']),
+  packageTier: z.enum(['economico', 'ejecutivo', 'completo']).optional(),
   quantity: z.number().int().min(1).max(10),
   repeatGuisado: z.boolean().optional().default(false),
   prepay: z.boolean().optional().default(false),
   promo2x1: z.boolean().optional().default(false),
   garnish: z.enum(GARNISH_OPTIONS).optional(),
   mealId: z.string().trim().min(1).max(100).optional(),
+  specialAddons: z.array(z.string().trim().min(1).max(60)).max(5).optional().default([]),
 }).superRefine((data, context) => {
   if (data.prepay && data.paymentMethod !== 'transfer') {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['prepay'], message: 'El precio de adelanto requiere transferencia.' })
   }
-  if (data.orderMode === 'day' && !data.mealId) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['mealId'], message: 'Selecciona un guisado.' })
-  }
+  // A special-package day (see below) needs neither mealId nor packageTier, so that
+  // check is deferred to the route handler once the day's special config is known.
 })
 const mealSchema = z.object({
   id: z.string().min(1).max(100),
@@ -113,6 +114,43 @@ const uploadSchema = z.object({
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
 })
 const MAX_UPLOAD_BYTES = 3_500_000
+const specialDayAddonSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  price: z.number().int().min(0).max(2000),
+})
+const specialDaySchema = z.object({
+  kind: z.enum(['closed', 'special_package']),
+  label: z.string().trim().min(2).max(80),
+  reason: z.string().trim().max(240).optional().default(''),
+  packageName: z.string().trim().min(2).max(80).optional(),
+  packagePrice: z.number().int().min(0).max(5000).optional(),
+  packageIncludes: z.array(z.string().trim().min(1).max(80)).max(10).optional().default([]),
+  addons: z.array(specialDayAddonSchema).max(5).optional().default([]),
+}).superRefine((data, context) => {
+  if (data.kind === 'special_package') {
+    if (!data.packageName) context.addIssue({ code: z.ZodIssueCode.custom, path: ['packageName'], message: 'Escribe el nombre del menú especial.' })
+    if (data.packagePrice === undefined) context.addIssue({ code: z.ZodIssueCode.custom, path: ['packagePrice'], message: 'Escribe el precio único del menú especial.' })
+  }
+})
+
+// Skips weekends (isBusinessDay via addBusinessDays) and any date marked 'closed' in
+// special_menu_days, sliding the window forward so a holiday never shrinks the number
+// of orderable days a customer sees.
+async function eligibleOrderDates(today, count) {
+  const specialDays = await getSpecialDays()
+  const dates = []
+  let cursor = today
+  let guard = 0
+  while (dates.length < count && guard < 60) {
+    cursor = addBusinessDays(cursor, 1)
+    guard += 1
+    if (cursor < MIN_ORDER_DATE) continue
+    if (specialDays[cursor]?.kind === 'closed') continue
+    dates.push(cursor)
+  }
+  return { dates, specialDays }
+}
+
 function googleMapsUrl(delivery) {
   const query = delivery.coordinates
     ? `${delivery.coordinates.latitude},${delivery.coordinates.longitude}`
@@ -147,22 +185,29 @@ app.get('/api/menu', async (request, response) => {
   const date = typeof request.query.date === 'string' ? request.query.date : policy.tomorrow
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return response.status(400).json({ error: 'Fecha inválida' })
 
-  const eligibleDates = eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
-  const meals = await getMenu(date)
+  const { dates: eligibleDates, specialDays } = await eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
+  const specialDay = specialDays[date] || null
+  const meals = specialDay ? [] : await getMenu(date)
   response.json({
     date,
     meals,
     canOrder: eligibleDates.includes(date) && policy.isOpen,
     policy,
+    specialDay,
   })
 })
 
 app.get('/api/menu-days', async (_request, response) => {
   const policy = orderPolicy()
-  const dates = eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
+  const { dates, specialDays } = await eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
   const menus = await getMenus()
   const days = dates.map((date) => {
-    return { date, mealCount: (menus[date] || []).filter((meal) => meal.available).length }
+    const specialDay = specialDays[date] || null
+    return {
+      date,
+      mealCount: specialDay ? 1 : (menus[date] || []).filter((meal) => meal.available).length,
+      specialDay,
+    }
   })
   response.json({ days, policy })
 })
@@ -179,37 +224,61 @@ app.post('/api/orders', async (request, response) => {
     })
   }
 
-  const eligibleDates = eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
+  const { dates: eligibleDates, specialDays } = await eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
+  const { orderMode, packageTier, quantity, repeatGuisado, prepay, promo2x1, garnish, specialAddons } = parsed.data
+  const specialDay = orderMode === 'day' ? specialDays[parsed.data.date] : null
+
+  if (specialDay?.kind === 'closed') {
+    return response.status(409).json({ error: specialDay.reason || 'No se reciben pedidos para este día.', policy })
+  }
   if (!eligibleDates.includes(parsed.data.date)) {
     return response.status(409).json({ error: 'Solo puedes reservar dentro de los próximos 5 días disponibles.', policy })
   }
 
-  const { orderMode, packageTier, quantity, repeatGuisado, prepay, promo2x1, garnish } = parsed.data
   let selectedMeal = null
-  if (orderMode === 'day') {
-    const menu = await getMenu(parsed.data.date)
-    selectedMeal = menu.find((meal) => meal.id === parsed.data.mealId) || null
-    if (!selectedMeal) return response.status(409).json({ error: 'Selecciona un guisado disponible para ese día.', policy })
-    if (!selectedMeal.available) return response.status(409).json({ error: 'Ese guisado ya no está disponible.', policy })
-    if (!selectedMeal.packages?.includes(packageTier)) {
-      return response.status(409).json({ error: 'Ese guisado no tiene disponible el paquete seleccionado.', policy })
-    }
-  }
-  const pack = PACKAGES[packageTier]
-  const canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
-  const appliedPromo2x1 = orderMode === 'day' && promo2x1
-  const chosenGarnish = garnish || 'arroz'
-
+  let pack = null
+  let packageLabel
+  let unitPrice
   let subtotal
   let discountAmount = 0
-  if (orderMode === 'week') {
-    subtotal = pack.weeklyRegular * quantity
-    discountAmount = prepay ? (pack.weeklyRegular - pack.weeklyPrepay) * quantity : 0
+  let canRepeatGuisado = false
+  let appliedPromo2x1 = false
+  let chosenGarnish = null
+  let chosenAddons = []
+
+  if (specialDay?.kind === 'special_package') {
+    chosenAddons = (specialDay.addons || []).filter((addon) => specialAddons.includes(addon.name))
+    unitPrice = specialDay.packagePrice + chosenAddons.reduce((sum, addon) => sum + addon.price, 0)
+    packageLabel = specialDay.packageName
+    subtotal = unitPrice * quantity
   } else {
-    const surcharge = canRepeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0
-    subtotal = pack.dailyPrice * quantity + surcharge
-    const paidQuantity = appliedPromo2x1 ? Math.ceil(quantity / 2) : quantity
-    discountAmount = appliedPromo2x1 ? pack.dailyPrice * (quantity - paidQuantity) : 0
+    if (!packageTier) return response.status(400).json({ error: 'Elige uno de los 3 paquetes.', policy })
+    pack = PACKAGES[packageTier]
+    packageLabel = pack.label
+    if (orderMode === 'day') {
+      const menu = await getMenu(parsed.data.date)
+      selectedMeal = menu.find((meal) => meal.id === parsed.data.mealId) || null
+      if (!selectedMeal) return response.status(409).json({ error: 'Selecciona un guisado disponible para ese día.', policy })
+      if (!selectedMeal.available) return response.status(409).json({ error: 'Ese guisado ya no está disponible.', policy })
+      if (!selectedMeal.packages?.includes(packageTier)) {
+        return response.status(409).json({ error: 'Ese guisado no tiene disponible el paquete seleccionado.', policy })
+      }
+    }
+    canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
+    appliedPromo2x1 = orderMode === 'day' && promo2x1
+    chosenGarnish = garnish || 'arroz'
+
+    if (orderMode === 'week') {
+      subtotal = pack.weeklyRegular * quantity
+      discountAmount = prepay ? (pack.weeklyRegular - pack.weeklyPrepay) * quantity : 0
+      unitPrice = prepay ? pack.weeklyPrepay : pack.weeklyRegular
+    } else {
+      const surcharge = canRepeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0
+      subtotal = pack.dailyPrice * quantity + surcharge
+      const paidQuantity = appliedPromo2x1 ? Math.ceil(quantity / 2) : quantity
+      discountAmount = appliedPromo2x1 ? pack.dailyPrice * (quantity - paidQuantity) : 0
+      unitPrice = pack.dailyPrice
+    }
   }
   const discountRate = subtotal > 0 ? Number((discountAmount / subtotal).toFixed(4)) : 0
   const total = subtotal - discountAmount
@@ -230,15 +299,16 @@ app.post('/api/orders', async (request, response) => {
       ...(parsed.data.delivery.coordinates ? { coordinates: parsed.data.delivery.coordinates } : {}),
     },
     items: [{
-      packageTier,
-      packageLabel: pack.label,
+      packageTier: specialDay?.kind === 'special_package' ? 'especial' : packageTier,
+      packageLabel,
       quantity,
-      unitPrice: orderMode === 'week' ? (prepay ? pack.weeklyPrepay : pack.weeklyRegular) : pack.dailyPrice,
+      unitPrice,
       repeatGuisado: canRepeatGuisado,
       prepay: orderMode === 'week' && prepay,
       promo2x1: appliedPromo2x1,
       ...(chosenGarnish ? { garnish: chosenGarnish } : {}),
       ...(selectedMeal ? { mealId: selectedMeal.id, mealName: selectedMeal.name, menuDate: parsed.data.date } : {}),
+      ...(chosenAddons.length > 0 ? { specialAddons: chosenAddons.map((addon) => addon.name) } : {}),
     }],
     subtotal,
     deliveryFee: 0,
@@ -283,6 +353,26 @@ app.put('/api/admin/menu/:date', requireAdmin, async (request, response) => {
   if (!parsed.success) return response.status(400).json({ error: 'El menú contiene datos inválidos' })
   const meals = await saveMenu(request.params.date, parsed.data.meals)
   response.json({ date: request.params.date, meals })
+})
+
+app.get('/api/admin/special-days', requireAdmin, async (_request, response) => {
+  const specialDays = await getSpecialDays()
+  response.json({ specialDays: Object.values(specialDays) })
+})
+
+app.put('/api/admin/special-days/:date', requireAdmin, async (request, response) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(request.params.date)) return response.status(400).json({ error: 'Fecha inválida' })
+  const parsed = specialDaySchema.safeParse(request.body)
+  if (!parsed.success) return response.status(400).json({ error: 'Revisa los datos del día especial' })
+  const specialDay = await saveSpecialDay(request.params.date, parsed.data)
+  response.json({ specialDay })
+})
+
+app.delete('/api/admin/special-days/:date', requireAdmin, async (request, response) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(request.params.date)) return response.status(400).json({ error: 'Fecha inválida' })
+  const removed = await deleteSpecialDay(request.params.date)
+  if (!removed) return response.status(404).json({ error: 'Día especial no encontrado' })
+  response.status(204).end()
 })
 
 app.get('/api/admin/orders', requireAdmin, async (_request, response) => {

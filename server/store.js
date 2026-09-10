@@ -13,6 +13,7 @@ const menuTable = 'menu_days'
 const orderTable = 'orders'
 const productTable = 'products'
 const productImageBucket = 'product-images'
+const specialDayTable = 'special_menu_days'
 
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -182,19 +183,20 @@ function seedMenus(database) {
 
 function ensureLocalDatabase() {
   fs.mkdirSync(dataDirectory, { recursive: true })
-  let database = { menus: {}, orders: [], products: [] }
+  let database = { menus: {}, orders: [], products: [], specialDays: {} }
 
   if (fs.existsSync(databasePath)) {
     try {
       database = JSON.parse(fs.readFileSync(databasePath, 'utf8'))
     } catch {
-      database = { menus: {}, orders: [], products: [] }
+      database = { menus: {}, orders: [], products: [], specialDays: {} }
     }
   }
 
   database.menus ||= {}
   database.orders ||= []
   database.products ||= []
+  database.specialDays ||= {}
   database.menus = Object.fromEntries(Object.entries(database.menus).map(([date, meals]) => [date, meals.map(normalizeMeal)]))
   database.products = database.products.map(normalizeMeal)
   if (database.products.length === 0) {
@@ -504,6 +506,75 @@ export async function deleteProduct(id) {
 
   const { data, error } = await supabase.from(productTable).delete().eq('id', id).select()
   throwIfSupabaseError('product delete', error)
+  return (data || []).length > 0
+}
+
+function specialDayFromRow(row) {
+  return {
+    date: row.menu_date,
+    kind: row.kind,
+    label: row.label,
+    reason: row.reason || '',
+    packageName: row.package_name || undefined,
+    packagePrice: row.package_price ?? undefined,
+    packageIncludes: row.package_includes || [],
+    addons: row.addons || [],
+  }
+}
+
+function specialDayToRow(date, specialDay) {
+  return {
+    menu_date: date,
+    kind: specialDay.kind,
+    label: specialDay.label,
+    reason: specialDay.reason || '',
+    package_name: specialDay.kind === 'special_package' ? specialDay.packageName : null,
+    package_price: specialDay.kind === 'special_package' ? specialDay.packagePrice : null,
+    package_includes: specialDay.kind === 'special_package' ? (specialDay.packageIncludes || []) : [],
+    addons: specialDay.kind === 'special_package' ? (specialDay.addons || []) : [],
+  }
+}
+
+export async function getSpecialDays() {
+  if (!supabase) return ensureLocalDatabase().specialDays
+
+  const { data: rows, error } = await supabase
+    .from(specialDayTable)
+    .select('*')
+    .order('menu_date', { ascending: true })
+  throwIfSupabaseError('special day lookup', error)
+  return Object.fromEntries((rows || []).map((row) => [row.menu_date, specialDayFromRow(row)]))
+}
+
+export async function saveSpecialDay(date, specialDay) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    database.specialDays[date] = { date, ...specialDay }
+    writeLocalDatabase(database)
+    return database.specialDays[date]
+  }
+
+  const row = specialDayToRow(date, specialDay)
+  const { data, error } = await supabase
+    .from(specialDayTable)
+    .upsert(row, { onConflict: 'menu_date' })
+    .select()
+    .single()
+  throwIfSupabaseError('special day save', error)
+  return specialDayFromRow(data)
+}
+
+export async function deleteSpecialDay(date) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    const existed = Boolean(database.specialDays[date])
+    delete database.specialDays[date]
+    writeLocalDatabase(database)
+    return existed
+  }
+
+  const { data, error } = await supabase.from(specialDayTable).delete().eq('menu_date', date).select('menu_date')
+  throwIfSupabaseError('special day delete', error)
   return (data || []).length > 0
 }
 
