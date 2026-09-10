@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
-import { orderPolicy, upcomingDeliveryDates } from './time.js'
 import { PACKAGE_ORDER } from './packages.js'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
@@ -163,21 +162,14 @@ function normalizeMeal(meal) {
 }
 
 function seedMenus(database) {
-  const { today } = orderPolicy()
   Object.entries(nextWeekMenus).forEach(([date, meals]) => {
     const plannedMeals = meals.map(normalizeMeal)
     const hasPlannedMenu = database.menus[date]?.length === plannedMeals.length
       && database.menus[date].every((meal, index) => meal.id === plannedMeals[index].id && meal.image === plannedMeals[index].image)
     if (!hasPlannedMenu) database.menus[date] = plannedMeals
   })
-  upcomingDeliveryDates(today, 5).forEach((date, dayIndex) => {
-    if (!database.menus[date]) {
-      database.menus[date] = Array.from({ length: 3 }, (_, mealIndex) => {
-        const template = mealTemplates[(dayIndex + mealIndex) % mealTemplates.length]
-        return { ...template, packages: [...PACKAGE_ORDER] }
-      })
-    }
-  })
+  // Days without a curated menu stay empty until the kitchen adds one from /admin —
+  // no more filling them in with rotating generic templates.
   return database
 }
 
@@ -249,25 +241,17 @@ async function getSupabaseMenus() {
   throwIfSupabaseError('menu lookup', error)
 
   const menus = Object.fromEntries((rows || []).map((row) => [row.menu_date, (row.meals || []).map(normalizeMeal)]))
-  const { today } = orderPolicy()
   const missingRows = []
 
-  upcomingDeliveryDates(today, 5).forEach((date, dayIndex) => {
-    const plannedMeals = nextWeekMenus[date]?.map(normalizeMeal)
-    const hasPlannedMenu = plannedMeals && menus[date]?.length === plannedMeals.length
+  // Days without a curated menu stay empty until the kitchen adds one from /admin —
+  // no more filling them in with rotating generic templates.
+  Object.entries(nextWeekMenus).forEach(([date, meals]) => {
+    const plannedMeals = meals.map(normalizeMeal)
+    const hasPlannedMenu = menus[date]?.length === plannedMeals.length
       && menus[date].every((meal, index) => meal.id === plannedMeals[index].id && meal.image === plannedMeals[index].image)
-    if (plannedMeals && !hasPlannedMenu) {
+    if (!hasPlannedMenu) {
       menus[date] = plannedMeals
       missingRows.push({ menu_date: date, meals: plannedMeals })
-      return
-    }
-    if (!menus[date]) {
-      const meals = Array.from({ length: 3 }, (_, mealIndex) => {
-        const template = mealTemplates[(dayIndex + mealIndex) % mealTemplates.length]
-        return { ...template, packages: [...PACKAGE_ORDER] }
-      })
-      menus[date] = meals
-      missingRows.push({ menu_date: date, meals })
     }
   })
 

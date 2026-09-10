@@ -464,6 +464,7 @@ button:active:not(:disabled) { transform: scale(.96); }
 .week-day__special > div { display: grid; gap: 4px; min-width: 0; }
 .week-day__special strong { color: var(--green-dark); font-size: 13px; }
 .week-day__special span { color: var(--muted); font-size: 10.5px; }
+.week-day .special-day-addons { margin-top: 12px; padding: 0; }
 
 .week-meal-card { padding: 0; border: 2px solid transparent; border-radius: 16px; overflow: hidden; text-align: left; background: #f6f7f2; }
 .week-meal-card:hover:not(:disabled) { border-color: var(--green-pale); transform: translateY(-2px); }

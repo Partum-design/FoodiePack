@@ -46,10 +46,6 @@ export function addBusinessDays(dateKey, amount) {
   return result
 }
 
-export function upcomingDeliveryDates(dateKey, count = 5) {
-  return Array.from({ length: count }, (_, index) => addBusinessDays(dateKey, index + 1))
-}
-
 // Ordering does not open before this date, no matter how early "today" is.
 export const MIN_ORDER_DATE = '2026-09-07'
 

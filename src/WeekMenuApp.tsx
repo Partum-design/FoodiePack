@@ -21,7 +21,9 @@ function buildWhatsAppUrl(message: string) {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
 }
 
-function DayCard({ day, meals, selectedMealId, onChoose, garnishChoice, isDoubleGarnish, onGarnish }: {
+function DayCard({
+  day, meals, selectedMealId, onChoose, garnishChoice, isDoubleGarnish, onGarnish, selectedAddons, onToggleAddon,
+}: {
   day: MenuDay
   meals: Meal[]
   selectedMealId: string | null
@@ -29,6 +31,8 @@ function DayCard({ day, meals, selectedMealId, onChoose, garnishChoice, isDouble
   garnishChoice: GarnishChoice
   isDoubleGarnish: boolean
   onGarnish: (value: GarnishChoice) => void
+  selectedAddons: string[]
+  onToggleAddon: (name: string) => void
 }) {
   const { ref, visible } = useReveal<HTMLDivElement>()
   const specialDay = day.specialDay?.kind === 'special_package' ? day.specialDay : null
@@ -54,6 +58,17 @@ function DayCard({ day, meals, selectedMealId, onChoose, garnishChoice, isDouble
             )}
           </div>
         </div>
+        {Boolean(specialDay.addons?.length) && (
+          <div className="special-day-addons">
+            {specialDay.addons!.map((addon) => (
+              <label key={addon.name}>
+                <input type="checkbox" checked={selectedAddons.includes(addon.name)} onChange={() => onToggleAddon(addon.name)} />
+                <span>{addon.name}</span>
+                <b>+{money(addon.price)}</b>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
     )
   }
@@ -119,6 +134,7 @@ function WeekMenuApp() {
   const [garnishSelections, setGarnishSelections] = useState<Record<string, GarnishChoice>>({})
   const [selections, setSelections] = useState<Record<string, string>>({})
   const [wantsUtensils, setWantsUtensils] = useState(false)
+  const [specialAddonSelections, setSpecialAddonSelections] = useState<Record<string, string[]>>({})
 
   const isDoubleGarnish = packageTier === 'completo'
   const defaultGarnish: GarnishChoice = isDoubleGarnish ? 'mixto' : 'arroz'
@@ -174,6 +190,14 @@ function WeekMenuApp() {
     setGarnishSelections((current) => ({ ...current, [date]: value }))
   }
 
+  const toggleSpecialAddon = (date: string, name: string) => {
+    setSpecialAddonSelections((current) => {
+      const selected = current[date] || []
+      const next = selected.includes(name) ? selected.filter((item) => item !== name) : [...selected, name]
+      return { ...current, [date]: next }
+    })
+  }
+
   const autoFillWeek = () => {
     setSelections((current) => {
       const next = { ...current }
@@ -201,7 +225,9 @@ function WeekMenuApp() {
         const weekday = dayName(day.date, true)
         const label = `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${shortDate(day.date)}`
         if (day.specialDay?.kind === 'special_package') {
-          lines.push(`🗓️ ${label}: ${day.specialDay.packageName} (${money(day.specialDay.packagePrice || 0)}, menú especial)`)
+          const chosenAddons = specialAddonSelections[day.date] || []
+          const addonsText = chosenAddons.length > 0 ? ` + ${chosenAddons.join(' + ')}` : ''
+          lines.push(`🗓️ ${label}: ${day.specialDay.packageName} (${money(day.specialDay.packagePrice || 0)}, menú especial)${addonsText}`)
           return
         }
         const meal = menus[day.date]?.meals.find((item) => item.id === selections[day.date])
@@ -216,7 +242,7 @@ function WeekMenuApp() {
     lines.push('')
     lines.push('Quedo al pendiente para confirmar dirección, horario y forma de pago. ¡Gracias! 🙌')
     return lines.join('\n')
-  }, [pack, quantity, wantsUtensils, days, menus, selections, garnishSelections, defaultGarnish, isDoubleGarnish])
+  }, [pack, quantity, wantsUtensils, days, menus, selections, garnishSelections, defaultGarnish, isDoubleGarnish, specialAddonSelections])
 
   const whatsappHref = buildWhatsAppUrl(whatsappMessage)
 
@@ -313,6 +339,8 @@ function WeekMenuApp() {
               garnishChoice={garnishSelections[day.date] ?? defaultGarnish}
               isDoubleGarnish={isDoubleGarnish}
               onGarnish={(value) => chooseGarnish(day.date, value)}
+              selectedAddons={specialAddonSelections[day.date] || []}
+              onToggleAddon={(name) => toggleSpecialAddon(day.date, name)}
             />
           ))}
         </div>
