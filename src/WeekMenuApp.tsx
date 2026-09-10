@@ -36,7 +36,8 @@ function DayCard({
 }) {
   const { ref, visible } = useReveal<HTMLDivElement>()
   const specialDay = day.specialDay?.kind === 'special_package' ? day.specialDay : null
-  const done = specialDay ? true : Boolean(selectedMealId)
+  const specialChosen = selectedMealId === 'special'
+  const done = specialDay ? specialChosen : Boolean(selectedMealId)
   const garnishOptions = isDoubleGarnish ? DOUBLE_GARNISH_OPTIONS : GARNISH_OPTIONS
 
   if (specialDay) {
@@ -47,9 +48,13 @@ function DayCard({
             <strong>{dayName(day.date, true)}</strong>
             <span>{fullDate(day.date)}</span>
           </div>
-          <b className="week-day__check"><Check size={12} /> Menú especial</b>
+          {done && <b className="week-day__check"><Check size={12} /> Elegido</b>}
         </div>
-        <div className="week-day__special">
+        <button
+          type="button"
+          className={`week-day__special ${specialChosen ? 'selected' : ''}`}
+          onClick={() => onChoose('special')}
+        >
           {specialDay.image && <img src={specialDay.image} alt={specialDay.packageName || 'Menú especial'} loading="lazy" decoding="async" />}
           <div>
             <strong>{specialDay.packageName} · {money(specialDay.packagePrice || 0)}</strong>
@@ -57,8 +62,9 @@ function DayCard({
               <span>Incluye {specialDay.packageIncludes.join(', ').toLowerCase()}.</span>
             )}
           </div>
-        </div>
-        {Boolean(specialDay.addons?.length) && (
+          <span className="week-day__special-pick">{specialChosen ? <><Check size={13} /> Elegido</> : 'Elegir'}</span>
+        </button>
+        {specialChosen && Boolean(specialDay.addons?.length) && (
           <div className="special-day-addons">
             {specialDay.addons!.map((addon) => (
               <label key={addon.name}>
@@ -171,7 +177,7 @@ function WeekMenuApp() {
   const pack = PACKAGES[packageTier]
   const totalDays = days.length
   const selectedCount = useMemo(
-    () => days.filter((day) => selections[day.date] || day.specialDay?.kind === 'special_package').length,
+    () => days.filter((day) => selections[day.date]).length,
     [days, selections],
   )
 
@@ -203,6 +209,10 @@ function WeekMenuApp() {
       const next = { ...current }
       days.forEach((day) => {
         if (next[day.date]) return
+        if (day.specialDay?.kind === 'special_package') {
+          next[day.date] = 'special'
+          return
+        }
         const meals = menus[day.date]?.meals || []
         const pick = meals.find((meal) => meal.available)
         if (pick) next[day.date] = pick.id
@@ -219,7 +229,7 @@ function WeekMenuApp() {
     lines.push(`👥 Para: ${quantity} ${quantity === 1 ? 'persona' : 'personas'}`)
     lines.push(`🍴 Cubiertos: ${wantsUtensils ? `Sí (+${money(UTENSILS_SURCHARGE)})` : 'No, ya tengo'}`)
     lines.push('')
-    const chosenDays = days.filter((day) => selections[day.date] || day.specialDay?.kind === 'special_package')
+    const chosenDays = days.filter((day) => selections[day.date])
     if (chosenDays.length > 0) {
       chosenDays.forEach((day) => {
         const weekday = dayName(day.date, true)

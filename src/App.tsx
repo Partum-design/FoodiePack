@@ -193,7 +193,7 @@ function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, 
   )
 }
 
-function SpecialDayCard({ specialDay }: { specialDay: SpecialDay }) {
+function SpecialDayCard({ specialDay, chosen, onChoose }: { specialDay: SpecialDay; chosen: boolean; onChoose: () => void }) {
   return (
     <div className="special-day-card">
       {specialDay.image && (
@@ -211,7 +211,10 @@ function SpecialDayCard({ specialDay }: { specialDay: SpecialDay }) {
             {specialDay.packageIncludes!.map((item) => <li key={item}><Check size={13} /> {item}</li>)}
           </ul>
         )}
-        {Boolean(specialDay.addons?.length) && (
+        <button type="button" className={`special-day-card__choose ${chosen ? 'selected' : ''}`} onClick={onChoose}>
+          {chosen ? <><Check size={15} /> Elegido</> : 'Elegir este menú'}
+        </button>
+        {chosen && Boolean(specialDay.addons?.length) && (
           <p className="special-day-card__hint">Puedes agregar extras desde tu pedido, a la derecha →</p>
         )}
       </div>
@@ -293,8 +296,8 @@ function PackagesSection({ selected, onSelect }: { selected: PackageTier | null;
 }
 
 function OrderSummary({
-  packageTier, quantity, repeatGuisado, promo2x1, garnish, deliveryDate, meal, canOrder, specialDay, specialAddons,
-  onQuantity, onToggleRepeat, onTogglePromo2x1, onGarnish, onToggleAddon, onCheckout,
+  packageTier, quantity, repeatGuisado, promo2x1, garnish, deliveryDate, meal, canOrder, specialDay, specialDayChosen,
+  specialAddons, onQuantity, onToggleRepeat, onTogglePromo2x1, onGarnish, onToggleAddon, onCheckout,
 }: {
   packageTier: PackageTier | null
   quantity: number
@@ -305,6 +308,7 @@ function OrderSummary({
   meal: Meal | null
   canOrder: boolean
   specialDay: SpecialDay | null
+  specialDayChosen: boolean
   specialAddons: string[]
   onQuantity: (change: number) => void
   onToggleRepeat: () => void
@@ -321,9 +325,9 @@ function OrderSummary({
   const promoDiscount = pack && promo2x1 ? pack.dailyPrice * (quantity - paidQuantity) : 0
   const addonsUnit = specialDay ? specialAddons.reduce((sum, name) => sum + (specialDay.addons?.find((addon) => addon.name === name)?.price || 0), 0) : 0
   const specialUnit = specialDay ? (specialDay.packagePrice || 0) + addonsUnit : 0
-  const specialSubtotal = specialUnit * quantity
+  const specialSubtotal = specialDayChosen ? specialUnit * quantity : 0
   const total = specialDay ? specialSubtotal : subtotal + surcharge - promoDiscount
-  const ready = specialDay ? true : Boolean(pack && meal)
+  const ready = specialDay ? specialDayChosen : Boolean(pack && meal)
 
   return (
     <aside className="order-summary" id="pedido">
@@ -336,7 +340,8 @@ function OrderSummary({
         <p><span>Entrega</span><strong>{deliveryDate ? fullDate(deliveryDate) : 'Próximo día hábil'} · 12:00 a 2:00 pm</strong></p>
       </div>
       {!specialDay && (!pack || !meal) && <div className="summary-empty"><ShoppingBag size={24} /><p>{pack ? 'Elige una comida del menú para continuar.' : 'Elige una comida y uno de los 3 paquetes para continuar.'}</p></div>}
-      {specialDay && (
+      {specialDay && !specialDayChosen && <div className="summary-empty"><ShoppingBag size={24} /><p>Elige el menú especial para continuar.</p></div>}
+      {specialDay && specialDayChosen && (
         <div className="summary-items">
           <div className="summary-package">
             <p><strong>{specialDay.packageName}</strong><span>{money(specialDay.packagePrice || 0)} · precio único</span></p>
@@ -483,6 +488,7 @@ function App() {
   const [prepay, setPrepay] = useState(false)
   const [garnish, setGarnish] = useState<Garnish>('arroz')
   const [specialAddons, setSpecialAddons] = useState<string[]>([])
+  const [specialDayChosen, setSpecialDayChosen] = useState(false)
   const [promo2x1, setPromo2x1] = useState(true)
   const [showPromoPopup, setShowPromoPopup] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer')
@@ -599,6 +605,7 @@ function App() {
 
   useEffect(() => {
     setSpecialAddons([])
+    setSpecialDayChosen(false)
   }, [selectedDate])
 
   const orderingOpen = Boolean(policy?.isOpen)
@@ -637,7 +644,7 @@ function App() {
   const specialUnitPrice = specialDay ? (specialDay.packagePrice || 0) + specialAddonsUnit : 0
   const specialTotal = specialUnitPrice * quantity
   const activeTotal = isSpecialDay ? specialTotal : (orderMode === 'week' ? weekTotal : dayTotal)
-  const badgeCount = isSpecialDay ? quantity : (activePackage ? quantity : 0)
+  const badgeCount = isSpecialDay ? (specialDayChosen ? quantity : 0) : (activePackage ? quantity : 0)
 
   const dismissPromoPopup = () => {
     setShowPromoPopup(false)
@@ -736,6 +743,10 @@ function App() {
       setOrderError('Elige uno de los 3 paquetes antes de continuar.')
       return
     }
+    if (isSpecialDay && !specialDayChosen) {
+      setOrderError('Elige el menú especial antes de continuar.')
+      return
+    }
     if (orderMode === 'week' && prepay && paymentMethod !== 'transfer') {
       setOrderError('Selecciona Transferencia para usar el precio especial de pago adelantado.')
       return
@@ -778,6 +789,7 @@ function App() {
       setPromo2x1(true)
       setGarnish('arroz')
       setSpecialAddons([])
+      setSpecialDayChosen(false)
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : 'No se pudo confirmar el pedido'
       setOrderError(message)
@@ -917,7 +929,7 @@ function App() {
           )}
 
           {orderMode === 'day' && isSpecialDay && specialDay ? (
-            <SpecialDayCard specialDay={specialDay} />
+            <SpecialDayCard specialDay={specialDay} chosen={specialDayChosen} onChoose={() => setSpecialDayChosen((value) => !value)} />
           ) : (
             <>
               {!isLoadingCurrent && Boolean(currentMeals.length) && (
@@ -966,6 +978,7 @@ function App() {
             meal={selectedMeal}
             canOrder={orderingOpen}
             specialDay={isSpecialDay ? specialDay : null}
+            specialDayChosen={specialDayChosen}
             specialAddons={specialAddons}
             onQuantity={changeQuantity}
             onToggleRepeat={() => setRepeatGuisado((value) => !value)}

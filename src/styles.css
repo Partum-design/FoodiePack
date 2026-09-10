@@ -459,11 +459,14 @@ button:active:not(:disabled) { transform: scale(.96); }
 .week-day__garnish > div { display: flex; flex-wrap: wrap; gap: 6px; }
 .week-day__garnish button { min-height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--green); background: transparent; font-size: 10px; font-weight: 700; }
 .week-day__garnish button.selected { color: white; background: var(--green); border-color: var(--green); }
-.week-day__special { margin-top: 14px; padding: 10px; display: flex; align-items: center; gap: 12px; border-radius: 14px; background: var(--green-pale); }
+.week-day__special { width: 100%; margin-top: 14px; padding: 10px; border: 2px solid transparent; border-radius: 14px; display: flex; align-items: center; gap: 12px; text-align: left; color: inherit; background: var(--green-pale); }
+.week-day__special:hover { border-color: var(--green); }
+.week-day__special.selected { border-color: var(--green); box-shadow: 0 10px 22px rgba(7,56,44,.16); }
 .week-day__special img { flex-shrink: 0; width: 56px; height: 56px; border-radius: 12px; object-fit: cover; }
-.week-day__special > div { display: grid; gap: 4px; min-width: 0; }
+.week-day__special > div { flex: 1; display: grid; gap: 4px; min-width: 0; }
 .week-day__special strong { color: var(--green-dark); font-size: 13px; }
 .week-day__special span { color: var(--muted); font-size: 10.5px; }
+.week-day__special-pick { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--green); font-size: 10px; font-weight: 700; }
 .week-day .special-day-addons { margin-top: 12px; padding: 0; }
 
 .week-meal-card { padding: 0; border: 2px solid transparent; border-radius: 16px; overflow: hidden; text-align: left; background: #f6f7f2; }
@@ -517,6 +520,9 @@ button:active:not(:disabled) { transform: scale(.96); }
 .special-day-card__includes { list-style: none; margin: 18px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .special-day-card__includes li { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; color: var(--green-dark); background: var(--green-pale); font-size: 11px; font-weight: 600; }
 .special-day-card__hint { margin-top: 16px !important; color: var(--orange) !important; font-size: 11px !important; font-weight: 600; }
+.special-day-card__choose { margin-top: 18px; width: 100%; min-height: 46px; border: 1px solid var(--green); border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--green); background: transparent; font-size: 12px; font-weight: 700; }
+.special-day-card__choose:hover { background: var(--green-pale); }
+.special-day-card__choose.selected { color: white; background: var(--green); }
 
 .special-day-addons { margin-top: 10px; padding: 0 14px; display: grid; gap: 8px; }
 .special-day-addons label { padding: 11px 12px; display: flex; align-items: center; gap: 9px; border-radius: 14px; background: #fdf3e5; cursor: pointer; }
