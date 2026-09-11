@@ -262,7 +262,7 @@ function PackagesSection({ selected, onSelect }: { selected: PackageTier | null;
       </div>
 
       <PackagePicker selected={selected} onSelect={onSelect} />
-      <p className="packages-footnote">*Si prefieres repetir el mismo guisado en el Menú Completo, aplica un cargo de +{money(REPEAT_GUISADO_SURCHARGE)}.</p>
+      <p className="packages-footnote">*Si prefieres repetir el mismo guisado en Foodie+, aplica un cargo de +{money(REPEAT_GUISADO_SURCHARGE)}.</p>
 
       <div className="packages-info">
         <div className="key-points">
@@ -306,34 +306,41 @@ function OrderSummary({
   const addonsUnit = specialDay ? specialAddons.reduce((sum, name) => sum + (specialDay.addons?.find((addon) => addon.name === name)?.price || 0), 0) : 0
   const specialUnit = specialDay ? (specialDay.packagePrice || 0) + addonsUnit : 0
   const specialSubtotal = specialDayChosen ? specialUnit * quantity : 0
-  const total = specialDay ? specialSubtotal : subtotal + surcharge
-  const ready = specialDay ? specialDayChosen : Boolean(pack && meal)
+  const usingSpecial = Boolean(specialDay) && specialDayChosen
+  const total = usingSpecial ? specialSubtotal : subtotal + surcharge
+  const ready = usingSpecial || Boolean(pack && meal)
 
   return (
     <aside className="order-summary" id="pedido">
       <div className="order-summary__head">
         <span>Tu pedido</span>
-        <strong>{specialDay ? specialDay.packageName : (pack ? pack.label : 'Elige un paquete')}</strong>
+        <strong>{usingSpecial ? specialDay!.packageName : (pack ? pack.label : 'Elige un paquete')}</strong>
       </div>
       <div className="order-summary__date">
         <Clock3 size={18} />
         <p><span>Entrega</span><strong>{deliveryDate ? fullDate(deliveryDate) : 'Próximo día hábil'} · 12:00 a 2:00 pm</strong></p>
       </div>
-      {!specialDay && (!pack || !meal) && <div className="summary-empty"><ShoppingBag size={24} /><p>{pack ? 'Elige una comida del menú para continuar.' : 'Elige una comida y uno de los 3 paquetes para continuar.'}</p></div>}
-      {specialDay && !specialDayChosen && <div className="summary-empty"><ShoppingBag size={24} /><p>Elige el menú especial para continuar.</p></div>}
-      {specialDay && specialDayChosen && (
+      {!usingSpecial && (!pack || !meal) && (
+        <div className="summary-empty">
+          <ShoppingBag size={24} />
+          <p>{specialDay
+            ? 'Elige el menú especial o una comida del menú para continuar.'
+            : (pack ? 'Elige una comida del menú para continuar.' : 'Elige una comida y uno de los 3 paquetes para continuar.')}</p>
+        </div>
+      )}
+      {usingSpecial && (
         <div className="summary-items">
           <div className="summary-package">
-            <p><strong>{specialDay.packageName}</strong><span>{money(specialDay.packagePrice || 0)} · precio único</span></p>
+            <p><strong>{specialDay!.packageName}</strong><span>{money(specialDay!.packagePrice || 0)} · precio único</span></p>
             <div className="counter">
               <button onClick={() => onQuantity(-1)} aria-label="Quitar una persona"><Minus size={12} /></button>
               <span>{quantity}</span>
               <button onClick={() => onQuantity(1)} aria-label="Agregar una persona"><Plus size={12} /></button>
             </div>
           </div>
-          {Boolean(specialDay.addons?.length) && (
+          {Boolean(specialDay!.addons?.length) && (
             <div className="special-day-addons">
-              {specialDay.addons!.map((addon) => (
+              {specialDay!.addons!.map((addon) => (
                 <label key={addon.name}>
                   <input type="checkbox" checked={specialAddons.includes(addon.name)} onChange={() => onToggleAddon(addon.name)} />
                   <span>{addon.name}</span>
@@ -344,7 +351,7 @@ function OrderSummary({
           )}
         </div>
       )}
-      {!specialDay && pack && (
+      {!usingSpecial && pack && (
         <div className="summary-items">
           {meal && <div className="summary-meal"><span>Comida elegida</span><strong>{meal.name}</strong></div>}
           <div className="summary-package">
@@ -366,8 +373,8 @@ function OrderSummary({
         </div>
       )}
       <div className="summary-totals">
-        {specialDay ? (
-          <p><span>{specialDay.packageName}</span><strong>{money(specialSubtotal)}</strong></p>
+        {usingSpecial ? (
+          <p><span>{specialDay!.packageName}</span><strong>{money(specialSubtotal)}</strong></p>
         ) : (
           <>
             <p><span>Paquete</span><strong>{money(subtotal)}</strong></p>
@@ -576,7 +583,11 @@ function App() {
   const selectedMeal = menu?.meals.find((meal) => meal.id === selectedMealId) || null
   const hasDeliveryPin = Boolean(deliveryCoordinates)
   const specialDay = orderMode === 'day' ? (menu?.specialDay ?? null) : null
-  const isSpecialDay = specialDay?.kind === 'special_package'
+  // A day can offer a special package (e.g. pozole) alongside a normal curated menu — the
+  // customer picks one or the other, so `hasSpecialDay` only says the option exists, while
+  // `usingSpecial` says which one is actually being ordered.
+  const hasSpecialDay = specialDay?.kind === 'special_package'
+  const usingSpecial = hasSpecialDay && specialDayChosen
 
   const currentMeals = useMemo(
     () => orderMode === 'day' ? (menu?.meals || []) : (weeklyMenus[activeWeekDay]?.meals || []),
@@ -602,8 +613,8 @@ function App() {
   const specialAddonsUnit = specialDay ? specialAddons.reduce((sum, name) => sum + (specialDay.addons?.find((addon) => addon.name === name)?.price || 0), 0) : 0
   const specialUnitPrice = specialDay ? (specialDay.packagePrice || 0) + specialAddonsUnit : 0
   const specialTotal = specialUnitPrice * quantity
-  const activeTotal = isSpecialDay ? specialTotal : (orderMode === 'week' ? weekTotal : dayTotal)
-  const badgeCount = isSpecialDay ? (specialDayChosen ? quantity : 0) : (activePackage ? quantity : 0)
+  const activeTotal = usingSpecial ? specialTotal : (orderMode === 'week' ? weekTotal : dayTotal)
+  const badgeCount = usingSpecial ? quantity : (activePackage ? quantity : 0)
 
   const toggleFavorite = (mealId: string) => {
     setFavorites((current) => current.includes(mealId) ? current.filter((id) => id !== mealId) : [...current, mealId])
@@ -611,12 +622,14 @@ function App() {
 
   const choosePackage = (tier: PackageTier) => {
     setPackageTier(tier)
+    setSpecialDayChosen(false)
     pushToast(`${PACKAGES[tier].label} seleccionado`, 'success')
   }
 
   const chooseMealPackage = (mealId: string, tier: PackageTier) => {
     setSelectedMealId(mealId)
     setPackageTier(tier)
+    setSpecialDayChosen(false)
     pushToast(`${PACKAGES[tier].label} · comida seleccionada`, 'success')
   }
 
@@ -687,12 +700,13 @@ function App() {
       setDeliveryError('Ubica la dirección en el mapa antes de confirmar el pedido.')
       return
     }
-    if (!isSpecialDay && !packageTier) {
+    if (hasSpecialDay) {
+      if (!specialDayChosen && !packageTier) {
+        setOrderError('Elige el menú especial o una comida del menú.')
+        return
+      }
+    } else if (!packageTier) {
       setOrderError('Elige uno de los 3 paquetes antes de continuar.')
-      return
-    }
-    if (isSpecialDay && !specialDayChosen) {
-      setOrderError('Elige el menú especial antes de continuar.')
       return
     }
     if (orderMode === 'week' && prepay && paymentMethod !== 'transfer') {
@@ -719,13 +733,14 @@ function App() {
         paymentMethod,
         orderMode,
         date: orderMode === 'day' ? selectedDate : (policy?.tomorrow || days[0]?.date || ''),
-        ...(isSpecialDay ? {} : { packageTier: packageTier! }),
+        ...(usingSpecial ? {} : { packageTier: packageTier! }),
         quantity,
-        repeatGuisado: orderMode === 'day' && !isSpecialDay && canRepeatGuisado && repeatGuisado,
+        repeatGuisado: orderMode === 'day' && !usingSpecial && canRepeatGuisado && repeatGuisado,
         prepay: orderMode === 'week' && prepay,
-        ...(isSpecialDay ? {} : { garnish }),
-        ...(orderMode === 'day' && !isSpecialDay && selectedMealId ? { mealId: selectedMealId } : {}),
-        ...(isSpecialDay ? { specialAddons } : {}),
+        ...(usingSpecial ? {} : { garnish }),
+        ...(orderMode === 'day' && usingSpecial ? { mealId: 'special' } : {}),
+        ...(orderMode === 'day' && !usingSpecial && selectedMealId ? { mealId: selectedMealId } : {}),
+        ...(usingSpecial ? { specialAddons } : {}),
       })
       setOrder(response.order)
       setPackageTier(null)
@@ -830,7 +845,7 @@ function App() {
               <div className="menu-title">
                 <p>{isNextAvailable ? 'Próxima entrega disponible' : 'Próximamente'}</p>
                 <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
-                <span>{isSpecialDay && specialDay
+                <span>{hasSpecialDay && specialDay
                   ? specialDay.reason
                   : (isNextAvailable
                     ? (orderingOpen ? 'Haz tu pedido hoy antes de las 6:00 pm para reservar este día.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
@@ -842,7 +857,9 @@ function App() {
                   <button key={day.date} className={`${selectedDate === day.date ? 'selected' : ''} ${day.specialDay ? 'date-strip__special' : ''}`} onClick={() => setSelectedDate(day.date)}>
                     <span>{index === 0 ? 'Próximo día hábil' : dayName(day.date)}</span>
                     <strong>{dateFromKey(day.date).getDate()}</strong>
-                    <small>{day.specialDay ? (day.specialDay.packageName || 'Especial') : `${day.mealCount} opciones`}</small>
+                    <small>{day.specialDay
+                      ? `${day.specialDay.packageName || 'Especial'}${day.mealCount > 1 ? ' + menú' : ''}`
+                      : `${day.mealCount} opciones`}</small>
                   </button>
                 ))}
               </div>
@@ -874,9 +891,21 @@ function App() {
             </div>
           )}
 
-          {orderMode === 'day' && isSpecialDay && specialDay ? (
-            <SpecialDayCard specialDay={specialDay} chosen={specialDayChosen} onChoose={() => setSpecialDayChosen((value) => !value)} />
-          ) : (
+          {orderMode === 'day' && hasSpecialDay && specialDay && (
+            <SpecialDayCard
+              specialDay={specialDay}
+              chosen={specialDayChosen}
+              onChoose={() => setSpecialDayChosen((value) => {
+                const next = !value
+                if (next) {
+                  setSelectedMealId(null)
+                  setPackageTier(null)
+                }
+                return next
+              })}
+            />
+          )}
+          {(orderMode !== 'day' || !hasSpecialDay || currentMeals.length > 0) && (
             <>
               {!isLoadingCurrent && Boolean(currentMeals.length) && (
                 <div className="filter-chips" aria-label="Filtrar menú">
@@ -922,7 +951,7 @@ function App() {
             deliveryDate={selectedDate}
             meal={selectedMeal}
             canOrder={orderingOpen}
-            specialDay={isSpecialDay ? specialDay : null}
+            specialDay={hasSpecialDay ? specialDay : null}
             specialDayChosen={specialDayChosen}
             specialAddons={specialAddons}
             onQuantity={changeQuantity}
@@ -992,14 +1021,14 @@ function App() {
                     <strong>{prepay ? `Ahorras ${money(weekSavings)}` : 'Pago regular, sin adelanto'}</strong></p>
                 </div>
               )}
-              {orderMode === 'day' && isSpecialDay && specialDay && (
+              {orderMode === 'day' && usingSpecial && specialDay && (
                 <div className="weekly-recap">
                   <Sparkles size={16} />
                   <p><span>{specialDay.packageName} · {quantity} {quantity === 1 ? 'persona' : 'personas'}</span>
                     <strong>{specialAddons.length > 0 ? specialAddons.join(', ') : 'Sin extras'}</strong></p>
                 </div>
               )}
-              {!isSpecialDay && (
+              {!usingSpecial && (
                 <div className="weekly-recap">
                   <Utensils size={16} />
                   <p><span>Guarnición elegida</span><strong>{garnish === 'arroz' ? 'Arroz' : 'Frijoles'}</strong></p>

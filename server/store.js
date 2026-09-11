@@ -111,6 +111,14 @@ const nextWeekMealImages = {
   calabacita: '/assets/meals/next-week/calabacita-mexicana.jpg',
 }
 
+const week1418MealImages = {
+  moleConPollo: '/assets/meals/week-14-18/mole-con-pollo.jpg',
+  bistecConPapas: '/assets/meals/week-14-18/bistec-con-papas.jpg',
+  huevoConJamon: '/assets/meals/week-14-18/huevo-con-jamon.jpg',
+  rollitosDeJamon: '/assets/meals/week-14-18/rollitos-de-jamon.jpg',
+  longanizaConPapas: '/assets/meals/week-14-18/longaniza-con-papas.jpg',
+}
+
 export const nextWeekMenus = {
   '2026-08-31': [
     { id: 'menu-2026-08-31-alambre-puerco', name: 'Alambre de puerco', description: 'Alambre casero de puerco con verduras; acompáñalo con la base del día.', price: 60, protein: 30, kcal: 560, tags: ['Guisado del día'], image: nextWeekMealImages.alambreLunes, available: true, packages: [...PACKAGE_ORDER] },
@@ -151,6 +159,19 @@ export const nextWeekMenus = {
   '2026-09-11': [
     { id: 'producto-7e997a1ec8', name: 'Chuleta ahumada en salsa morita', description: 'Chuleta ahumada en salsa morita, con la base y guarnición del día.', price: 60, protein: 34, kcal: 610, tags: ['Guisado del día'], image: nextWeekMealImages.chuleta, available: true, packages: [...PACKAGE_ORDER] },
     { id: 'producto-2374544f1a', name: 'Calabacita mexicana', description: 'Calabacita a la mexicana, opción ligera con la base del día.', price: 60, protein: 10, kcal: 390, tags: ['Vegetariano'], image: nextWeekMealImages.calabacita, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  // Lunes 14 también tiene el menú especial de pozole (ver special_menu_days); este
+  // guisado normal se muestra junto al pozole, no en su lugar.
+  '2026-09-14': [
+    { id: 'menu-2026-09-14-mole-con-pollo', name: 'Mole con pollo', description: 'Mole tradicional con pollo, servido con la base y guarnición del día.', price: 60, protein: 30, kcal: 560, tags: ['Guisado del día'], image: week1418MealImages.moleConPollo, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-17': [
+    { id: 'menu-2026-09-17-bistec-con-papas', name: 'Bistec con papas', description: 'Bistec de res con papas, servido con la base y guarnición del día.', price: 60, protein: 32, kcal: 580, tags: ['Guisado del día'], image: week1418MealImages.bistecConPapas, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-17-huevo-con-jamon', name: 'Huevo con jamón', description: 'Huevo revuelto con jamón, servido con la base y guarnición del día.', price: 60, protein: 22, kcal: 480, tags: ['Guisado del día'], image: week1418MealImages.huevoConJamon, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-18': [
+    { id: 'menu-2026-09-18-rollitos-de-jamon', name: 'Rollitos de jamón', description: 'Rollitos de jamón con queso, servidos con la base y guarnición del día.', price: 60, protein: 26, kcal: 500, tags: ['Guisado del día'], image: week1418MealImages.rollitosDeJamon, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-18-longaniza-con-papas', name: 'Longaniza con papas', description: 'Longaniza con papas, servida con la base y guarnición del día.', price: 60, protein: 28, kcal: 570, tags: ['Guisado del día'], image: week1418MealImages.longanizaConPapas, available: true, packages: [...PACKAGE_ORDER] },
   ],
 }
 

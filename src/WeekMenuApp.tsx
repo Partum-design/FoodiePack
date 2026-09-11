@@ -37,19 +37,24 @@ function DayCard({
   const { ref, visible } = useReveal<HTMLDivElement>()
   const specialDay = day.specialDay?.kind === 'special_package' ? day.specialDay : null
   const specialChosen = selectedMealId === 'special'
-  const done = specialDay ? specialChosen : Boolean(selectedMealId)
+  const done = Boolean(selectedMealId)
   const garnishOptions = isDoubleGarnish ? DOUBLE_GARNISH_OPTIONS : GARNISH_OPTIONS
+  // A day can offer a special package (e.g. pozole) alongside its normal curated menu, so
+  // both sections render together; the "sin menú aún" empty state only applies when there's
+  // no special either (otherwise it'd wrongly show under a pozole-only day).
+  const showMealSection = meals.length > 0 || !specialDay
 
-  if (specialDay) {
-    return (
-      <div ref={ref} className={`week-day reveal ${visible ? 'reveal--visible' : ''}`}>
-        <div className="week-day__head">
-          <div>
-            <strong>{dayName(day.date, true)}</strong>
-            <span>{fullDate(day.date)}</span>
-          </div>
-          {done && <b className="week-day__check"><Check size={12} /> Elegido</b>}
+  return (
+    <div ref={ref} className={`week-day reveal ${visible ? 'reveal--visible' : ''}`}>
+      <div className="week-day__head">
+        <div>
+          <strong>{dayName(day.date, true)}</strong>
+          <span>{fullDate(day.date)}</span>
         </div>
+        {done && <b className="week-day__check"><Check size={12} /> Elegido</b>}
+      </div>
+
+      {specialDay && (
         <button
           type="button"
           className={`week-day__special ${specialChosen ? 'selected' : ''}`}
@@ -64,65 +69,58 @@ function DayCard({
           </div>
           <span className="week-day__special-pick">{specialChosen ? <><Check size={13} /> Elegido</> : 'Elegir'}</span>
         </button>
-        {specialChosen && Boolean(specialDay.addons?.length) && (
-          <div className="special-day-addons">
-            {specialDay.addons!.map((addon) => (
-              <label key={addon.name}>
-                <input type="checkbox" checked={selectedAddons.includes(addon.name)} onChange={() => onToggleAddon(addon.name)} />
-                <span>{addon.name}</span>
-                <b>+{money(addon.price)}</b>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <div ref={ref} className={`week-day reveal ${visible ? 'reveal--visible' : ''}`}>
-      <div className="week-day__head">
-        <div>
-          <strong>{dayName(day.date, true)}</strong>
-          <span>{fullDate(day.date)}</span>
+      )}
+      {specialDay && specialChosen && Boolean(specialDay.addons?.length) && (
+        <div className="special-day-addons">
+          {specialDay.addons!.map((addon) => (
+            <label key={addon.name}>
+              <input type="checkbox" checked={selectedAddons.includes(addon.name)} onChange={() => onToggleAddon(addon.name)} />
+              <span>{addon.name}</span>
+              <b>+{money(addon.price)}</b>
+            </label>
+          ))}
         </div>
-        {done && <b className="week-day__check"><Check size={12} /> Listo</b>}
-      </div>
-      <div className="week-day__meals">
-        {meals.map((meal) => (
-          <button
-            type="button"
-            key={meal.id}
-            className={`week-meal-card ${selectedMealId === meal.id ? 'selected' : ''} ${!meal.available ? 'unavailable' : ''}`}
-            disabled={!meal.available}
-            onClick={() => onChoose(meal.id)}
-          >
-            <span className="week-meal-card__media">
-              <img src={meal.image} alt="" loading="lazy" decoding="async" />
-              {selectedMealId === meal.id && <i className="week-meal-card__badge"><Check size={13} /></i>}
-              {!meal.available && <em>Agotado</em>}
-            </span>
-            <b>{meal.name}</b>
-          </button>
-        ))}
-        {meals.length === 0 && <p className="week-day__empty">La cocina todavía no publica el menú de este día.</p>}
-      </div>
-      {meals.length > 0 && (
-        <div className="week-day__garnish">
-          <span>{isDoubleGarnish ? '¿Cómo quieres tus 2 guarniciones?' : '¿Arroz o frijoles?'}</span>
-          <div>
-            {garnishOptions.map((option) => (
+      )}
+
+      {showMealSection && (
+        <>
+          <div className="week-day__meals">
+            {meals.map((meal) => (
               <button
                 type="button"
-                key={option.value}
-                className={garnishChoice === option.value ? 'selected' : ''}
-                onClick={() => onGarnish(option.value)}
+                key={meal.id}
+                className={`week-meal-card ${selectedMealId === meal.id ? 'selected' : ''} ${!meal.available ? 'unavailable' : ''}`}
+                disabled={!meal.available}
+                onClick={() => onChoose(meal.id)}
               >
-                {option.label}
+                <span className="week-meal-card__media">
+                  <img src={meal.image} alt="" loading="lazy" decoding="async" />
+                  {selectedMealId === meal.id && <i className="week-meal-card__badge"><Check size={13} /></i>}
+                  {!meal.available && <em>Agotado</em>}
+                </span>
+                <b>{meal.name}</b>
               </button>
             ))}
+            {meals.length === 0 && <p className="week-day__empty">La cocina todavía no publica el menú de este día.</p>}
           </div>
-        </div>
+          {meals.length > 0 && (
+            <div className="week-day__garnish">
+              <span>{isDoubleGarnish ? '¿Cómo quieres tus 2 guarniciones?' : '¿Arroz o frijoles?'}</span>
+              <div>
+                {garnishOptions.map((option) => (
+                  <button
+                    type="button"
+                    key={option.value}
+                    className={garnishChoice === option.value ? 'selected' : ''}
+                    onClick={() => onGarnish(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -234,7 +232,7 @@ function WeekMenuApp() {
       chosenDays.forEach((day) => {
         const weekday = dayName(day.date, true)
         const label = `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${shortDate(day.date)}`
-        if (day.specialDay?.kind === 'special_package') {
+        if (selections[day.date] === 'special' && day.specialDay?.kind === 'special_package') {
           const chosenAddons = specialAddonSelections[day.date] || []
           const addonsText = chosenAddons.length > 0 ? ` + ${chosenAddons.join(' + ')}` : ''
           lines.push(`🗓️ ${label}: ${day.specialDay.packageName} (${money(day.specialDay.packagePrice || 0)}, menú especial)${addonsText}`)

@@ -187,7 +187,9 @@ app.get('/api/menu', async (request, response) => {
 
   const { dates: eligibleDates, specialDays } = await eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
   const specialDay = specialDays[date] || null
-  const meals = specialDay ? [] : await getMenu(date)
+  // A special-package day (e.g. pozole) can coexist with a normal curated menu on the
+  // same date, so the normal meals always load alongside whatever special is set.
+  const meals = await getMenu(date)
   response.json({
     date,
     meals,
@@ -203,9 +205,10 @@ app.get('/api/menu-days', async (_request, response) => {
   const menus = await getMenus()
   const days = dates.map((date) => {
     const specialDay = specialDays[date] || null
+    const normalCount = (menus[date] || []).filter((meal) => meal.available).length
     return {
       date,
-      mealCount: specialDay ? 1 : (menus[date] || []).filter((meal) => meal.available).length,
+      mealCount: (specialDay ? 1 : 0) + normalCount,
       specialDay,
     }
   })
@@ -227,6 +230,10 @@ app.post('/api/orders', async (request, response) => {
   const { dates: eligibleDates, specialDays } = await eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
   const { orderMode, packageTier, quantity, repeatGuisado, prepay, garnish, specialAddons } = parsed.data
   const specialDay = orderMode === 'day' ? specialDays[parsed.data.date] : null
+  // A date can offer both a special package and a normal curated menu at once (e.g. the
+  // pozole special alongside a normal guisado), so the client says which one it wants via
+  // mealId: 'special' — the mere presence of a special that day is no longer enough.
+  const orderingSpecial = specialDay?.kind === 'special_package' && parsed.data.mealId === 'special'
 
   if (specialDay?.kind === 'closed') {
     return response.status(409).json({ error: specialDay.reason || 'No se reciben pedidos para este día.', policy })
@@ -245,7 +252,7 @@ app.post('/api/orders', async (request, response) => {
   let chosenGarnish = null
   let chosenAddons = []
 
-  if (specialDay?.kind === 'special_package') {
+  if (orderingSpecial) {
     chosenAddons = (specialDay.addons || []).filter((addon) => specialAddons.includes(addon.name))
     unitPrice = specialDay.packagePrice + chosenAddons.reduce((sum, addon) => sum + addon.price, 0)
     packageLabel = specialDay.packageName
@@ -295,7 +302,7 @@ app.post('/api/orders', async (request, response) => {
       ...(parsed.data.delivery.coordinates ? { coordinates: parsed.data.delivery.coordinates } : {}),
     },
     items: [{
-      packageTier: specialDay?.kind === 'special_package' ? 'especial' : packageTier,
+      packageTier: orderingSpecial ? 'especial' : packageTier,
       packageLabel,
       quantity,
       unitPrice,
