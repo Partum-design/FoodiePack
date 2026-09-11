@@ -4,12 +4,13 @@ import {
   MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
 } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
-import { FiestaConfetti, FiestaGarland, FiestaHorns } from './components/FiestaDecor'
+import { FiestaConfetti, FiestaGarland, FiestaHornFlourish } from './components/FiestaDecor'
 import FloatingDecor from './components/FloatingDecor'
 import Footer from './components/Footer'
 import Logo from './components/Logo'
 import { dateFromKey, dayName, fullDate } from './lib/dates'
 import { money } from './lib/format'
+import { isFiestasPatrias } from './lib/season'
 import { useReveal } from './lib/useReveal'
 import {
   BANK_TRANSFER, GARNISH_OPTIONS, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE,
@@ -81,7 +82,7 @@ function BrandPreloader() {
       <div className="brand-preloader__lockup">
         <Logo hero theme="white" />
         <p>Tu cocina en la oficina</p>
-        <span aria-hidden="true"><i /></span>
+        <span aria-hidden="true"><i className={isFiestasPatrias() ? 'brand-preloader__line--fiesta' : ''} /></span>
       </div>
     </div>
   )
@@ -187,14 +188,16 @@ function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, 
 function SpecialDayCard({ specialDay, chosen, onChoose }: { specialDay: SpecialDay; chosen: boolean; onChoose: () => void }) {
   return (
     <div className="special-day-card">
-      <FiestaHorns />
       {specialDay.image && (
         <div className="special-day-card__media">
           <img src={specialDay.image} alt={specialDay.packageName || 'Menú especial'} loading="lazy" decoding="async" />
         </div>
       )}
       <div className="special-day-card__body">
-        <span className="special-day-card__badge"><Sparkles size={13} /> Menú especial de este día</span>
+        <div className="special-day-card__head">
+          <span className="special-day-card__badge"><Sparkles size={13} /> Menú especial de este día</span>
+          <FiestaHornFlourish />
+        </div>
         <h2>{specialDay.packageName}</h2>
         {specialDay.reason && <p>{specialDay.reason}</p>}
         <strong className="special-day-card__price">{money(specialDay.packagePrice || 0)}<small>precio único</small></strong>
