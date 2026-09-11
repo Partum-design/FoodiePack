@@ -7,7 +7,7 @@
   --paper: #f3f2ec;
   --white: #fffefa;
   --ink: #1d2925;
-  --muted: #6c7973;
+  --muted: #616c67;
   --line: #d7dcd5;
   font-family: 'DM Sans', sans-serif;
   color: var(--ink);
@@ -27,6 +27,11 @@ button, a, input, textarea { transition: background-color .18s ease, color .18s 
 button:active:not(:disabled) { transform: scale(.96); }
 
 .route-loading { min-height: 100vh; display: grid; place-items: center; color: var(--green); font-weight: 700; }
+
+/* Static markup shown before React mounts; React overwrites #root's contents on render. */
+.boot-shell { min-height: 100vh; display: grid; place-items: center; }
+.boot-shell span { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--green-pale); border-top-color: var(--green); animation: spin .8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .boot-shell span { animation: none; } }
 
 .logo { display: inline-flex; align-items: center; gap: 10px; color: var(--green); }
 .logo__mark { position: relative; width: 34px; height: 31px; border: 2px solid var(--lime); border-radius: 6px 6px 9px 9px; }
@@ -134,7 +139,7 @@ button:active:not(:disabled) { transform: scale(.96); }
 
 .menu-title { padding: 42px 0 26px; }
 .menu-title > p, .checkout-dialog form > p, .order-confirmed > p, .admin-page-head p, .admin-login section > p { margin: 0 0 8px; color: var(--orange); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.4px; }
-.menu-title h1, .checkout-dialog h2, .order-confirmed h2, .admin-page-head h1, .admin-login h1 { margin: 0; color: var(--green); font: 600 46px/.98 'Fredoka', sans-serif; letter-spacing: -1.7px; }
+.menu-title h2, .checkout-dialog h2, .order-confirmed h2, .admin-page-head h1, .admin-login h1 { margin: 0; color: var(--green); font: 600 46px/.98 'Fredoka', sans-serif; letter-spacing: -1.7px; }
 .menu-title > span { display: block; margin-top: 14px; color: var(--muted); font-size: 13px; }
 
 .date-strip { display: flex; gap: 10px; }
@@ -348,7 +353,7 @@ button:active:not(:disabled) { transform: scale(.96); }
   .brand-landing__visual { height: 300px; padding: 10px 18px 0; justify-content: center; align-items: flex-end; }.brand-landing__visual::before { width: 55px; height: 55px; right: -17px; top: 30px; box-shadow: inset 0 0 0 14px var(--orange); }.landing-dish { width: 286px; height: 286px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); }.landing-date { left: 6px; top: 45%; width: 66px; min-height: 78px; }.landing-date strong { font-size: 26px; }.landing-caption { right: 8px; bottom: 0; left: auto; width: 224px; min-height: 70px; padding: 12px 14px; }.landing-caption strong { font-size: 13px; }.landing-caption b { font-size: 14px; }
   .order-workspace { width: 100%; padding: 0 0 40px; display: block; }.menu-column { padding: 0 16px; }.order-window { padding: 12px 16px; grid-template-columns: 1fr auto; gap: 5px 12px; }.order-window__status { grid-column: 1 / -1; }.order-window > p { font-size: 10px; }.order-window > small { display: none; }
   .order-mode-toggle { width: 100%; }.order-mode-toggle button { flex: 1; justify-content: center; }
-  .menu-title { padding: 24px 0 20px; }.menu-title h1 { max-width: 340px; font-size: 34px; }.menu-title > span { max-width: 340px; line-height: 1.5; }
+  .menu-title { padding: 24px 0 20px; }.menu-title h2 { max-width: 340px; font-size: 34px; }.menu-title > span { max-width: 340px; line-height: 1.5; }
   .date-strip { margin: 0 -16px; padding: 0 16px 2px; overflow-x: auto; }.date-strip button { flex: 0 0 82px; min-height: 78px; }
   .meal-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }.meal-card { border-radius: 18px; }.meal-card__content { padding: 11px 12px 12px; }.meal-card h2 { font-size: 15px; }.meal-card__content > p { display: none; }.meal-card__bottom { flex-wrap: wrap; gap: 6px; }.meal-card__bottom span { font-size: 8px; }
   .special-day-card { flex-direction: column; padding: 20px; }.special-day-card__media { width: 100%; aspect-ratio: 16 / 9; }

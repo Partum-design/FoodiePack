@@ -10,6 +10,9 @@ import '@fontsource/dm-sans/700.css'
 import './styles.css'
 import App from './App'
 import InstallPrompt from './components/InstallPrompt'
+import { initAnalytics } from './lib/analytics'
+
+initAnalytics()
 
 const AdminApp = lazy(() => import('./AdminApp'))
 const WeekMenuApp = lazy(() => import('./WeekMenuApp'))

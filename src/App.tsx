@@ -1,10 +1,9 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, CreditCard, Heart, Landmark, LocateFixed,
   MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
 } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
-import DeliveryMap from './components/DeliveryMap'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
 import { dateFromKey, dayName, fullDate } from './lib/dates'
@@ -16,6 +15,10 @@ import {
 } from './packages'
 import type { Garnish, PackageTier } from './packages'
 import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder, SpecialDay } from './types'
+
+// Leaflet (~40 KB gzip) is only needed once the checkout dialog opens, so it's
+// split into its own chunk instead of loading on every storefront visit.
+const DeliveryMap = lazy(() => import('./components/DeliveryMap'))
 
 const DELIVERY_ZONE = 'Lindavista, CDMX' as const
 const LINDAVISTA_QUERY = 'Lindavista, Gustavo A. Madero, Ciudad de México'
@@ -844,7 +847,7 @@ function App() {
             <>
               <div className="menu-title">
                 <p>{isNextAvailable ? 'Próxima entrega disponible' : 'Próximamente'}</p>
-                <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
+                <h2>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h2>
                 <span>{hasSpecialDay && specialDay
                   ? specialDay.reason
                   : (isNextAvailable
@@ -868,7 +871,7 @@ function App() {
             <>
               <div className="menu-title">
                 <p>Plan semanal</p>
-                <h1>{activeWeekDay ? fullDate(activeWeekDay) : 'Elige tus días'}</h1>
+                <h2>{activeWeekDay ? fullDate(activeWeekDay) : 'Elige tus días'}</h2>
                 <span>Elige tu paquete arriba. La cocina decide el guisado de cada día; aquí puedes verlo por adelantado.</span>
               </div>
 
@@ -1048,7 +1051,9 @@ function App() {
                 <button type="button" onClick={useCurrentLocation} disabled={locating}><LocateFixed size={15} /> {locating ? 'Ubicando…' : 'Usar mi ubicación'}</button>
               </div>
               <div className={`delivery-map ${hasDeliveryPin ? 'delivery-map--pinned' : ''}`}>
-                <DeliveryMap coordinates={deliveryCoordinates} onMove={moveDeliveryPin} />
+                <Suspense fallback={<div className="delivery-map__canvas" />}>
+                  <DeliveryMap coordinates={deliveryCoordinates} onMove={moveDeliveryPin} />
+                </Suspense>
                 <div>
                   <span><i />{hasDeliveryPin ? 'Arrastra el pin para ajustarlo' : 'Toca el mapa o usa tu ubicación'}</span>
                   <a href={externalMapUrl(deliveryCoordinates)} target="_blank" rel="noreferrer">Abrir en Google Maps <ArrowRight size={13} /></a>

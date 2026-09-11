@@ -71,6 +71,27 @@ npx vercel --prod
 
 La web y el API se despliegan juntos en el proyecto Vercel `foodiepack`; no se debe usar `server/data/runtime.json` en producción.
 
+## App de Android (Capacitor)
+
+La app nativa es un shell de [Capacitor](https://capacitorjs.com) alrededor de la misma tienda web — reutiliza el 100% del código de `src/`, sin duplicar pantallas. Ver `AUDITORIA.md` para la justificación técnica completa.
+
+```bash
+npm run build:mobile   # compila con la URL de API de producción y sincroniza android/
+npm run android:open   # abre el proyecto en Android Studio (requiere Android Studio/SDK instalados)
+```
+
+`npm run build:mobile` usa `.env.mobile` (`VITE_API_URL=https://www.foodiepack.com.mx/api`) porque la app empacada no tiene un `/api` del mismo origen como sí lo tiene el sitio web. Por eso, para que esas llamadas no sean bloqueadas por CORS, la variable de entorno `WEB_ORIGIN` en Vercel (producción) debe incluir `https://localhost` (el origen por omisión del WebView de Capacitor en Android) junto con los orígenes que ya tiene.
+
+El ícono y el splash se generan desde `assets/icon.png` y `assets/splash.png` (arte de marca ya existente). Para regenerarlos tras un cambio de logo:
+
+```bash
+npm install --save-dev @capacitor/assets   # herramienta usada una sola vez; no se deja instalada
+npx capacitor-assets generate --android
+npm uninstall @capacitor/assets
+```
+
+No debe existir ningún keystore ni contraseña de firma dentro del repositorio — `android/.gitignore` ya excluye `*.jks`, `*.keystore` y `key.properties`.
+
 ## Seguridad y validación
 
 - La contraseña solo se valida en el servidor.
