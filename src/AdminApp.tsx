@@ -10,6 +10,8 @@ import {
 } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
+import Reveal from './components/Reveal'
+import { useRipple } from './motion'
 import type { Meal, MenuDay, OrderStatus, SavedOrder } from './types'
 
 const TOKEN_KEY = 'foodiepack:admin-session'
@@ -77,7 +79,7 @@ function OrderCard({ order, index, busy, onStatus, onDelete }: {
   const outsideRadius = order.delivery?.withinRadius === false
 
   return (
-    <article className={`order-card order-card--${order.status}`} style={{ '--i': index } as CSSProperties}>
+    <Reveal as="article" variant="up" className={`order-card order-card--${order.status}`} style={{ '--i': index } as CSSProperties}>
       <div className="order-card__head">
         <div>
           <strong>{order.id}</strong>
@@ -158,7 +160,7 @@ function OrderCard({ order, index, busy, onStatus, onDelete }: {
           <Trash2 size={13} /> Eliminar
         </button>
       </div>
-    </article>
+    </Reveal>
   )
 }
 
@@ -213,6 +215,7 @@ function Login({ onSuccess }: { onSuccess: (token: string) => void }) {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  useRipple()
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -232,7 +235,7 @@ function Login({ onSuccess }: { onSuccess: (token: string) => void }) {
 
   return (
     <main className="admin-login">
-      <FloatingDecor />
+      <FloatingDecor tone="dark" />
       <section>
         <Logo hero />
         <p>Acceso de cocina</p>
@@ -435,6 +438,7 @@ function AdminApp() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const dayQueueRef = useRef(Promise.resolve())
+  useRipple()
 
   const logout = () => {
     sessionStorage.removeItem(TOKEN_KEY)
@@ -628,11 +632,11 @@ function AdminApp() {
             </div>
           </header>
 
-          <div className="admin-stats">
+          <Reveal className="admin-stats" variant="up">
             <div className="admin-stat"><UtensilsCrossed size={20} /><span><b>{meals.length}</b>Platillos hoy</span></div>
             <div className="admin-stat admin-stat--accent"><CheckCircle2 size={20} /><span><b>{availableCount}</b>Disponibles</span></div>
             <div className="admin-stat"><PackageOpen size={20} /><span><b>{products.length}</b>En tu catálogo</span></div>
-          </div>
+          </Reveal>
 
           <div className="admin-date-strip">
             {days.map((day, index) => <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}><span>{index === 0 ? 'Mañana' : shortDay(day.date)}</span><strong>{dateFromKey(day.date).getDate()}</strong></button>)}
@@ -713,12 +717,12 @@ function AdminApp() {
             </div>
           </header>
 
-          <div className="admin-stats">
+          <Reveal className="admin-stats" variant="up">
             <div className="admin-stat"><ShoppingBag size={20} /><span><b>{activeOrders.length}</b>Por entregar</span></div>
             <div className="admin-stat admin-stat--accent"><CheckCircle2 size={20} /><span><b>{completedOrders.length}</b>Completados</span></div>
             <div className="admin-stat"><Ban size={20} /><span><b>{cancelledOrders.length}</b>Cancelados</span></div>
             <div className="admin-stat"><Receipt size={20} /><span><b>{money(totalRevenue)}</b>Ingresos</span></div>
-          </div>
+          </Reveal>
 
           <div className="orders-filters" role="tablist" aria-label="Filtrar pedidos">
             {ORDER_FILTERS.map((filter) => (

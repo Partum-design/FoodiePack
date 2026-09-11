@@ -1,11 +1,14 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, Copy, CreditCard, Heart, Landmark, LoaderCircle,
   LocateFixed, MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, TriangleAlert, Utensils, WifiOff, X,
 } from 'lucide-react'
 import { checkDelivery, createOrder, getMenu, getMenuDays } from './api'
+import BrandDivider from './components/BrandDivider'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
+import Reveal from './components/Reveal'
+import { useParallax, useRipple, useScrollProgress, useScrolled } from './motion'
 import {
   BANK_TRANSFER, FREE_DELIVERY_RADIUS_KM, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES,
   REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER,
@@ -58,36 +61,10 @@ function loadFavorites() {
 
 type Toast = { id: number; message: string; tone: 'success' | 'error' | 'info' }
 
-function useReveal<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null)
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const node = ref.current
-    if (!node) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setVisible(true)
-      return
-    }
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          setVisible(true)
-          observer.disconnect()
-        }
-      })
-    }, { threshold: 0.15 })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-
-  return { ref, visible }
-}
-
 function BrandPreloader() {
   return (
     <div className="brand-preloader" role="status" aria-label="Cargando FoodiePack">
-      <FloatingDecor />
+      <FloatingDecor tone="dark" />
       <div className="brand-preloader__lockup">
         <Logo hero theme="white" />
         <p>Tu cocina en la oficina</p>
@@ -137,12 +114,12 @@ function DishCard({ meal, index, isFavorite, onToggleFavorite }: {
   isFavorite: boolean
   onToggleFavorite: () => void
 }) {
-  const { ref, visible } = useReveal<HTMLElement>()
   return (
-    <article
-      ref={ref}
-      className={`meal-card reveal ${meal.available ? '' : 'meal-card--unavailable'} ${visible ? 'reveal--visible' : ''}`}
-      style={{ transitionDelay: visible ? `${Math.min(index, 8) * 50}ms` : '0ms' }}
+    <Reveal
+      as="article"
+      variant="up"
+      delay={Math.min(index, 8) * 60}
+      className={`meal-card ${meal.available ? '' : 'meal-card--unavailable'}`}
     >
       <div className="meal-card__media">
         <img src={meal.image} alt={meal.name} loading="lazy" decoding="async" />
@@ -169,18 +146,22 @@ function DishCard({ meal, index, isFavorite, onToggleFavorite }: {
           <b className={`dish-availability ${meal.available ? '' : 'dish-availability--out'}`}>{meal.available ? 'Disponible' : 'Agotado'}</b>
         </div>
       </div>
-    </article>
+    </Reveal>
   )
 }
 
 function PackagePicker({ selected, onSelect }: { selected: PackageTier | null; onSelect: (tier: PackageTier) => void }) {
   return (
-    <div className="package-grid">
-      {PACKAGE_ORDER.map((tier) => {
+    <Reveal className="package-grid" variant="up">
+      {PACKAGE_ORDER.map((tier, index) => {
         const pack = PACKAGES[tier]
         const isSelected = selected === tier
         return (
-          <article className={`package-card ${isSelected ? 'package-card--selected' : ''} ${tier === 'ejecutivo' ? 'package-card--popular' : ''}`} key={tier}>
+          <article
+            className={`package-card ${isSelected ? 'package-card--selected' : ''} ${tier === 'ejecutivo' ? 'package-card--popular' : ''}`}
+            key={tier}
+            style={{ '--i': index } as CSSProperties}
+          >
             {tier === 'ejecutivo' && <span className="package-card__badge">Más pedido</span>}
             <h3>{pack.label}</h3>
             <p className="package-card__price"><b>{money(pack.dailyPrice)}</b><span>/día</span></p>
@@ -194,7 +175,7 @@ function PackagePicker({ selected, onSelect }: { selected: PackageTier | null; o
           </article>
         )
       })}
-    </div>
+    </Reveal>
   )
 }
 
@@ -213,26 +194,27 @@ function PackagesSection({ selected, onSelect }: { selected: PackageTier | null;
 
   return (
     <section className="packages-section" id="paquetes" aria-labelledby="packages-title">
-      <div className="packages-section__head">
+      <FloatingDecor tone="light" soft />
+      <Reveal className="packages-section__head" variant="up">
         <p>Paquetes</p>
         <h2 id="packages-title">Elige tu paquete</h2>
         <span>Precio fijo por día. Tú eliges cuánto comer, la cocina decide el guisado del día.</span>
-      </div>
+      </Reveal>
 
       <PackagePicker selected={selected} onSelect={onSelect} />
       <p className="packages-footnote">*Si prefieres repetir el mismo guisado en el Menú Completo, aplica un cargo de +{money(REPEAT_GUISADO_SURCHARGE)}.</p>
 
       <div className="packages-info">
-        <div className="key-points">
+        <Reveal className="key-points" variant="left">
           <h3>Puntos clave para tu pedido</h3>
           <ul>
             {ORDER_KEY_POINTS.map((point) => (
               <li key={point.title}><strong>{point.title}:</strong> {point.detail}</li>
             ))}
           </ul>
-        </div>
+        </Reveal>
 
-        <div className="bank-transfer-card">
+        <Reveal className="bank-transfer-card" variant="right">
           <Landmark size={22} />
           <div>
             <p>Datos para transferencia</p>
@@ -241,7 +223,7 @@ function PackagesSection({ selected, onSelect }: { selected: PackageTier | null;
             <span>Titular: {BANK_TRANSFER.holder}</span>
           </div>
           <button type="button" onClick={copyClabe}>{copied ? <><Check size={14} /> Copiada</> : <><Copy size={14} /> Copiar CLABE</>}</button>
-        </div>
+        </Reveal>
       </div>
     </section>
   )
@@ -393,8 +375,11 @@ function App() {
   const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [isOnline, setIsOnline] = useState(() => navigator.onLine)
   const [retryTick, setRetryTick] = useState(0)
-  const [headerScrolled, setHeaderScrolled] = useState(false)
   const toastId = useRef(0)
+  const headerScrolled = useScrolled(8)
+  const progressRef = useScrollProgress<HTMLDivElement>()
+  const heroVisualRef = useParallax<HTMLDivElement>()
+  useRipple()
 
   const dismissToast = (id: number) => setToasts((items) => items.filter((item) => item.id !== id))
 
@@ -426,13 +411,6 @@ function App() {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
     }
-  }, [])
-
-  useEffect(() => {
-    const onScroll = () => setHeaderScrolled(window.scrollY > 8)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   useEffect(() => {
@@ -671,6 +649,7 @@ function App() {
   return (
     <div className="storefront">
       {preloading && <BrandPreloader />}
+      <div className="scroll-progress" ref={progressRef} aria-hidden="true" />
       {!isOnline && (
         <div className="offline-banner" role="alert">
           <WifiOff size={14} /> Sin conexión a internet. Algunas acciones no estarán disponibles.
@@ -689,7 +668,7 @@ function App() {
       </header>
 
       <section className="brand-landing" aria-labelledby="landing-title">
-        <FloatingDecor />
+        <FloatingDecor tone="dark" />
         <div className="brand-landing__inner">
           <div className="brand-landing__copy">
             <p className="brand-landing__eyebrow"><Logo compact theme="white" /> <span>Lindavista, CDMX</span></p>
@@ -700,7 +679,7 @@ function App() {
               <small><Clock3 size={15} /> Pide hoy de 8:00 am a 6:00 pm</small>
             </div>
           </div>
-          <div className="brand-landing__visual">
+          <div className="brand-landing__visual" ref={heroVisualRef}>
             <div className="landing-dish" style={{ backgroundImage: featuredMeal ? `url(${featuredMeal.image})` : undefined }} role="img" aria-label={featuredMeal?.name || 'Comida preparada por FoodiePack'}>
               <div className="landing-date"><span>Entrega</span><strong>{menu?.policy.tomorrow ? dateFromKey(menu.policy.tomorrow).getDate() : '...'}</strong><small>{menu?.policy.tomorrow ? new Intl.DateTimeFormat('es-MX', { month: 'short' }).format(dateFromKey(menu.policy.tomorrow)).replace('.', '') : 'pronto'}</small></div>
             </div>
@@ -711,10 +690,11 @@ function App() {
             </div>
           </div>
         </div>
+        <BrandDivider direction="down" tone="cream" overlay />
       </section>
 
       <section className="weekly-promo" aria-labelledby="weekly-promo-title">
-        <div className="weekly-promo__inner">
+        <Reveal className="weekly-promo__inner" variant="up">
           <div className="weekly-promo__media">
             <img src="/assets/meals/weekly-hero.jpg" alt="Comidas de la semana en contenedores" loading="lazy" />
           </div>
@@ -724,64 +704,66 @@ function App() {
             <p>Elige tu paquete, paga por adelantado y ahorra hasta {money(MAX_WEEKLY_SAVINGS)} en tu semana.</p>
             <button type="button" onClick={() => { setOrderMode('week'); scrollToPackages() }}>Armar mi semana <ArrowRight size={16} /></button>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       <PackagesSection selected={packageTier} onSelect={choosePackage} />
 
       <main className="order-workspace" id="menu-del-dia">
         <section className="menu-column">
-          <div className={`order-window ${orderingOpen ? 'order-window--open' : ''}`}>
+          <Reveal className={`order-window ${orderingOpen ? 'order-window--open' : ''}`} variant="up">
             <span className="order-window__status"><i />{orderingOpen ? 'Pedidos abiertos' : 'Pedidos cerrados'}</span>
             <p>Reserva hasta 5 días</p>
             <strong>8:00 am a 6:00 pm</strong>
             <small>Hora de Ciudad de México</small>
-          </div>
+          </Reveal>
 
           <div className="order-mode-toggle" role="tablist" aria-label="Modo de pedido">
             <button role="tab" aria-selected={orderMode === 'day'} className={orderMode === 'day' ? 'selected' : ''} onClick={() => setOrderMode('day')}>Pedido de mañana</button>
             <button role="tab" aria-selected={orderMode === 'week'} className={orderMode === 'week' ? 'selected' : ''} onClick={() => setOrderMode('week')}>Plan semanal <b>Ahorra</b></button>
           </div>
 
-          {orderMode === 'day' ? (
-            <>
-              <div className="menu-title">
-                <p>{isTomorrow ? 'Entrega de mañana' : 'Próximamente'}</p>
-                <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
-                <span>{isTomorrow
-                  ? (orderingOpen ? 'Haz tu pedido hoy. Lo cocinamos mañana por la mañana.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
-                  : 'Puedes revisar este menú. Las reservaciones abren el día anterior a las 8:00 am.'}</span>
-              </div>
+          <div className="menu-switch" key={orderMode}>
+            {orderMode === 'day' ? (
+              <>
+                <div className="menu-title">
+                  <p>{isTomorrow ? 'Entrega de mañana' : 'Próximamente'}</p>
+                  <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
+                  <span>{isTomorrow
+                    ? (orderingOpen ? 'Haz tu pedido hoy. Lo cocinamos mañana por la mañana.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
+                    : 'Puedes revisar este menú. Las reservaciones abren el día anterior a las 8:00 am.'}</span>
+                </div>
 
-              <div className="date-strip" aria-label="Próximos menús">
-                {days.map((day, index) => (
-                  <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}>
-                    <span>{index === 0 ? 'Mañana' : dayName(day.date)}</span>
-                    <strong>{dateFromKey(day.date).getDate()}</strong>
-                    <small>{day.mealCount} opciones</small>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="menu-title">
-                <p>Plan semanal</p>
-                <h1>{activeWeekDay ? fullDate(activeWeekDay) : 'Elige tus días'}</h1>
-                <span>Elige tu paquete arriba. La cocina decide el guisado de cada día; aquí puedes verlo por adelantado.</span>
-              </div>
+                <div className="date-strip" aria-label="Próximos menús">
+                  {days.map((day, index) => (
+                    <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}>
+                      <span>{index === 0 ? 'Mañana' : dayName(day.date)}</span>
+                      <strong>{dateFromKey(day.date).getDate()}</strong>
+                      <small>{day.mealCount} opciones</small>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="menu-title">
+                  <p>Plan semanal</p>
+                  <h1>{activeWeekDay ? fullDate(activeWeekDay) : 'Elige tus días'}</h1>
+                  <span>Elige tu paquete arriba. La cocina decide el guisado de cada día; aquí puedes verlo por adelantado.</span>
+                </div>
 
-              <div className="date-strip" aria-label="Días de tu plan semanal">
-                {days.map((day, index) => (
-                  <button key={day.date} className={activeWeekDay === day.date ? 'selected' : ''} onClick={() => setActiveWeekDay(day.date)}>
-                    <span>{index === 0 ? 'Mañana' : dayName(day.date)}</span>
-                    <strong>{dateFromKey(day.date).getDate()}</strong>
-                    <small>{day.mealCount} opciones</small>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+                <div className="date-strip" aria-label="Días de tu plan semanal">
+                  {days.map((day, index) => (
+                    <button key={day.date} className={activeWeekDay === day.date ? 'selected' : ''} onClick={() => setActiveWeekDay(day.date)}>
+                      <span>{index === 0 ? 'Mañana' : dayName(day.date)}</span>
+                      <strong>{dateFromKey(day.date).getDate()}</strong>
+                      <small>{day.mealCount} opciones</small>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
 
           {error && (
             <div className="inline-error">
@@ -845,11 +827,12 @@ function App() {
       </main>
 
       <footer className="store-footer">
-        <div className="store-footer__brand">
+        <FloatingDecor tone="dark" soft />
+        <Reveal className="store-footer__brand" variant="up">
           <Logo hero theme="white" />
           <p>Tu cocina en la oficina. Comida casera y fresca, entregada en tu escritorio.</p>
-        </div>
-        <div className="store-footer__columns">
+        </Reveal>
+        <Reveal className="store-footer__columns" variant="up" delay={90}>
           <div>
             <span>Entregas</span>
             <strong>Lindavista Sur y San Felipe de Jesús</strong>
@@ -868,7 +851,7 @@ function App() {
             <small>CLABE {BANK_TRANSFER.clabe}</small>
             <small>Titular: {BANK_TRANSFER.holder}</small>
           </div>
-        </div>
+        </Reveal>
         <p className="store-footer__legal">© {new Date().getFullYear()} FoodiePack · Lindavista, Ciudad de México</p>
       </footer>
 
@@ -885,7 +868,7 @@ function App() {
         </button>
       </nav>
 
-      {checkoutOpen && <button className="modal-backdrop" aria-label="Cerrar" onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }} />}
+      {checkoutOpen && <button className="modal-backdrop" data-no-ripple aria-label="Cerrar" onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }} />}
       {checkoutOpen && (
         <section className="checkout-dialog" role="dialog" aria-modal="true" aria-label="Confirmar pedido">
           <div className="sheet-handle" aria-hidden="true" />
