@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
 import FloatingDecor from './components/FloatingDecor'
+import Footer from './components/Footer'
 import Logo from './components/Logo'
 import { dateFromKey, dayName, fullDate } from './lib/dates'
 import { money } from './lib/format'
@@ -977,6 +978,8 @@ function App() {
           />
         )}
       </main>
+
+      <Footer />
 
       <nav className="app-tabbar" aria-label="Navegación">
         <button className={orderMode === 'day' ? 'active' : ''} onClick={() => { setOrderMode('day'); scrollToMenu() }}>

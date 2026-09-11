@@ -5,6 +5,7 @@ import {
 import { getMenu, getMenuDays } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
+import { buildWhatsAppUrl } from './lib/contact'
 import { dayName, fullDate, shortDate } from './lib/dates'
 import { money } from './lib/format'
 import { useReveal } from './lib/useReveal'
@@ -13,13 +14,6 @@ import {
 } from './packages'
 import type { GarnishChoice, PackageTier } from './packages'
 import type { Meal, MenuDay, MenuResponse, OrderPolicy } from './types'
-
-// Mexico City mobile number for FoodiePack's WhatsApp line.
-const WHATSAPP_NUMBER = '5215660356369'
-
-function buildWhatsAppUrl(message: string) {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
-}
 
 function DayCard({
   day, meals, selectedMealId, onChoose, garnishChoice, isDoubleGarnish, onGarnish, selectedAddons, onToggleAddon,
