@@ -54,7 +54,6 @@ export function createOrder(payload: {
   quantity: number
   repeatGuisado: boolean
   prepay: boolean
-  promo2x1: boolean
   garnish?: Garnish
   mealId?: string
   specialAddons?: string[]

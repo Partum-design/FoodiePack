@@ -114,22 +114,6 @@ function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: nu
   )
 }
 
-function PromoPopup({ dateLabel, onClose, onExplore }: { dateLabel: string; onClose: () => void; onExplore: () => void }) {
-  return (
-    <>
-      <button className="modal-backdrop" aria-label="Cerrar" onClick={onClose} />
-      <section className="promo-popup" role="dialog" aria-modal="true" aria-label="Promoción de lanzamiento 2x1">
-        <button className="dialog-close" onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
-        <span className="promo-popup__badge"><Sparkles size={13} /> Lanzamiento</span>
-        <h2>2x1 <em>en tu pedido</em></h2>
-        <p>Solo el <strong>{dateLabel}</strong>: pide paquetes para tu equipo y llévate el doble al mismo precio.</p>
-        <button type="button" className="promo-popup__cta" onClick={onExplore}>Aprovechar el 2x1 <ArrowRight size={16} /></button>
-        <small>La promo ya está activada en tu pedido.</small>
-      </section>
-    </>
-  )
-}
-
 function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, selectedMealId, onChoosePackage }: {
   meal: Meal
   index: number
@@ -296,13 +280,12 @@ function PackagesSection({ selected, onSelect }: { selected: PackageTier | null;
 }
 
 function OrderSummary({
-  packageTier, quantity, repeatGuisado, promo2x1, garnish, deliveryDate, meal, canOrder, specialDay, specialDayChosen,
-  specialAddons, onQuantity, onToggleRepeat, onTogglePromo2x1, onGarnish, onToggleAddon, onCheckout,
+  packageTier, quantity, repeatGuisado, garnish, deliveryDate, meal, canOrder, specialDay, specialDayChosen,
+  specialAddons, onQuantity, onToggleRepeat, onGarnish, onToggleAddon, onCheckout,
 }: {
   packageTier: PackageTier | null
   quantity: number
   repeatGuisado: boolean
-  promo2x1: boolean
   garnish: Garnish
   deliveryDate: string
   meal: Meal | null
@@ -312,7 +295,6 @@ function OrderSummary({
   specialAddons: string[]
   onQuantity: (change: number) => void
   onToggleRepeat: () => void
-  onTogglePromo2x1: () => void
   onGarnish: (value: Garnish) => void
   onToggleAddon: (name: string) => void
   onCheckout: () => void
@@ -321,12 +303,10 @@ function OrderSummary({
   const canRepeat = packageTier === REPEAT_GUISADO_TIER
   const surcharge = pack && canRepeat && repeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0
   const subtotal = pack ? pack.dailyPrice * quantity : 0
-  const paidQuantity = promo2x1 ? Math.ceil(quantity / 2) : quantity
-  const promoDiscount = pack && promo2x1 ? pack.dailyPrice * (quantity - paidQuantity) : 0
   const addonsUnit = specialDay ? specialAddons.reduce((sum, name) => sum + (specialDay.addons?.find((addon) => addon.name === name)?.price || 0), 0) : 0
   const specialUnit = specialDay ? (specialDay.packagePrice || 0) + addonsUnit : 0
   const specialSubtotal = specialDayChosen ? specialUnit * quantity : 0
-  const total = specialDay ? specialSubtotal : subtotal + surcharge - promoDiscount
+  const total = specialDay ? specialSubtotal : subtotal + surcharge
   const ready = specialDay ? specialDayChosen : Boolean(pack && meal)
 
   return (
@@ -375,14 +355,6 @@ function OrderSummary({
               <button onClick={() => onQuantity(1)} aria-label="Agregar una persona"><Plus size={12} /></button>
             </div>
           </div>
-          <label className="weekly-discount promo-toggle">
-            <input type="checkbox" checked={promo2x1} onChange={onTogglePromo2x1} />
-            <span>
-              <strong>Promo 2x1 · {deliveryDate ? fullDate(deliveryDate).toLowerCase() : 'lanzamiento'}</strong>
-              <small>Paga la mitad de tus paquetes, llévate todos</small>
-            </span>
-            <b>-{money(promoDiscount)}</b>
-          </label>
           {canRepeat && (
             <label className="repeat-guisado">
               <input type="checkbox" checked={repeatGuisado} onChange={onToggleRepeat} />
@@ -400,7 +372,6 @@ function OrderSummary({
           <>
             <p><span>Paquete</span><strong>{money(subtotal)}</strong></p>
             {surcharge > 0 && <p><span>Repetir guisado</span><strong>{money(surcharge)}</strong></p>}
-            {promoDiscount > 0 && <p className="summary-discount"><span>Promo 2x1</span><strong>-{money(promoDiscount)}</strong></p>}
           </>
         )}
         <p><span>Envío</span><strong>Gratis</strong></p>
@@ -489,8 +460,6 @@ function App() {
   const [garnish, setGarnish] = useState<Garnish>('arroz')
   const [specialAddons, setSpecialAddons] = useState<string[]>([])
   const [specialDayChosen, setSpecialDayChosen] = useState(false)
-  const [promo2x1, setPromo2x1] = useState(true)
-  const [showPromoPopup, setShowPromoPopup] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer')
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -530,13 +499,6 @@ function App() {
       document.body.style.overflow = ''
     }
   }, [])
-
-  useEffect(() => {
-    if (preloading) return
-    if (sessionStorage.getItem('foodiepack:v2:promo-2x1-seen')) return
-    const timer = window.setTimeout(() => setShowPromoPopup(true), 500)
-    return () => window.clearTimeout(timer)
-  }, [preloading])
 
   useEffect(() => {
     const goOnline = () => setIsOnline(true)
@@ -609,7 +571,6 @@ function App() {
   }, [selectedDate])
 
   const orderingOpen = Boolean(policy?.isOpen)
-  const promoDateLabel = policy?.tomorrow ? fullDate(policy.tomorrow) : 'el próximo día hábil'
   const isNextAvailable = menu?.policy.tomorrow === selectedDate
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
   const selectedMeal = menu?.meals.find((meal) => meal.id === selectedMealId) || null
@@ -633,9 +594,7 @@ function App() {
   const activePackage = packageTier ? PACKAGES[packageTier] : null
   const canRepeatGuisado = packageTier === REPEAT_GUISADO_TIER
   const daySurcharge = activePackage && canRepeatGuisado && repeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0
-  const dayPaidQuantity = promo2x1 ? Math.ceil(quantity / 2) : quantity
-  const dayPromoDiscount = activePackage && promo2x1 ? activePackage.dailyPrice * (quantity - dayPaidQuantity) : 0
-  const dayTotal = activePackage ? activePackage.dailyPrice * quantity + daySurcharge - dayPromoDiscount : 0
+  const dayTotal = activePackage ? activePackage.dailyPrice * quantity + daySurcharge : 0
   const weekRegularTotal = activePackage ? activePackage.weeklyRegular * quantity : 0
   const weekSpecialTotal = activePackage ? activePackage.weeklyPrepay * quantity : 0
   const weekSavings = weekRegularTotal - weekSpecialTotal
@@ -645,17 +604,6 @@ function App() {
   const specialTotal = specialUnitPrice * quantity
   const activeTotal = isSpecialDay ? specialTotal : (orderMode === 'week' ? weekTotal : dayTotal)
   const badgeCount = isSpecialDay ? (specialDayChosen ? quantity : 0) : (activePackage ? quantity : 0)
-
-  const dismissPromoPopup = () => {
-    setShowPromoPopup(false)
-    sessionStorage.setItem('foodiepack:v2:promo-2x1-seen', '1')
-  }
-
-  const explorePromoPopup = () => {
-    setPromo2x1(true)
-    dismissPromoPopup()
-    document.querySelector('#paquetes')?.scrollIntoView({ behavior: 'smooth' })
-  }
 
   const toggleFavorite = (mealId: string) => {
     setFavorites((current) => current.includes(mealId) ? current.filter((id) => id !== mealId) : [...current, mealId])
@@ -775,7 +723,6 @@ function App() {
         quantity,
         repeatGuisado: orderMode === 'day' && !isSpecialDay && canRepeatGuisado && repeatGuisado,
         prepay: orderMode === 'week' && prepay,
-        promo2x1: orderMode === 'day' && !isSpecialDay && promo2x1,
         ...(isSpecialDay ? {} : { garnish }),
         ...(orderMode === 'day' && !isSpecialDay && selectedMealId ? { mealId: selectedMealId } : {}),
         ...(isSpecialDay ? { specialAddons } : {}),
@@ -786,7 +733,6 @@ function App() {
       setQuantity(1)
       setRepeatGuisado(false)
       setPrepay(false)
-      setPromo2x1(true)
       setGarnish('arroz')
       setSpecialAddons([])
       setSpecialDayChosen(false)
@@ -830,7 +776,7 @@ function App() {
             <div className="brand-landing__logo"><Logo hero theme="white" /></div>
             <p>FoodiePack · Lindavista</p>
             <h1 id="landing-title">Tu cocina<br />en la <em>oficina.</em></h1>
-            <span>Resérvalo hoy y te llevamos comida fresca hasta tu oficina en Lindavista. <strong>¡2x1 de lanzamiento!</strong></span>
+            <span>Resérvalo hoy y te llevamos comida fresca hasta tu oficina en Lindavista.</span>
             <div className="brand-landing__actions">
               <a href="#paquetes" onClick={(event) => { event.preventDefault(); scrollToPackages() }}>Ver paquetes <ArrowRight size={17} /></a>
               <small><Clock3 size={15} /> Pide hoy de 8:00 am a 6:00 pm</small>
@@ -841,7 +787,7 @@ function App() {
               <div className="landing-date"><span>Entrega</span><strong>{menu?.policy.tomorrow ? dateFromKey(menu.policy.tomorrow).getDate() : '...'}</strong><small>{menu?.policy.tomorrow ? new Intl.DateTimeFormat('es-MX', { month: 'short' }).format(dateFromKey(menu.policy.tomorrow)).replace('.', '') : 'pronto'}</small></div>
             </div>
             <div className="landing-caption">
-              <span>2x1 de lanzamiento</span>
+              <span>Menú del día</span>
               <strong>{featuredMeal?.name || 'Cocinando el menú…'}</strong>
               <b>Desde {money(PACKAGES.economico.dailyPrice)}/día</b>
             </div>
@@ -972,7 +918,6 @@ function App() {
             packageTier={packageTier}
             quantity={quantity}
             repeatGuisado={repeatGuisado}
-            promo2x1={promo2x1}
             garnish={garnish}
             deliveryDate={selectedDate}
             meal={selectedMeal}
@@ -982,7 +927,6 @@ function App() {
             specialAddons={specialAddons}
             onQuantity={changeQuantity}
             onToggleRepeat={() => setRepeatGuisado((value) => !value)}
-            onTogglePromo2x1={() => setPromo2x1((value) => !value)}
             onGarnish={setGarnish}
             onToggleAddon={toggleSpecialAddon}
             onCheckout={() => setCheckoutOpen(true)}
@@ -1026,8 +970,7 @@ function App() {
               <p>Pedido {order.id}</p>
               <h2>{order.isWeeklyPlan ? 'Tu semana está lista.' : `Nos vemos el ${fullDate(order.deliveryDate).toLowerCase()}.`}</h2>
               <small>
-                La cocina aceptó tu pedido{order.isWeeklyPlan ? ', con tu paquete semanal' : ''}
-                {order.items[0]?.promo2x1 ? ', con la promo 2x1 aplicada' : ''}. Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.
+                La cocina aceptó tu pedido{order.isWeeklyPlan ? ', con tu paquete semanal' : ''}. Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.
                 {order.items[0]?.garnish && <> Guarnición: {order.items[0].garnish === 'arroz' ? 'arroz' : 'frijoles'}.</>}
                 {' '}{order.paymentMethod === 'transfer'
                   ? 'Envía tu comprobante de transferencia al WhatsApp del código QR para entrar en producción.'
@@ -1054,12 +997,6 @@ function App() {
                   <Sparkles size={16} />
                   <p><span>{specialDay.packageName} · {quantity} {quantity === 1 ? 'persona' : 'personas'}</span>
                     <strong>{specialAddons.length > 0 ? specialAddons.join(', ') : 'Sin extras'}</strong></p>
-                </div>
-              )}
-              {orderMode === 'day' && !isSpecialDay && promo2x1 && dayPromoDiscount > 0 && (
-                <div className="weekly-recap">
-                  <Sparkles size={16} />
-                  <p><span>Promo 2x1 aplicada</span><strong>Ahorras {money(dayPromoDiscount)}</strong></p>
                 </div>
               )}
               {!isSpecialDay && (
@@ -1126,10 +1063,6 @@ function App() {
             </form>
           )}
         </section>
-      )}
-
-      {showPromoPopup && !checkoutOpen && (
-        <PromoPopup dateLabel={promoDateLabel.toLowerCase()} onClose={dismissPromoPopup} onExplore={explorePromoPopup} />
       )}
     </div>
   )

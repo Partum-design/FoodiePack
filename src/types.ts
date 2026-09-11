@@ -95,7 +95,6 @@ export type SavedOrder = {
     unitPrice: number
     repeatGuisado: boolean
     prepay: boolean
-    promo2x1?: boolean
     garnish?: Garnish
     mealId?: string
     mealName?: string

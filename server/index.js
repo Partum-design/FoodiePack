@@ -73,7 +73,6 @@ const orderSchema = z.object({
   quantity: z.number().int().min(1).max(10),
   repeatGuisado: z.boolean().optional().default(false),
   prepay: z.boolean().optional().default(false),
-  promo2x1: z.boolean().optional().default(false),
   garnish: z.enum(GARNISH_OPTIONS).optional(),
   mealId: z.string().trim().min(1).max(100).optional(),
   specialAddons: z.array(z.string().trim().min(1).max(60)).max(5).optional().default([]),
@@ -226,7 +225,7 @@ app.post('/api/orders', async (request, response) => {
   }
 
   const { dates: eligibleDates, specialDays } = await eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
-  const { orderMode, packageTier, quantity, repeatGuisado, prepay, promo2x1, garnish, specialAddons } = parsed.data
+  const { orderMode, packageTier, quantity, repeatGuisado, prepay, garnish, specialAddons } = parsed.data
   const specialDay = orderMode === 'day' ? specialDays[parsed.data.date] : null
 
   if (specialDay?.kind === 'closed') {
@@ -243,7 +242,6 @@ app.post('/api/orders', async (request, response) => {
   let subtotal
   let discountAmount = 0
   let canRepeatGuisado = false
-  let appliedPromo2x1 = false
   let chosenGarnish = null
   let chosenAddons = []
 
@@ -266,7 +264,6 @@ app.post('/api/orders', async (request, response) => {
       }
     }
     canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
-    appliedPromo2x1 = orderMode === 'day' && promo2x1
     chosenGarnish = garnish || 'arroz'
 
     if (orderMode === 'week') {
@@ -276,8 +273,6 @@ app.post('/api/orders', async (request, response) => {
     } else {
       const surcharge = canRepeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0
       subtotal = pack.dailyPrice * quantity + surcharge
-      const paidQuantity = appliedPromo2x1 ? Math.ceil(quantity / 2) : quantity
-      discountAmount = appliedPromo2x1 ? pack.dailyPrice * (quantity - paidQuantity) : 0
       unitPrice = pack.dailyPrice
     }
   }
@@ -306,7 +301,6 @@ app.post('/api/orders', async (request, response) => {
       unitPrice,
       repeatGuisado: canRepeatGuisado,
       prepay: orderMode === 'week' && prepay,
-      promo2x1: appliedPromo2x1,
       ...(chosenGarnish ? { garnish: chosenGarnish } : {}),
       ...(selectedMeal ? { mealId: selectedMeal.id, mealName: selectedMeal.name, menuDate: parsed.data.date } : {}),
       ...(chosenAddons.length > 0 ? { specialAddons: chosenAddons.map((addon) => addon.name) } : {}),
