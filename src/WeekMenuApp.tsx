@@ -3,6 +3,7 @@ import {
   ArrowRight, Calendar, Check, Loader2, MessageCircle, Minus, Plus, RefreshCw, Utensils, Wand2,
 } from 'lucide-react'
 import { getMenu, getMenuDays } from './api'
+import { FiestaConfetti, FiestaGarland } from './components/FiestaDecor'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
 import { buildWhatsAppUrl } from './lib/contact'
@@ -257,6 +258,8 @@ function WeekMenuApp() {
 
       <section className="week-hero-wrap">
         <FloatingDecor />
+        <FiestaGarland />
+        <FiestaConfetti />
         <div className="week-hero">
           <span className="week-hero__badge"><Calendar size={13} /> Menú de la semana</span>
           <h1>Arma tu semana <em>en 3 toques.</em></h1>

@@ -4,6 +4,7 @@ import {
   MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
 } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
+import { FiestaConfetti, FiestaGarland, FiestaHorns } from './components/FiestaDecor'
 import FloatingDecor from './components/FloatingDecor'
 import Footer from './components/Footer'
 import Logo from './components/Logo'
@@ -75,6 +76,8 @@ function BrandPreloader() {
   return (
     <div className="brand-preloader" role="status" aria-label="Cargando FoodiePack">
       <FloatingDecor />
+      <FiestaGarland />
+      <FiestaConfetti />
       <div className="brand-preloader__lockup">
         <Logo hero theme="white" />
         <p>Tu cocina en la oficina</p>
@@ -184,6 +187,7 @@ function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, 
 function SpecialDayCard({ specialDay, chosen, onChoose }: { specialDay: SpecialDay; chosen: boolean; onChoose: () => void }) {
   return (
     <div className="special-day-card">
+      <FiestaHorns />
       {specialDay.image && (
         <div className="special-day-card__media">
           <img src={specialDay.image} alt={specialDay.packageName || 'Menú especial'} loading="lazy" decoding="async" />
@@ -790,6 +794,8 @@ function App() {
 
       <section className="brand-landing" aria-labelledby="landing-title">
         <FloatingDecor />
+        <FiestaGarland />
+        <FiestaConfetti />
         <div className="brand-landing__inner">
           <div className="brand-landing__copy">
             <div className="brand-landing__logo"><Logo hero theme="white" /></div>
