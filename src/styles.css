@@ -1,31 +1,103 @@
 :root {
-  --green: #0d4d3b;
-  --green-dark: #07382c;
-  --green-pale: #dfe9df;
-  --lime: #aacb43;
-  --orange: #e9871b;
+  /* --- Marca -------------------------------------------------------------
+     Verde profundo + naranja sobre papel crema, la paleta de los flyers.
+     Los nombres antiguos se conservan para que toda la hoja herede el
+     cambio; --lime pasa a ser el naranja claro que sí usa la marca. */
+  --green: #0e5039;
+  --green-dark: #06382a;
+  --green-deep: #0a4634;
+  --green-600: #1a6a4e;
+  --green-pale: #dceae0;
+  --green-050: #eff6f0;
+  --green-300: #9fc4ae;
+
+  --orange: #f4821f;
+  --orange-600: #db6e10;
+  --orange-ink: #b45a06;
+  --lime: #fab877;
+  --orange-100: #fdecd9;
+
   --fiesta-red: #c1443b;
-  --paper: #f3f2ec;
-  --white: #fffefa;
-  --ink: #1d2925;
-  --muted: #616c67;
-  --line: #d7dcd5;
-  font-family: 'DM Sans', sans-serif;
+
+  --paper: #fbf6ec;
+  --paper-deep: #f4eee1;
+  --white: #ffffff;
+  --surface-2: #f8f5ec;
+
+  --ink: #17231e;
+  --muted: #62756c;
+  --line: #e7e1d3;
+
+  --danger: #a4501f;
+  --danger-soft: #fae7d9;
+
+  /* --- Tipografía ------------------------------------------------------- */
+  --font-display: 'Fredoka', 'DM Sans', sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-script: 'Caveat', 'DM Sans', cursive;
+
+  /* --- Radios ----------------------------------------------------------- */
+  --r-xs: 12px;
+  --r-sm: 16px;
+  --r-md: 22px;
+  --r-lg: 30px;
+  --r-xl: 40px;
+  --r-pill: 999px;
+
+  /* --- Elevación cálida, en dos capas como material --------------------- */
+  --e1: 0 1px 2px rgba(10, 70, 52, .05), 0 2px 6px -2px rgba(10, 70, 52, .06);
+  --e2: 0 2px 6px rgba(10, 70, 52, .05), 0 10px 22px -10px rgba(10, 70, 52, .16);
+  --e3: 0 4px 12px rgba(10, 70, 52, .06), 0 20px 42px -16px rgba(10, 70, 52, .2);
+  --e4: 0 10px 24px rgba(10, 70, 52, .08), 0 38px 70px -24px rgba(10, 70, 52, .26);
+  --e-brand: 0 14px 32px -14px rgba(244, 130, 31, .55);
+
+  /* --- Curvas y tiempos ------------------------------------------------- */
+  --ease: cubic-bezier(.2, 0, 0, 1);
+  --ease-out: cubic-bezier(.05, .7, .1, 1);
+  --ease-spring: cubic-bezier(.34, 1.42, .52, 1);
+  --t1: 120ms;
+  --t2: 200ms;
+  --t3: 320ms;
+  --t4: 520ms;
+  --t5: 780ms;
+
+  font-family: var(--font-body);
   color: var(--ink);
   background: var(--paper);
   font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
 }
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--paper); }
-button, input, textarea { font: inherit; }
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 460px at 108% -6%, rgba(244, 130, 31, .07), transparent 62%),
+    radial-gradient(760px 420px at -8% 22%, rgba(14, 80, 57, .06), transparent 60%),
+    var(--paper);
+  background-attachment: fixed;
+}
+button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
-button { cursor: pointer; border-radius: 12px; }
+button { position: relative; cursor: pointer; border-radius: var(--r-xs); }
+button:disabled { cursor: not-allowed; }
 a { color: inherit; text-decoration: none; }
-button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(233, 135, 27, .45); outline-offset: 2px; }
-button, a, input, textarea { transition: background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .12s ease, opacity .18s ease; }
-button:active:not(:disabled) { transform: scale(.96); }
+img { max-width: 100%; }
+::selection { background: var(--lime); color: var(--green-dark); }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(244, 130, 31, .55); outline-offset: 3px; }
+button, a, input, textarea {
+  transition:
+    background-color var(--t2) var(--ease),
+    color var(--t2) var(--ease),
+    border-color var(--t2) var(--ease),
+    box-shadow var(--t3) var(--ease),
+    transform var(--t2) var(--ease-spring),
+    opacity var(--t2) var(--ease);
+}
+button:active:not(:disabled) { transform: scale(.97); }
 
 .route-loading { min-height: 100vh; display: grid; place-items: center; color: var(--green); font-weight: 700; }
 
@@ -176,7 +248,7 @@ button:active:not(:disabled) { transform: scale(.96); }
 .meal-card__packages > span { display: block; margin-bottom: 7px; color: var(--green); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
 .meal-card__packages > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
 .meal-card__packages button { min-width: 0; min-height: 43px; padding: 5px 3px; border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 2px; justify-items: center; color: var(--green); background: transparent; }
-.meal-card__packages button:hover:not(:disabled) { border-color: var(--green); background: var(--green-pale); }
+.meal-card__packages button:hover:not(:disabled):not(.selected) { border-color: var(--green); background: var(--green-pale); }
 .meal-card__packages button.selected { color: white; border-color: var(--green); background: var(--green); }
 .meal-card__packages button:disabled { cursor: not-allowed; opacity: .55; }
 .meal-card__packages b { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; }
@@ -519,7 +591,7 @@ button:active:not(:disabled) { transform: scale(.96); }
 .week-day .special-day-addons { margin-top: 12px; padding: 0; }
 
 .week-meal-card { padding: 0; border: 2px solid transparent; border-radius: 16px; overflow: hidden; text-align: left; background: #f6f7f2; }
-.week-meal-card:hover:not(:disabled) { border-color: var(--green-pale); transform: translateY(-2px); }
+.week-meal-card:hover:not(:disabled):not(.selected) { border-color: var(--green-pale); transform: translateY(-2px); }
 .week-meal-card.selected { border-color: var(--green); box-shadow: 0 10px 22px rgba(7,56,44,.16); }
 .week-meal-card:disabled { opacity: .45; cursor: default; }
 .week-meal-card__media { position: relative; display: block; aspect-ratio: 4 / 3; background: var(--green-pale); }
@@ -592,3 +664,1109 @@ button:active:not(:disabled) { transform: scale(.96); }
 .special-day-addons-editor__row { display: grid; grid-template-columns: 1fr 70px 28px; gap: 6px; align-items: center; }
 .special-day-addons-editor__row input { padding: 7px 10px; border-radius: 9px; font-size: 10px; }
 .special-day-addons-editor__row button { width: 28px; height: 28px; border: 0; border-radius: 8px; display: grid; place-items: center; color: #b23b3b; background: #fbe9e9; }
+
+/* ==========================================================================
+   CAPA DE DISEÑO · FoodiePack
+   Se aplica sobre las reglas anteriores: movimiento, superficies suaves y
+   los componentes que se rediseñaron. Las reglas responsivas propias van
+   al final de este bloque para que ganen a las de arriba.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Movimiento
+   -------------------------------------------------------------------------- */
+
+.reveal {
+  --reveal-delay: 0ms;
+  opacity: 0;
+  transition:
+    opacity var(--t5) var(--ease-out) var(--reveal-delay),
+    transform var(--t5) var(--ease-out) var(--reveal-delay),
+    filter var(--t5) var(--ease-out) var(--reveal-delay);
+  will-change: opacity, transform;
+}
+
+.reveal--up { transform: translate3d(0, 34px, 0); }
+.reveal--fade { transform: none; filter: blur(6px); }
+.reveal--scale { transform: scale(.94); }
+.reveal--left { transform: translate3d(-38px, 0, 0); }
+.reveal--right { transform: translate3d(38px, 0, 0); }
+
+.reveal.is-revealed,
+.reveal.reveal--visible {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  will-change: auto;
+}
+
+/* Onda material inyectada por useRipple: va dentro del botón y se recorta a
+   su radio, así las insignias que salen del borde siguen visibles. */
+.ripple-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.ripple-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .16;
+  transform: scale(0);
+  animation: ripple .6s var(--ease-out) forwards;
+}
+
+.scroll-progress {
+  --progress: 0;
+  position: fixed;
+  z-index: 120;
+  inset: 0 0 auto;
+  height: 3px;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--green), var(--orange));
+  transform: scaleX(var(--progress));
+  transform-origin: left center;
+  opacity: calc(var(--progress) * 4);
+}
+
+@keyframes ripple { to { transform: scale(1); opacity: 0; } }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+@keyframes underline-sweep { from { transform: scaleX(0) rotate(-1deg); } to { transform: scaleX(1) rotate(-1deg); } }
+@keyframes switch-in { from { opacity: 0; transform: translate3d(0, 14px, 0); } to { opacity: 1; transform: none; } }
+@keyframes tab-pop { 0% { transform: scale(.9); } 60% { transform: scale(1.04); } 100% { transform: scale(1); } }
+@keyframes header-drop { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: none; } }
+@keyframes dish-in { from { opacity: 0; transform: translate3d(0, 46px, 0) scale(.96); } to { opacity: 1; transform: none; } }
+
+/* --------------------------------------------------------------------------
+   Primitivas de marca
+   -------------------------------------------------------------------------- */
+
+.logo-hero { display: block; width: min(240px, 58vw); height: auto; }
+.logo-horizontal { display: block; width: auto; height: 44px; transition: transform var(--t3) var(--ease-spring); }
+
+.script-note {
+  color: var(--lime);
+  font-family: var(--font-script);
+  font-size: clamp(22px, 2.4vw, 28px);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+/* Transición orgánica entre secciones. */
+.brand-divider { position: relative; z-index: 3; margin-top: -1px; line-height: 0; pointer-events: none; }
+.brand-divider svg { display: block; width: 100%; height: clamp(42px, 5.5vw, 84px); }
+.brand-divider--cream path { fill: var(--paper); }
+.brand-divider--white path { fill: var(--white); }
+.brand-divider--green path { fill: var(--green-deep); }
+.brand-divider--overlay { position: absolute; inset: auto 0 -1px; margin: 0; z-index: 4; }
+
+/* --------------------------------------------------------------------------
+   Encabezado y portada
+   -------------------------------------------------------------------------- */
+
+.store-header {
+  height: 88px;
+  background: rgba(251, 246, 236, .82);
+  backdrop-filter: saturate(1.5) blur(14px);
+  -webkit-backdrop-filter: saturate(1.5) blur(14px);
+  border-bottom: 1px solid transparent;
+  transition: height var(--t3) var(--ease), background-color var(--t3) var(--ease),
+    box-shadow var(--t3) var(--ease), border-color var(--t3) var(--ease);
+  animation: header-drop .7s var(--ease-out) both;
+}
+
+.store-header--scrolled {
+  height: 70px;
+  background: rgba(255, 255, 255, .9);
+  border-bottom-color: var(--line);
+  box-shadow: var(--e2);
+}
+
+.store-header > a:hover .logo-horizontal { transform: scale(1.05) rotate(-1.5deg); }
+.store-header--scrolled .logo-horizontal { height: 38px; }
+.store-header__delivery > span { color: var(--orange-ink); font-size: 10px; letter-spacing: 1.3px; }
+.store-header__delivery button { gap: 6px; font-size: 13px; }
+.store-header__delivery button:hover { color: var(--orange-ink); }
+.store-header__delivery button svg { transition: transform var(--t2) var(--ease-spring); }
+.store-header__delivery button:hover svg { transform: translateY(2px); }
+
+.header-cart {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--r-pill);
+  gap: 9px;
+  color: white;
+  background: var(--green);
+  box-shadow: var(--e2);
+  font-size: 12.5px;
+}
+
+.header-cart:hover { color: white; background: var(--green-dark); transform: translateY(-2px); box-shadow: var(--e3); }
+.header-cart b { min-width: 21px; height: 21px; padding: 0 5px; border-radius: var(--r-pill); background: var(--orange); font-size: 10px; }
+
+.brand-landing {
+  border-bottom: 0;
+  background:
+    radial-gradient(760px 520px at 78% 8%, rgba(244, 130, 31, .2), transparent 66%),
+    radial-gradient(620px 480px at 6% 96%, rgba(26, 106, 78, .55), transparent 70%),
+    linear-gradient(158deg, var(--green-dark), #0b4a37 56%, #0d3d2f 130%);
+}
+
+.brand-landing__inner { padding-bottom: clamp(28px, 3.2vw, 52px); }
+.brand-landing__copy > p { color: var(--lime); letter-spacing: 1.8px; font-size: 10.5px; }
+
+.brand-landing__copy h1 { font-size: clamp(54px, 6vw, 88px); letter-spacing: -3px; }
+.brand-landing__copy h1 em { position: relative; color: var(--lime); }
+
+.brand-landing__copy h1 em::after {
+  content: '';
+  position: absolute;
+  left: 2%;
+  right: 12%;
+  bottom: .1em;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--orange);
+  transform: scaleX(0) rotate(-1deg);
+  transform-origin: left;
+  animation: underline-sweep .9s 2.35s var(--ease-out) forwards;
+}
+
+.brand-landing__copy > span { color: rgba(255, 255, 255, .72); font-size: 16px; }
+
+.brand-landing__actions > a {
+  min-height: 54px;
+  padding: 0 28px;
+  gap: 14px;
+  color: white;
+  background: var(--orange);
+  box-shadow: var(--e-brand);
+  font-size: 13px;
+}
+
+.brand-landing__actions > a:hover {
+  background: var(--orange-600);
+  transform: translateY(-3px);
+  box-shadow: 0 20px 40px -14px rgba(244, 130, 31, .7);
+}
+
+.brand-landing__actions > a svg { transition: transform var(--t3) var(--ease-spring); }
+.brand-landing__actions > a:hover svg { transform: translateX(5px); }
+.brand-landing__actions > small { color: rgba(255, 255, 255, .66); font-size: 11px; }
+
+.brand-landing__visual::before { border: 0; background: var(--orange); box-shadow: none; opacity: .9; }
+
+.landing-dish {
+  border-radius: 46% 46% var(--r-lg) var(--r-lg) / 30% 30% var(--r-lg) var(--r-lg);
+  border: 0;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 10px rgba(255, 255, 255, .07), 0 40px 80px -40px rgba(0, 0, 0, .6);
+  transform: translate3d(calc(var(--px, 0) * 10px), calc(var(--py, 0) * 10px), 0);
+  transition: transform var(--t4) var(--ease-out);
+  animation: dish-in 1.1s 1.8s var(--ease-out) both;
+}
+
+.landing-date {
+  border-radius: var(--r-md);
+  color: white;
+  background: var(--orange);
+  box-shadow: 0 18px 34px -12px rgba(0, 0, 0, .5);
+  transform: translate3d(calc(var(--px, 0) * -22px), calc(var(--py, 0) * -16px), 0);
+  transition: transform var(--t4) var(--ease-out);
+}
+
+.landing-date span { opacity: .9; }
+.landing-date strong { font-size: 34px; }
+
+.landing-caption {
+  border-radius: var(--r-md);
+  box-shadow: var(--e4);
+  transform: translate3d(calc(var(--px, 0) * -14px), calc(var(--py, 0) * -10px), 0);
+  transition: transform var(--t4) var(--ease-out);
+}
+
+.landing-caption span { color: var(--orange-ink); letter-spacing: 1.2px; font-size: 9px; }
+.landing-caption strong { font-size: 19px; }
+.landing-caption b { padding: 6px 12px; border-radius: var(--r-pill); color: white; background: var(--green); font-size: 13px; }
+
+/* --------------------------------------------------------------------------
+   Tarjetas de platillo
+   La foto manda, el nombre se lee de lejos y los tres paquetes se eligen
+   directo en la tarjeta, cada uno con su precio.
+   -------------------------------------------------------------------------- */
+
+.meal-grid { grid-template-columns: repeat(auto-fill, minmax(252px, 1fr)); gap: 22px; }
+
+.meal-card {
+  border-radius: var(--r-lg);
+  box-shadow: var(--e1);
+  transition: transform var(--t3) var(--ease-spring), box-shadow var(--t3) var(--ease), opacity var(--t4) var(--ease);
+}
+
+.meal-card:hover { transform: translateY(-6px); box-shadow: var(--e3); }
+.meal-card__media { aspect-ratio: 5 / 4; background: var(--green-050); }
+.meal-card:hover .meal-card__media img { transform: scale(1.07); }
+
+.meal-card__sold-out {
+  padding: 9px 16px;
+  background: rgba(6, 56, 42, .88);
+  backdrop-filter: blur(3px);
+  font-size: 11px;
+}
+
+.meal-card__favorite {
+  right: 12px;
+  top: 12px;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: var(--e1);
+  z-index: 2;
+}
+
+.meal-card__favorite:hover { transform: scale(1.12); }
+.meal-card__chips { padding: 36px 14px 12px; background: linear-gradient(0deg, rgba(6, 40, 30, .74), transparent); }
+
+.meal-card__chips span {
+  padding: 5px 11px;
+  color: white;
+  background: var(--orange);
+  font-size: 9px;
+  letter-spacing: .7px;
+}
+
+.meal-card__content { padding: 18px 18px 20px; }
+.meal-card h2 { margin-bottom: 7px; font-size: 21px; letter-spacing: -.5px; }
+.meal-card__content > p { min-height: 36px; font-size: 12.5px; line-height: 1.55; }
+
+/* Selector de paquete dentro de la tarjeta */
+.meal-card__packages {
+  margin-top: 16px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.meal-card__packages > span {
+  margin-bottom: 9px;
+  color: var(--orange-ink);
+  font-size: 9.5px;
+  letter-spacing: 1.1px;
+}
+
+.meal-card__packages > div { gap: 7px; }
+
+.meal-card__packages button {
+  min-height: 58px;
+  padding: 8px 4px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  gap: 3px;
+  background: var(--surface-2);
+  transition: transform var(--t2) var(--ease-spring), border-color var(--t2) var(--ease),
+    background-color var(--t2) var(--ease), color var(--t2) var(--ease), box-shadow var(--t3) var(--ease);
+}
+
+.meal-card__packages button:hover:not(:disabled):not(.selected) {
+  border-color: var(--green);
+  background: var(--green-050);
+  transform: translateY(-2px);
+}
+
+.meal-card__packages button.selected {
+  color: white;
+  border-color: var(--green);
+  background: var(--green);
+  box-shadow: var(--e2);
+}
+
+.meal-card__packages b { font-size: 10px; font-weight: 700; letter-spacing: -.1px; }
+.meal-card__packages small { color: var(--muted); font-size: 11px; font-weight: 700; }
+.meal-card__packages button.selected small { color: var(--lime); }
+
+.meal-card__bottom { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+.dish-availability {
+  margin-left: auto;
+  padding: 6px 13px;
+  border-radius: var(--r-pill);
+  color: var(--green);
+  background: var(--green-050);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.dish-availability--out { color: var(--danger); background: var(--danger-soft); }
+
+.meal-skeleton {
+  border-radius: var(--r-lg);
+  background: linear-gradient(100deg, var(--paper-deep) 30%, var(--white) 50%, var(--paper-deep) 70%);
+  background-size: 220% 100%;
+}
+
+.menu-empty {
+  padding: 72px 20px;
+  border-radius: var(--r-lg);
+  background: var(--white);
+  box-shadow: var(--e1);
+}
+
+/* --------------------------------------------------------------------------
+   Menú especial del día (pozole y compañía)
+   -------------------------------------------------------------------------- */
+
+.special-day-card {
+  border-radius: var(--r-xl);
+  box-shadow: var(--e2);
+  transition: transform var(--t3) var(--ease-spring), box-shadow var(--t3) var(--ease);
+}
+
+.special-day-card:hover { transform: translateY(-4px); box-shadow: var(--e3); }
+.special-day-card__media { border-radius: var(--r-lg); overflow: hidden; }
+.special-day-card__media img { transition: transform var(--t5) var(--ease-out); }
+.special-day-card:hover .special-day-card__media img { transform: scale(1.06); }
+
+.special-day-card__badge {
+  padding: 7px 14px;
+  border-radius: var(--r-pill);
+  color: white;
+  background: var(--orange);
+  box-shadow: var(--e-brand);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.special-day-card h2 { font-size: clamp(30px, 3.4vw, 40px); letter-spacing: -1.3px; }
+.special-day-card__price b, .special-day-card__price { color: var(--green); }
+
+.special-day-card__choose {
+  min-height: 54px;
+  border-radius: var(--r-pill);
+  box-shadow: var(--e-brand);
+  background: var(--orange);
+  border: 0;
+  color: white;
+  font-size: 13px;
+}
+
+.special-day-card__choose:hover { background: var(--orange-600); transform: translateY(-2px); }
+.special-day-card__choose.selected { background: var(--green); box-shadow: var(--e2); }
+
+/* --------------------------------------------------------------------------
+   Paquetes
+   -------------------------------------------------------------------------- */
+
+.packages-section__head p { color: var(--orange-ink); font-size: 11px; letter-spacing: 2px; }
+.packages-section__head h2 { font-size: clamp(30px, 3.6vw, 44px); letter-spacing: -1.3px; }
+.packages-section__head span { font-size: 14.5px; line-height: 1.65; }
+
+.package-grid { gap: 22px; }
+
+.package-card {
+  padding: 28px 26px 26px;
+  border-radius: var(--r-lg);
+  box-shadow: var(--e1);
+  transition: transform var(--t3) var(--ease-spring), box-shadow var(--t3) var(--ease);
+}
+
+.package-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid transparent;
+  transition: border-color var(--t3) var(--ease);
+  pointer-events: none;
+}
+
+.package-card:hover { transform: translateY(-6px); box-shadow: var(--e3); }
+.package-card--selected { box-shadow: var(--e3); }
+.package-card--selected::after { border-color: var(--green); }
+.package-card--popular { background: linear-gradient(168deg, var(--green-050), var(--white) 62%); box-shadow: var(--e2); }
+
+.package-card__badge {
+  right: 22px;
+  top: -12px;
+  padding: 6px 14px;
+  box-shadow: var(--e-brand);
+  font-size: 9px;
+  letter-spacing: .8px;
+  animation: bob 3.4s var(--ease) infinite;
+}
+
+.package-card h3 { margin-bottom: 6px; font-size: 23px; }
+.package-card__price { margin-bottom: 20px; gap: 6px; }
+.package-card__price b { font-size: 40px; letter-spacing: -1.4px; }
+.package-card__price span { font-size: 12.5px; }
+.package-card ul { gap: 10px; margin-bottom: 22px; }
+.package-card li { padding-top: 10px; font-size: 11.5px; }
+.package-card li strong { font-size: 12.5px; }
+
+/* Lo que incluye cada paquete: viñeta naranja, sin línea divisoria. */
+.package-card li:not(:has(strong)) {
+  padding-top: 0;
+  border-top: 0;
+  position: relative;
+  padding-left: 20px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.package-card li:not(:has(strong))::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--orange);
+}
+
+.package-card li:has(strong) { margin-top: 2px; }
+
+.package-card button {
+  min-height: 50px;
+  border: 2px solid var(--green);
+  font-size: 12.5px;
+}
+
+.package-card button:hover:not(.selected) { background: var(--green-050); }
+
+.package-card button.selected {
+  color: white;
+  background: var(--green);
+  border-color: var(--green);
+  box-shadow: var(--e2);
+}
+
+.packages-footnote { font-size: 11.5px; line-height: 1.7; }
+
+.key-points { padding: 30px 32px; border-radius: var(--r-lg); box-shadow: var(--e1); }
+.key-points h3 { font-size: 20px; margin-bottom: 18px; }
+.key-points li { position: relative; padding-left: 22px; font-size: 12.5px; line-height: 1.7; }
+
+.key-points li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--orange);
+}
+
+/* --------------------------------------------------------------------------
+   Resumen del pedido
+   -------------------------------------------------------------------------- */
+
+.order-summary { border-radius: var(--r-lg); box-shadow: var(--e2); }
+
+.order-summary__head {
+  min-height: 66px;
+  padding: 0 22px;
+  color: white;
+  background: var(--green);
+  border-bottom: 0;
+}
+
+.order-summary__head span { color: white; font-size: 21px; }
+.order-summary__head strong { color: var(--lime); font-size: 12px; text-align: right; }
+.order-summary__date { border-radius: var(--r-sm); background: var(--green-050); }
+
+.summary-empty svg { color: var(--green-300); animation: bob 4s var(--ease) infinite; }
+
+.checkout-button {
+  min-height: 54px;
+  border-radius: var(--r-pill);
+  background: var(--orange);
+  box-shadow: var(--e-brand);
+  font-size: 13px;
+}
+
+.checkout-button:hover:not(:disabled) {
+  background: var(--orange-600);
+  transform: translateY(-2px);
+  box-shadow: 0 18px 36px -14px rgba(244, 130, 31, .68);
+}
+
+.checkout-button svg { transition: transform var(--t2) var(--ease-spring); }
+.checkout-button:hover:not(:disabled) svg { transform: translateX(4px); }
+.checkout-button:disabled { color: var(--muted); background: var(--paper-deep); box-shadow: none; }
+
+.order-mode-toggle { padding: 5px; background: var(--paper-deep); box-shadow: inset 0 1px 3px rgba(10, 70, 52, .06); }
+.order-mode-toggle button { min-height: 44px; padding: 0 22px; font-size: 12.5px; }
+.order-mode-toggle button:hover:not(.selected) { color: var(--green); background: rgba(255, 255, 255, .6); }
+.order-mode-toggle button.selected { box-shadow: var(--e2); animation: tab-pop var(--t3) var(--ease-spring); }
+.order-mode-toggle button b { padding: 3px 9px; color: white; background: var(--orange); font-size: 9.5px; }
+.order-mode-toggle button.selected b { color: white; background: rgba(255, 255, 255, .24); }
+
+.menu-switch { animation: switch-in var(--t4) var(--ease-out) both; }
+
+.date-strip button {
+  min-height: 96px;
+  border-radius: var(--r-md);
+  box-shadow: var(--e1);
+}
+
+.date-strip button:hover { transform: translateY(-4px); box-shadow: var(--e2); }
+.date-strip button.selected { box-shadow: var(--e3); }
+.date-strip button.selected span { color: var(--lime); }
+
+.filter-chips button { min-height: 38px; padding: 0 18px; font-size: 11px; letter-spacing: .7px; }
+.filter-chips button:hover { transform: translateY(-2px); }
+.filter-chips button.selected { box-shadow: var(--e2); }
+
+/* --------------------------------------------------------------------------
+   Aviso de fin de semana
+   La cocina no entrega sábado ni domingo; el aviso explica eso y lleva al
+   menú de la siguiente semana, que sí se puede ver y reservar.
+   -------------------------------------------------------------------------- */
+
+.weekend-notice {
+  margin: 18px 0 0;
+  padding: 20px 24px;
+  border-radius: var(--r-lg);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 18px;
+  color: var(--green);
+  background: linear-gradient(150deg, var(--orange-100), var(--white) 72%);
+  box-shadow: var(--e1);
+  border-left: 5px solid var(--orange);
+}
+
+.weekend-notice__icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: var(--orange);
+  box-shadow: var(--e-brand);
+}
+
+.weekend-notice p { margin: 0; display: grid; gap: 4px; min-width: 0; }
+.weekend-notice strong { color: var(--green); font: 600 19px/1.2 var(--font-display); letter-spacing: -.4px; }
+.weekend-notice span { color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+
+.weekend-notice button {
+  flex-shrink: 0;
+  min-height: 46px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: var(--r-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: white;
+  background: var(--green);
+  box-shadow: var(--e2);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.weekend-notice button:hover { background: var(--green-dark); transform: translateY(-2px); box-shadow: var(--e3); }
+.weekend-notice button svg { transition: transform var(--t2) var(--ease-spring); }
+.weekend-notice button:hover svg { transform: translateX(4px); }
+
+/* Marca los días de la tira que ya caen en la semana siguiente. */
+.date-strip__week-tag {
+  margin-top: 5px;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  color: var(--orange-ink);
+  background: var(--orange-100);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .3px;
+  white-space: nowrap;
+}
+
+.date-strip button.selected .date-strip__week-tag { color: var(--green-dark); background: var(--lime); }
+
+/* --------------------------------------------------------------------------
+   Contacto y redes sociales
+   -------------------------------------------------------------------------- */
+
+.site-footer {
+  margin-top: 48px;
+  border-top: 0;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  position: relative;
+  overflow: hidden;
+  color: rgba(255, 255, 255, .76);
+  background:
+    radial-gradient(620px 380px at 88% 0%, rgba(244, 130, 31, .18), transparent 64%),
+    linear-gradient(162deg, var(--green-dark), #0a4837 60%, #0c3c2e 140%);
+}
+
+.site-footer__inner {
+  position: relative;
+  z-index: 2;
+  padding: 64px 0 40px;
+  grid-template-columns: 1.25fr 1fr 1fr;
+  gap: 44px;
+}
+
+.site-footer__brand { gap: 18px; }
+.site-footer__brand .logo-hero { width: min(220px, 62vw); }
+
+.site-footer__brand > p {
+  max-width: 320px;
+  color: var(--lime);
+  font-family: var(--font-script);
+  font-size: 24px;
+  line-height: 1.3;
+}
+
+.site-footer__block h3 {
+  margin-bottom: 18px;
+  color: var(--lime);
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.8px;
+}
+
+.site-footer__whatsapp {
+  min-height: 66px;
+  padding: 14px 20px;
+  border-radius: var(--r-md);
+  justify-content: flex-start;
+  gap: 6px 14px;
+  color: white;
+  background: #107a49;
+  box-shadow: 0 14px 30px -14px rgba(37, 211, 102, .6);
+}
+
+.site-footer__whatsapp:hover { background: #0c6039; transform: translateY(-3px); box-shadow: 0 20px 36px -14px rgba(37, 211, 102, .75); }
+
+.site-footer__whatsapp svg {
+  flex-shrink: 0;
+  box-sizing: content-box;
+  padding: 8px;
+  border-radius: 50%;
+  color: #0b3d24;
+  background: #25d366;
+}
+.site-footer__whatsapp span { flex: 1; font-size: 12px; }
+.site-footer__whatsapp strong { flex-basis: 100%; text-align: left; font-size: 19px; letter-spacing: .4px; }
+
+.site-footer__social { gap: 12px; }
+
+.site-footer__social a {
+  width: 50px;
+  height: 50px;
+  color: white;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .16);
+  transition: transform var(--t2) var(--ease-spring), background-color var(--t2) var(--ease),
+    box-shadow var(--t3) var(--ease), border-color var(--t2) var(--ease);
+}
+
+.site-footer__social a:hover {
+  background: var(--orange);
+  border-color: var(--orange);
+  transform: translateY(-4px) scale(1.06);
+  box-shadow: var(--e-brand);
+}
+
+.site-footer__bottom {
+  position: relative;
+  z-index: 2;
+  padding: 20px 16px;
+  border-top: 1px solid rgba(255, 255, 255, .12);
+  color: rgba(255, 255, 255, .55);
+  font-size: 11px;
+}
+
+/* --------------------------------------------------------------------------
+   Menú de la semana (/menu-semana)
+   -------------------------------------------------------------------------- */
+
+.week-menu-page__header {
+  min-height: 74px;
+  background: rgba(251, 246, 236, .86);
+  backdrop-filter: saturate(1.5) blur(14px);
+  -webkit-backdrop-filter: saturate(1.5) blur(14px);
+  border-bottom-color: var(--line);
+}
+
+.week-menu-page__header .logo-horizontal { height: 40px; }
+.week-menu-page__back { font-size: 12px; }
+
+.week-hero-wrap {
+  background:
+    radial-gradient(620px 420px at 80% 0%, rgba(244, 130, 31, .22), transparent 66%),
+    linear-gradient(155deg, var(--green-dark), var(--green) 120%);
+}
+
+.week-hero__badge { padding: 7px 16px; color: white; background: var(--orange); box-shadow: var(--e-brand); font-size: 10px; letter-spacing: 1.1px; }
+.week-hero h1 { font-size: clamp(34px, 5vw, 48px); letter-spacing: -1.4px; }
+.week-hero h1 em { color: var(--lime); }
+.week-hero p { font-size: 14px; }
+
+.week-package-card { border-radius: var(--r-md); border-width: 2px; transition: transform var(--t3) var(--ease-spring), border-color var(--t2) var(--ease), box-shadow var(--t3) var(--ease); }
+.week-package-card:hover:not(.selected) { transform: translateY(-4px); box-shadow: var(--e2); }
+.week-package-card.popular { background: linear-gradient(168deg, var(--green-050), var(--white) 62%); }
+.week-package-card.selected { box-shadow: var(--e3); }
+.week-package-card__badge { padding: 4px 12px; box-shadow: var(--e-brand); font-size: 8.5px; }
+.week-package-card strong { font-size: 28px; }
+
+.week-day { border-radius: var(--r-lg); box-shadow: var(--e1); transition: box-shadow var(--t3) var(--ease); }
+.week-day:hover { box-shadow: var(--e2); }
+
+.week-meal-card { border-radius: var(--r-md); border-width: 2px; background: var(--surface-2); transition: transform var(--t3) var(--ease-spring), border-color var(--t2) var(--ease), box-shadow var(--t3) var(--ease); }
+.week-meal-card:hover:not(:disabled):not(.selected) { border-color: var(--green); transform: translateY(-3px); box-shadow: var(--e2); }
+.week-meal-card.selected { box-shadow: var(--e3); }
+.week-meal-card__badge { width: 26px; height: 26px; background: var(--orange); box-shadow: var(--e-brand); }
+
+.week-summary-bar {
+  padding: 14px 14px 14px 22px;
+  border-radius: var(--r-lg);
+  box-shadow: var(--e4);
+}
+
+.week-summary-bar__cta {
+  min-height: 52px;
+  padding: 0 24px;
+  color: white;
+  background: var(--orange);
+  box-shadow: var(--e-brand);
+  font-size: 12.5px;
+}
+
+.week-summary-bar__cta:hover { background: var(--orange-600); transform: translateY(-2px); }
+
+/* --------------------------------------------------------------------------
+   Administración de cocina
+   El acceso desborda en pantallas cortas si se centra con place-items, así
+   que se centra con margen automático y la columna hace scroll.
+   -------------------------------------------------------------------------- */
+
+.admin-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(20px, 5vh, 48px) 20px;
+  overflow-y: auto;
+  background:
+    radial-gradient(700px 460px at 50% 20%, #14624a, transparent 70%),
+    linear-gradient(162deg, var(--green-dark), #0a4736 58%, #0d3b2d 130%);
+}
+
+.admin-login > section {
+  width: min(420px, 100%);
+  margin: auto;
+  padding: 40px 36px;
+  border-radius: var(--r-xl);
+  box-shadow: var(--e4);
+}
+
+.admin-login .logo-hero { width: min(180px, 58%); margin: 0 auto 16px; }
+.admin-login .admin-primary { width: 100%; margin-top: 20px; }
+
+.admin-shell { grid-template-columns: 232px 1fr; background: var(--paper); }
+
+.admin-nav {
+  padding: 30px 22px;
+  gap: 26px;
+  border-right: 0;
+  background: linear-gradient(168deg, var(--green-dark), #0a4735 62%, #0c3b2d 140%);
+}
+
+.admin-nav .logo-lockup { height: 54px; }
+.admin-nav > div button, .logout-button { min-height: 46px; border-radius: var(--r-sm); font-size: 12.5px; }
+.admin-nav > div button:hover { color: white; background: rgba(255, 255, 255, .1); }
+.admin-nav > div button.selected { color: var(--green-dark); background: var(--lime); box-shadow: var(--e2); }
+
+.admin-main { padding: 40px clamp(22px, 5vw, 72px) 96px; }
+
+.admin-primary {
+  min-height: 50px;
+  border-radius: var(--r-pill);
+  background: var(--orange);
+  box-shadow: var(--e-brand);
+  font-size: 12.5px;
+}
+
+.admin-primary:hover:not(:disabled) { background: var(--orange-600); transform: translateY(-2px); }
+.admin-primary:disabled { color: var(--muted); background: var(--paper-deep); box-shadow: none; }
+
+.admin-secondary { min-height: 44px; border-radius: var(--r-pill); border-width: 1.5px; font-size: 11.5px; }
+.admin-secondary:hover:not(:disabled) { color: white; background: var(--green); transform: translateY(-2px); box-shadow: var(--e2); }
+
+.admin-stats { gap: 14px; margin-top: 30px; }
+
+.admin-stat {
+  gap: 14px;
+  padding: 18px 24px;
+  border-radius: var(--r-md);
+  box-shadow: var(--e1);
+  transition: transform var(--t3) var(--ease-spring), box-shadow var(--t3) var(--ease);
+}
+
+.admin-stat:hover { transform: translateY(-4px); box-shadow: var(--e2); }
+.admin-stat b { font-size: 24px; }
+
+.admin-date-strip { gap: 10px; }
+.admin-date-strip button { min-height: 64px; border-radius: var(--r-sm); box-shadow: var(--e1); }
+.admin-date-strip button:hover { transform: translateY(-3px); box-shadow: var(--e2); }
+.admin-date-strip button.selected { box-shadow: var(--e3); }
+
+.planner-day { padding: 22px; border-radius: var(--r-lg); box-shadow: var(--e1); }
+.planner-day.drag-over { box-shadow: 0 0 0 2px var(--orange) inset, var(--e3); transform: scale(1.01); }
+.planner-day__head h2, .planner-catalog__head h2 { font-size: 21px; }
+.planner-day__empty { padding: 50px 18px; border-radius: var(--r-md); font-size: 12px; }
+.planner-day__list li { grid-template-columns: 50px 1fr auto auto; gap: 12px; padding: 8px; border-radius: var(--r-sm); background: var(--surface-2); transition: background-color var(--t2) var(--ease); }
+.planner-day__list li:hover { background: var(--green-050); }
+.planner-meal-thumb { width: 50px; height: 50px; border-radius: var(--r-xs); }
+.planner-day__list strong { font-size: 12.5px; }
+
+.catalog-grid { grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); gap: 16px; }
+
+.editor-row {
+  border-radius: var(--r-md);
+  box-shadow: var(--e1);
+  transition: transform var(--t3) var(--ease-spring), box-shadow var(--t3) var(--ease);
+}
+
+.editor-row:hover { transform: translateY(-4px); box-shadow: var(--e2); }
+.editor-row[draggable='true'] { cursor: grab; }
+.editor-row[draggable='true']:active { cursor: grabbing; }
+
+.product-view strong { font-size: 17px; }
+.product-view p { font-size: 11.5px; line-height: 1.5; }
+.product-view__tags span { padding: 4px 10px; background: var(--green-050); font-size: 9px; }
+
+/* El precio queda solo: la tarjeta ya no muestra proteína ni calorías. */
+.product-view__stats span { color: var(--orange-ink); font-size: 13px; font-weight: 700; }
+
+.quick-add, .edit-toggle, .availability, .delete-meal { min-height: 36px; padding: 0 14px; border-radius: var(--r-pill); font-size: 10px; }
+.quick-add { background: var(--green-050); }
+.quick-add:hover { background: var(--green-pale); }
+.quick-add.added { background: var(--paper-deep); }
+.edit-toggle, .availability, .delete-meal { background: var(--paper-deep); }
+.edit-toggle:hover { color: var(--green); background: var(--green-050); }
+.availability.active { color: var(--green); background: var(--green-050); }
+.delete-meal:hover:not(:disabled) { color: white; background: var(--danger); }
+
+.image-picker button { width: 36px; height: 36px; border-radius: var(--r-xs); }
+.image-picker button:hover { transform: scale(1.08); }
+.image-picker button.selected { box-shadow: var(--e1); }
+.image-upload-btn { min-height: 36px; padding: 0 14px; border-radius: var(--r-pill); border-width: 1.5px; font-size: 10px; }
+
+.orders-table {
+  border: 0;
+  border-radius: var(--r-lg);
+  box-shadow: var(--e2);
+}
+
+.save-message {
+  padding: 10px 16px;
+  border-radius: var(--r-pill);
+  background: var(--green-050);
+  font-size: 11px;
+}
+
+.admin-empty { border-radius: var(--r-lg); box-shadow: var(--e1); }
+.admin-empty svg { color: var(--green-300); animation: bob 4s var(--ease) infinite; }
+
+/* --------------------------------------------------------------------------
+   Diálogos y avisos
+   -------------------------------------------------------------------------- */
+
+.modal-backdrop { background: rgba(6, 40, 30, .58); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.checkout-dialog { padding: 42px; border-radius: var(--r-xl); box-shadow: var(--e4); }
+.checkout-dialog input, .checkout-dialog textarea, .admin-login input { border-radius: var(--r-sm); border-width: 1.5px; background: var(--surface-2); font-size: 14px; }
+.checkout-dialog input:focus, .checkout-dialog textarea:focus, .admin-login input:focus { border-color: var(--green); background: var(--white); box-shadow: 0 0 0 4px rgba(14, 80, 57, .1); }
+.dialog-close { width: 40px; height: 40px; }
+.dialog-close:hover { color: white; background: var(--green); border-color: var(--green); transform: rotate(90deg); }
+
+.toast { border-radius: var(--r-sm); box-shadow: var(--e4); font-size: 12px; }
+.toast button:hover { transform: rotate(90deg); }
+
+.offline-banner { background: var(--danger); font-size: 11px; }
+.install-banner { background: linear-gradient(150deg, var(--green-dark), var(--green)); }
+
+.app-tabbar {
+  background: rgba(255, 255, 255, .92);
+  backdrop-filter: saturate(1.6) blur(16px);
+  -webkit-backdrop-filter: saturate(1.6) blur(16px);
+  box-shadow: var(--e4);
+}
+
+.app-tabbar button.active { color: var(--green); background: var(--green-050); }
+.app-tabbar__cart b { background: var(--orange); }
+
+/* --------------------------------------------------------------------------
+   Adaptación de los componentes rediseñados
+   Va al final para ganarle a las reglas responsivas anteriores.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .site-footer__inner { grid-template-columns: 1fr 1fr; gap: 32px; }
+  .site-footer__brand { grid-column: 1 / -1; }
+  .admin-shell { grid-template-columns: 180px 1fr; }
+}
+
+@media (max-width: 680px) {
+  .store-header { height: 76px; }
+  .store-header--scrolled { height: 64px; }
+  .store-header .logo-horizontal { height: 36px; }
+  .store-header--scrolled .logo-horizontal { height: 32px; }
+
+  .brand-landing__copy h1 { font-size: clamp(42px, 13vw, 58px); letter-spacing: -2px; }
+  .brand-landing__actions > a { width: 100%; justify-content: center; }
+  .landing-caption b { font-size: 12px; padding: 5px 10px; }
+
+  /* Dos tarjetas por fila, pero los paquetes se apilan para que se lean. */
+  .meal-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .meal-card { border-radius: var(--r-md); }
+  .meal-card__content { padding: 14px 13px 15px; }
+  .meal-card h2 { font-size: 16px; }
+  .meal-card__packages { margin-top: 12px; }
+  .meal-card__packages > span { margin-bottom: 7px; font-size: 9px; }
+  .meal-card__packages > div { grid-template-columns: 1fr; gap: 6px; }
+
+  .meal-card__packages button {
+    min-height: 38px;
+    padding: 0 11px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .meal-card__packages b { font-size: 10.5px; }
+  .meal-card__packages small { font-size: 10.5px; }
+  .meal-card__bottom { margin-top: 12px; padding-top: 10px; }
+
+  .weekend-notice { grid-template-columns: auto 1fr; gap: 14px; padding: 18px; }
+  .weekend-notice button { grid-column: 1 / -1; justify-content: center; width: 100%; }
+  .weekend-notice strong { font-size: 17px; }
+
+  .site-footer { margin-top: 32px; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .site-footer__inner { grid-template-columns: 1fr; gap: 30px; padding: 46px 20px 30px; }
+  .site-footer__brand .logo-hero { width: min(190px, 60vw); margin: 0 auto; }
+  .site-footer__brand > p { font-size: 22px; }
+  .site-footer__whatsapp { justify-content: center; text-align: center; }
+  .site-footer__whatsapp strong { text-align: center; }
+  .site-footer__social { justify-content: center; }
+
+  .checkout-dialog { padding: 14px 20px calc(28px + env(safe-area-inset-bottom)); border-radius: var(--r-xl) var(--r-xl) 0 0; }
+
+  .admin-shell { display: block; }
+  .admin-nav { height: auto; min-height: 62px; padding: 10px 16px; flex-direction: row; align-items: center; gap: 12px; }
+  .admin-nav .logo-horizontal { height: 30px; }
+  .admin-main { padding: 28px 16px 80px; }
+  .admin-login > section { padding: 32px 24px; }
+}
+
+@media (max-width: 520px) {
+  /* Una tarjeta por fila: la foto se ve completa y los tres paquetes caben
+     en línea con su precio. */
+  .meal-grid { grid-template-columns: 1fr; gap: 16px; }
+  .meal-card__media { aspect-ratio: 16 / 10; }
+  .meal-card h2 { font-size: 19px; }
+  .meal-card__content > p { display: -webkit-box; font-size: 12.5px; }
+  .meal-card__packages > div { grid-template-columns: repeat(3, 1fr); }
+
+  .meal-card__packages button {
+    min-height: 54px;
+    padding: 7px 4px;
+    display: grid;
+    justify-items: center;
+    justify-content: center;
+    align-content: center;
+    text-align: center;
+    gap: 2px;
+  }
+
+  .meal-card__packages b { font-size: 9.5px; }
+  .meal-card__packages small { font-size: 10px; }
+}
+
+/* --------------------------------------------------------------------------
+   Menos movimiento
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-progress { display: none; }
+
+  .reveal,
+  .landing-dish,
+  .meal-card,
+  .editor-row,
+  .planner-day__list li,
+  .package-card__badge,
+  .admin-empty svg,
+  .summary-empty svg {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+    animation: none !important;
+  }
+
+  .brand-landing__copy h1 em::after { transform: scaleX(1) rotate(-1deg); }
+}
+
+/* --------------------------------------------------------------------------
+   Lockup de marca dibujado con el arte oficial
+   -------------------------------------------------------------------------- */
+
+.logo-lockup { display: block; width: auto; height: 72px; transition: transform var(--t3) var(--ease-spring); }
+.logo-lockup--compact { height: 54px; }
+.admin-main__brand .logo-lockup { height: 50px; }
+
+/* Acciones del catálogo en fila: la tarjeta deja de verse como una lista. */
+.editor-controls { gap: 8px; }
+.editor-controls .quick-add { flex: 1 1 100%; min-height: 40px; }
+.editor-controls .edit-toggle,
+.editor-controls .delete-meal { flex: 1; }
+
+@media (max-width: 680px) {
+  .logo-lockup { height: 54px; }
+  .logo-lockup--compact { height: 42px; }
+  .admin-nav .logo-lockup { height: 38px; }
+}
+
+/* El campo de contraseña y su botón forman una sola pieza. */
+.password-field { grid-template-columns: 1fr 52px; }
+.password-field input { border-radius: var(--r-sm) 0 0 var(--r-sm); border-right: 0; }
+
+.password-field button {
+  border: 1.5px solid var(--line);
+  border-left: 0;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--surface-2);
+}
+
+.password-field button:hover { color: var(--green); background: var(--green-050); }
+
+/* --------------------------------------------------------------------------
+   Fiestas Patrias
+   El verde de la bandera es propio: --lime ahora es el naranja claro de la
+   marca, así que el papel picado recupera aquí su verde.
+   -------------------------------------------------------------------------- */
+
+.fiesta-garland__flag--1 { background: linear-gradient(160deg, #3aa86a, #1f7d4c); }
+.fiesta-garland__flag--2 { background: linear-gradient(160deg, #ffffff, #f2efe6); }
+.fiesta-confetti__piece--tone1 { background: #2f9e63; }
+.fiesta-confetti__piece--tone2 { background: #ffffff; }
+.fiesta-horn-icon__confetti--a { fill: #2f9e63; }
+
+.brand-preloader__line--fiesta {
+  background: linear-gradient(90deg, #2f9e63, #ffffff 40%, var(--fiesta-red) 70%, var(--orange)) !important;
+}

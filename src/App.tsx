@@ -8,10 +8,13 @@ import { FiestaConfetti, FiestaGarland, FiestaHornFlourish } from './components/
 import FloatingDecor from './components/FloatingDecor'
 import Footer from './components/Footer'
 import Logo from './components/Logo'
-import { dateFromKey, dayName, fullDate } from './lib/dates'
+import { dateFromKey, dayName, fullDate, isLaterWeek, isWeekend } from './lib/dates'
 import { money } from './lib/format'
 import { isFiestasPatrias } from './lib/season'
 import { useReveal } from './lib/useReveal'
+import { useParallax, useRipple, useScrollProgress, useScrolled } from './motion'
+import Reveal from './components/Reveal'
+import BrandDivider from './components/BrandDivider'
 import {
   BANK_TRANSFER, GARNISH_OPTIONS, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE,
   REPEAT_GUISADO_TIER,
@@ -239,7 +242,7 @@ function GarnishPicker({ garnish, onGarnish }: { garnish: Garnish; onGarnish: (v
 
 function PackagePicker({ selected, onSelect }: { selected: PackageTier | null; onSelect: (tier: PackageTier) => void }) {
   return (
-    <div className="package-grid">
+    <Reveal className="package-grid" variant="up">
       {PACKAGE_ORDER.map((tier) => {
         const pack = PACKAGES[tier]
         const isSelected = selected === tier
@@ -259,31 +262,31 @@ function PackagePicker({ selected, onSelect }: { selected: PackageTier | null; o
           </article>
         )
       })}
-    </div>
+    </Reveal>
   )
 }
 
 function PackagesSection({ selected, onSelect }: { selected: PackageTier | null; onSelect: (tier: PackageTier) => void }) {
   return (
     <section className="packages-section" id="paquetes" aria-labelledby="packages-title">
-      <div className="packages-section__head">
+      <Reveal className="packages-section__head" variant="up">
         <p>Paquetes</p>
         <h2 id="packages-title">Elige tu paquete</h2>
         <span>Precio fijo por día. Tú eliges cuánto comer, la cocina decide el guisado del día.</span>
-      </div>
+      </Reveal>
 
       <PackagePicker selected={selected} onSelect={onSelect} />
       <p className="packages-footnote">*Si prefieres repetir el mismo guisado en Foodie+, aplica un cargo de +{money(REPEAT_GUISADO_SURCHARGE)}.</p>
 
       <div className="packages-info">
-        <div className="key-points">
+        <Reveal className="key-points" variant="up">
           <h3>Puntos clave para tu pedido</h3>
           <ul>
             {ORDER_KEY_POINTS.map((point) => (
               <li key={point.title}><strong>{point.title}:</strong> {point.detail}</li>
             ))}
           </ul>
-        </div>
+        </Reveal>
 
       </div>
     </section>
@@ -494,8 +497,11 @@ function App() {
   const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [isOnline, setIsOnline] = useState(() => navigator.onLine)
   const [retryTick, setRetryTick] = useState(0)
-  const [headerScrolled, setHeaderScrolled] = useState(false)
   const toastId = useRef(0)
+  const headerScrolled = useScrolled(8)
+  const progressRef = useScrollProgress<HTMLDivElement>()
+  const heroVisualRef = useParallax<HTMLDivElement>()
+  useRipple()
 
   const dismissToast = (id: number) => setToasts((items) => items.filter((item) => item.id !== id))
 
@@ -527,13 +533,6 @@ function App() {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
     }
-  }, [])
-
-  useEffect(() => {
-    const onScroll = () => setHeaderScrolled(window.scrollY > 8)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   useEffect(() => {
@@ -589,6 +588,15 @@ function App() {
   }, [selectedDate])
 
   const orderingOpen = Boolean(policy?.isOpen)
+  const todayKey = policy?.today || ''
+  // El servidor ya salta sábados y domingos, así que `tomorrow` es el próximo
+  // día hábil. En fin de semana eso cae en la semana siguiente.
+  const nextServiceDate = policy?.tomorrow || ''
+  // Se avisa en fin de semana y también el viernes, cuando la próxima entrega
+  // ya cayó en la semana siguiente.
+  const isWeekendToday = Boolean(todayKey) && isWeekend(todayKey)
+  const nextDeliveryIsNextWeek = isLaterWeek(nextServiceDate, todayKey)
+  const showWeekendNotice = Boolean(nextServiceDate) && (isWeekendToday || nextDeliveryIsNextWeek)
   const isNextAvailable = menu?.policy.tomorrow === selectedDate
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
   const selectedMeal = menu?.meals.find((meal) => meal.id === selectedMealId) || null
@@ -778,6 +786,7 @@ function App() {
   return (
     <div className="storefront">
       {preloading && <BrandPreloader />}
+      <div className="scroll-progress" ref={progressRef} aria-hidden="true" />
       {!isOnline && (
         <div className="offline-banner" role="alert">
           <WifiOff size={14} /> Sin conexión a internet. Algunas acciones no estarán disponibles.
@@ -810,7 +819,7 @@ function App() {
               <small><Clock3 size={15} /> Pide hoy de 8:00 am a 6:00 pm</small>
             </div>
           </div>
-          <div className="brand-landing__visual">
+          <div className="brand-landing__visual" ref={heroVisualRef}>
             <div className="landing-dish" style={{ backgroundImage: featuredMeal ? `url(${featuredMeal.image})` : undefined }} role="img" aria-label={featuredMeal?.name || 'Comida preparada por FoodiePack'}>
               <div className="landing-date"><span>Entrega</span><strong>{menu?.policy.tomorrow ? dateFromKey(menu.policy.tomorrow).getDate() : '...'}</strong><small>{menu?.policy.tomorrow ? new Intl.DateTimeFormat('es-MX', { month: 'short' }).format(dateFromKey(menu.policy.tomorrow)).replace('.', '') : 'pronto'}</small></div>
             </div>
@@ -821,10 +830,11 @@ function App() {
             </div>
           </div>
         </div>
+        <BrandDivider direction="down" tone="cream" overlay />
       </section>
 
       <section className="weekly-promo" aria-labelledby="weekly-promo-title">
-        <div className="weekly-promo__inner">
+        <Reveal className="weekly-promo__inner" variant="up">
           <div className="weekly-promo__media">
             <img src="/assets/meals/weekly-hero.jpg" alt="Comidas de la semana en contenedores" loading="lazy" />
           </div>
@@ -834,19 +844,37 @@ function App() {
             <p>Elige tu paquete, paga por adelantado y ahorra hasta {money(MAX_WEEKLY_SAVINGS)} en tu semana.</p>
             <button type="button" onClick={() => { setOrderMode('week'); scrollToPackages() }}>Armar mi semana <ArrowRight size={16} /></button>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       <PackagesSection selected={packageTier} onSelect={choosePackage} />
 
       <main className="order-workspace" id="menu-del-dia">
         <section className="menu-column">
-          <div className={`order-window ${orderingOpen ? 'order-window--open' : ''}`}>
+          <Reveal className={`order-window ${orderingOpen ? 'order-window--open' : ''}`} variant="up">
             <span className="order-window__status"><i />{orderingOpen ? 'Pedidos abiertos' : 'Pedidos cerrados'}</span>
             <p>Reserva hasta 5 días</p>
             <strong>8:00 am a 6:00 pm</strong>
             <small>Hora de Ciudad de México</small>
-          </div>
+          </Reveal>
+
+          {showWeekendNotice && (
+            <div className="weekend-notice" role="status">
+              <span className="weekend-notice__icon" aria-hidden="true"><CalendarDays size={22} /></span>
+              <p>
+                <strong>El fin de semana la cocina descansa</strong>
+                <span>
+                  No hay comida sábado ni domingo.{' '}
+                  {isWeekendToday
+                    ? `Ya puedes ver y reservar el menú de la siguiente semana, a partir del ${fullDate(nextServiceDate).toLowerCase()}.`
+                    : `Tu próxima entrega es el ${fullDate(nextServiceDate).toLowerCase()}.`}
+                </span>
+              </p>
+              <button type="button" onClick={() => { setSelectedDate(nextServiceDate); setOrderMode('day') }}>
+                Ver la siguiente semana <ArrowRight size={16} />
+              </button>
+            </div>
+          )}
 
           <div className="order-mode-toggle" role="tablist" aria-label="Modo de pedido">
             <button role="tab" aria-selected={orderMode === 'day'} className={orderMode === 'day' ? 'selected' : ''} onClick={() => setOrderMode('day')}>Pedido de mañana</button>
@@ -873,6 +901,7 @@ function App() {
                     <small>{day.specialDay
                       ? `${day.specialDay.packageName || 'Especial'}${day.mealCount > 1 ? ' + menú' : ''}`
                       : `${day.mealCount} opciones`}</small>
+                    {isLaterWeek(day.date, todayKey) && <em className="date-strip__week-tag">Próx. semana</em>}
                   </button>
                 ))}
               </div>
@@ -891,6 +920,7 @@ function App() {
                     <span>{index === 0 ? 'Próximo día hábil' : dayName(day.date)}</span>
                     <strong>{dateFromKey(day.date).getDate()}</strong>
                     <small>{day.mealCount} opciones</small>
+                    {isLaterWeek(day.date, todayKey) && <em className="date-strip__week-tag">Próx. semana</em>}
                   </button>
                 ))}
               </div>

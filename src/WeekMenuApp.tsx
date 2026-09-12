@@ -10,6 +10,7 @@ import { buildWhatsAppUrl } from './lib/contact'
 import { dayName, fullDate, shortDate } from './lib/dates'
 import { money } from './lib/format'
 import { useReveal } from './lib/useReveal'
+import { useRipple, useScrollProgress } from './motion'
 import {
   DOUBLE_GARNISH_OPTIONS, GARNISH_OPTIONS, garnishChoiceLabel, PACKAGE_ORDER, PACKAGES, UTENSILS_SURCHARGE,
 } from './packages'
@@ -122,6 +123,8 @@ function DayCard({
 }
 
 function WeekMenuApp() {
+  const progressRef = useScrollProgress<HTMLDivElement>()
+  useRipple()
   const [days, setDays] = useState<MenuDay[]>([])
   const [policy, setPolicy] = useState<OrderPolicy | null>(null)
   const [menus, setMenus] = useState<Record<string, MenuResponse>>({})
@@ -251,6 +254,7 @@ function WeekMenuApp() {
 
   return (
     <div className="week-menu-page">
+      <div className="scroll-progress" ref={progressRef} aria-hidden="true" />
       <header className="week-menu-page__header">
         <a href="/" aria-label="Ir a la tienda de FoodiePack"><Logo horizontal /></a>
         <a className="week-menu-page__back" href="/">‹ Tienda principal</a>

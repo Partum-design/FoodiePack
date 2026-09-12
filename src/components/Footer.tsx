@@ -15,7 +15,7 @@ export default function Footer() {
     <footer className="site-footer">
       <div className="site-footer__inner">
         <div className="site-footer__brand">
-          <Logo horizontal />
+          <Logo hero theme="white" />
           <p>Comida casera lista para tu semana, con entrega gratis en Lindavista, CDMX.</p>
         </div>
 

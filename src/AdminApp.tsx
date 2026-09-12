@@ -11,6 +11,8 @@ import {
 } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
+import Reveal from './components/Reveal'
+import { useRipple } from './motion'
 import { PACKAGE_ORDER } from './packages'
 import type { Meal, MenuDay, SavedOrder, SpecialDay } from './types'
 
@@ -93,6 +95,7 @@ function draftFromMeal(meal?: Meal): ProductDraft {
 }
 
 function Login({ onSuccess }: { onSuccess: (token: string) => void }) {
+  useRipple()
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -249,10 +252,8 @@ function ProductCard({
             <label>Nombre<input value={draft.name} onChange={(event) => field('name', event.target.value)} placeholder="Pollo cítrico al grill" /></label>
             <label>Descripción<input value={draft.description} onChange={(event) => field('description', event.target.value)} placeholder="Ingredientes y acompañamientos" /></label>
             <label>Etiquetas<input value={draft.tagsText} onChange={(event) => field('tagsText', event.target.value)} placeholder="Sin gluten, Alto en proteína" /></label>
-            <div>
+            <div className="editor-fields__price">
               <label>Precio<input type="number" min="1" value={draft.price} onChange={(event) => field('price', event.target.value)} /></label>
-              <label>Proteína<input type="number" min="0" value={draft.protein} onChange={(event) => field('protein', event.target.value)} /></label>
-              <label>Calorías<input type="number" min="0" value={draft.kcal} onChange={(event) => field('kcal', event.target.value)} /></label>
             </div>
             <div className="image-picker">
               {placeholderImages.map((image) => (
@@ -284,7 +285,7 @@ function ProductCard({
             <strong>{meal.name}</strong>
             <p>{meal.description}</p>
             <div className="product-view__tags">{meal.tags.map((tag) => <span key={tag}>{tag}</span>)}<span>3 paquetes</span></div>
-            <div className="product-view__stats"><span>{money(meal.price)}</span><span>{meal.protein}g proteína</span><span>{meal.kcal} kcal</span></div>
+            <div className="product-view__stats"><span>{money(meal.price)}</span></div>
             {localError && <span className="inline-error inline-error--tight">{localError}</span>}
           </div>
           <div className="editor-controls">
@@ -571,6 +572,7 @@ function AdminApp() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const dayQueueRef = useRef(Promise.resolve())
+  useRipple()
 
   const logout = () => {
     sessionStorage.removeItem(TOKEN_KEY)
@@ -721,7 +723,7 @@ function AdminApp() {
   return (
     <div className="admin-shell">
       <aside className="admin-nav">
-        <Logo compact />
+        <Logo compact theme="white" />
         <div>
           <button className={tab === 'menu' ? 'selected' : ''} onClick={() => setTab('menu')}><ClipboardList size={15} /> Menús</button>
           <button className={tab === 'special' ? 'selected' : ''} onClick={() => setTab('special')}><CalendarOff size={15} /> Días especiales</button>
@@ -748,11 +750,11 @@ function AdminApp() {
             </div>
           </header>
 
-          <div className="admin-stats">
+          <Reveal className="admin-stats" variant="up">
             <div className="admin-stat"><UtensilsCrossed size={20} /><span><b>{meals.length}</b>Platillos hoy</span></div>
             <div className="admin-stat admin-stat--accent"><CheckCircle2 size={20} /><span><b>{availableCount}</b>Disponibles</span></div>
             <div className="admin-stat"><PackageOpen size={20} /><span><b>{products.length}</b>En tu catálogo</span></div>
-          </div>
+          </Reveal>
 
           <div className="admin-date-strip">
             {days.map((day, index) => <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}><span>{index === 0 ? 'Próximo hábil' : shortDay(day.date)}</span><strong>{dateFromKey(day.date).getDate()}</strong></button>)}
@@ -827,10 +829,10 @@ function AdminApp() {
         </> : <>
           <header className="admin-page-head"><div><p>Foodie Pack · Operación</p><h1>Pedidos</h1><span>Aquí llegan los pedidos aceptados.</span></div></header>
 
-          <div className="admin-stats">
+          <Reveal className="admin-stats" variant="up">
             <div className="admin-stat"><ShoppingBag size={20} /><span><b>{orders.length}</b>Pedidos</span></div>
             <div className="admin-stat admin-stat--accent"><Receipt size={20} /><span><b>{money(totalRevenue)}</b>Ingresos</span></div>
-          </div>
+          </Reveal>
 
           {error && <div className="inline-error">{error}</div>}
           {loading && <div className="admin-loading"><Loader2 size={22} className="spin" /> Cargando pedidos…</div>}
