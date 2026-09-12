@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
-import { addDays, orderPolicy } from './time.js'
+import { PACKAGE_ORDER } from './packages.js'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 const dataDirectory = path.join(root, 'data')
@@ -12,6 +12,7 @@ const menuTable = 'menu_days'
 const orderTable = 'orders'
 const productTable = 'products'
 const productImageBucket = 'product-images'
+const specialDayTable = 'special_menu_days'
 
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -44,6 +45,7 @@ export const mealTemplates = [
     tags: ['Sin gluten'],
     image: mealImages[0],
     available: true,
+    packages: [...PACKAGE_ORDER],
   },
   {
     id: 'pasta-poblano',
@@ -55,6 +57,7 @@ export const mealTemplates = [
     tags: ['Vegetariano'],
     image: mealImages[1],
     available: true,
+    packages: [...PACKAGE_ORDER],
   },
   {
     id: 'res-chipotle',
@@ -66,6 +69,7 @@ export const mealTemplates = [
     tags: ['Alto en proteína'],
     image: mealImages[2],
     available: true,
+    packages: [...PACKAGE_ORDER],
   },
   {
     id: 'salmon-verde',
@@ -77,6 +81,7 @@ export const mealTemplates = [
     tags: ['Sin gluten'],
     image: mealImages[3],
     available: true,
+    packages: [...PACKAGE_ORDER],
   },
   {
     id: 'bowl-huerto',
@@ -88,38 +93,125 @@ export const mealTemplates = [
     tags: ['Vegano'],
     image: mealImages[4],
     available: true,
+    packages: [...PACKAGE_ORDER],
   },
 ]
 
+const nextWeekMealImages = {
+  almendrado: '/assets/meals/next-week/almendrado-puerco.jpg',
+  alambreLunes: '/assets/meals/next-week/alambre-puerco-lunes.jpg',
+  longaniza: '/assets/meals/next-week/longaniza-verde.jpg',
+  picadillo: '/assets/meals/next-week/picadillo.jpg',
+  huevoPasilla: '/assets/meals/next-week/huevo-pasilla.jpg',
+  albondigas: '/assets/meals/next-week/albondigas.jpg',
+  papasRajas: '/assets/meals/next-week/papas-rajas.jpg',
+  alambreJueves: '/assets/meals/next-week/alambre-puerco-jueves.jpg',
+  salchicha: '/assets/meals/next-week/salchicha-mexicana.jpg',
+  chuleta: '/assets/meals/next-week/chuleta-morita.jpg',
+  calabacita: '/assets/meals/next-week/calabacita-mexicana.jpg',
+}
+
+const week1418MealImages = {
+  moleConPollo: '/assets/meals/week-14-18/mole-con-pollo.jpg',
+  bistecConPapas: '/assets/meals/week-14-18/bistec-con-papas.jpg',
+  huevoConJamon: '/assets/meals/week-14-18/huevo-con-jamon.jpg',
+  rollitosDeJamon: '/assets/meals/week-14-18/rollitos-de-jamon.jpg',
+  longanizaConPapas: '/assets/meals/week-14-18/longaniza-con-papas.jpg',
+}
+
+export const nextWeekMenus = {
+  '2026-08-31': [
+    { id: 'menu-2026-08-31-alambre-puerco', name: 'Alambre de puerco', description: 'Alambre casero de puerco con verduras; acompáñalo con la base del día.', price: 60, protein: 30, kcal: 560, tags: ['Guisado del día'], image: nextWeekMealImages.alambreLunes, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-08-31-longaniza-verde', name: 'Longaniza en salsa verde', description: 'Longaniza en salsa verde, con opción de huevo y la base del día.', price: 60, protein: 27, kcal: 590, tags: ['Guisado del día'], image: nextWeekMealImages.longaniza, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-01': [
+    { id: 'menu-2026-09-01-picadillo', name: 'Picadillo', description: 'Picadillo casero con verduras y la base del día: arroz, frijoles, huevo o pasta.', price: 60, protein: 29, kcal: 540, tags: ['Guisado del día'], image: nextWeekMealImages.picadillo, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-01-huevo-pasilla', name: 'Huevo en pasilla', description: 'Huevo en salsa de chile pasilla con tomates y la base del día.', price: 60, protein: 21, kcal: 460, tags: ['Vegetariano'], image: nextWeekMealImages.huevoPasilla, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-02': [
+    { id: 'menu-2026-09-02-albondigas', name: 'Albóndigas', description: 'Albóndigas caseras en salsa, servidas con la base y guarnición del día.', price: 60, protein: 32, kcal: 570, tags: ['Guisado del día'], image: nextWeekMealImages.albondigas, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-02-papas-rajas', name: 'Papas con rajas', description: 'Papas con rajas y crema, una opción vegetariana para acompañar la base del día.', price: 60, protein: 12, kcal: 430, tags: ['Vegetariano'], image: nextWeekMealImages.papasRajas, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-03': [
+    { id: 'menu-2026-09-03-alambre-puerco', name: 'Alambre de puerco', description: 'Alambre de puerco con verduras, preparado al momento.', price: 60, protein: 30, kcal: 560, tags: ['Guisado del día'], image: nextWeekMealImages.alambreJueves, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-03-salchicha-mexicana', name: 'Salchicha mexicana', description: 'Salchicha a la mexicana con la base y guarnición del día.', price: 60, protein: 24, kcal: 520, tags: ['Guisado del día'], image: nextWeekMealImages.salchicha, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-04': [
+    { id: 'menu-2026-09-04-chuleta-morita', name: 'Chuleta ahumada en salsa morita', description: 'Chuleta ahumada en salsa morita, con la base y guarnición del día.', price: 60, protein: 34, kcal: 610, tags: ['Guisado del día'], image: nextWeekMealImages.chuleta, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-04-calabacita-mexicana', name: 'Calabacita mexicana', description: 'Calabacita a la mexicana, opción ligera con la base del día.', price: 60, protein: 10, kcal: 390, tags: ['Vegetariano'], image: nextWeekMealImages.calabacita, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-07': [
+    { id: 'producto-d2cb5df24d', name: 'Almendrado de puerco', description: 'Almendrado de puerco en salsa de almendra tostada, con la base y guarnición del día.', price: 60, protein: 31, kcal: 580, tags: ['Guisado del día'], image: nextWeekMealImages.almendrado, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'producto-373220e7e5', name: 'Longaniza en salsa verde', description: 'Longaniza en salsa verde, con opción de huevo y la base del día.', price: 60, protein: 27, kcal: 590, tags: ['Guisado del día'], image: nextWeekMealImages.longaniza, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-08': [
+    { id: 'producto-cef79b2c68', name: 'Picadillo', description: 'Picadillo casero con verduras y la base del día: arroz, frijoles, huevo o pasta.', price: 60, protein: 29, kcal: 540, tags: ['Guisado del día'], image: nextWeekMealImages.picadillo, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'producto-7de3a66b2f', name: 'Huevo en pasilla', description: 'Huevo en salsa de chile pasilla con tomates y la base del día.', price: 60, protein: 21, kcal: 460, tags: ['Vegetariano'], image: nextWeekMealImages.huevoPasilla, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-09': [
+    { id: 'producto-2d1345e16b', name: 'Albóndigas', description: 'Albóndigas caseras en salsa, servidas con la base y guarnición del día.', price: 60, protein: 32, kcal: 570, tags: ['Guisado del día'], image: nextWeekMealImages.albondigas, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'producto-8badce0fd9', name: 'Papas con rajas', description: 'Papas con rajas y crema, una opción vegetariana para acompañar la base del día.', price: 60, protein: 12, kcal: 430, tags: ['Vegetariano'], image: nextWeekMealImages.papasRajas, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-10': [
+    { id: 'producto-a22f841e32', name: 'Alambre de puerco', description: 'Alambre de puerco con verduras, preparado al momento.', price: 60, protein: 30, kcal: 560, tags: ['Guisado del día'], image: nextWeekMealImages.alambreJueves, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'producto-dbe39f4d60', name: 'Salchicha mexicana', description: 'Salchicha a la mexicana con la base y guarnición del día.', price: 60, protein: 24, kcal: 520, tags: ['Guisado del día'], image: nextWeekMealImages.salchicha, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-11': [
+    { id: 'producto-7e997a1ec8', name: 'Chuleta ahumada en salsa morita', description: 'Chuleta ahumada en salsa morita, con la base y guarnición del día.', price: 60, protein: 34, kcal: 610, tags: ['Guisado del día'], image: nextWeekMealImages.chuleta, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'producto-2374544f1a', name: 'Calabacita mexicana', description: 'Calabacita a la mexicana, opción ligera con la base del día.', price: 60, protein: 10, kcal: 390, tags: ['Vegetariano'], image: nextWeekMealImages.calabacita, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  // Lunes 14 también tiene el menú especial de pozole (ver special_menu_days); este
+  // guisado normal se muestra junto al pozole, no en su lugar.
+  '2026-09-14': [
+    { id: 'menu-2026-09-14-mole-con-pollo', name: 'Mole con pollo', description: 'Mole tradicional con pollo, servido con la base y guarnición del día.', price: 60, protein: 30, kcal: 560, tags: ['Guisado del día'], image: week1418MealImages.moleConPollo, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-17': [
+    { id: 'menu-2026-09-17-bistec-con-papas', name: 'Bistec con papas', description: 'Bistec de res con papas, servido con la base y guarnición del día.', price: 60, protein: 32, kcal: 580, tags: ['Guisado del día'], image: week1418MealImages.bistecConPapas, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-17-huevo-con-jamon', name: 'Huevo con jamón', description: 'Huevo revuelto con jamón, servido con la base y guarnición del día.', price: 60, protein: 22, kcal: 480, tags: ['Guisado del día'], image: week1418MealImages.huevoConJamon, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-18': [
+    { id: 'menu-2026-09-18-rollitos-de-jamon', name: 'Rollitos de jamón', description: 'Rollitos de jamón con queso, servidos con la base y guarnición del día.', price: 60, protein: 26, kcal: 500, tags: ['Guisado del día'], image: week1418MealImages.rollitosDeJamon, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-18-longaniza-con-papas', name: 'Longaniza con papas', description: 'Longaniza con papas, servida con la base y guarnición del día.', price: 60, protein: 28, kcal: 570, tags: ['Guisado del día'], image: week1418MealImages.longanizaConPapas, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+}
+
+function normalizeMeal(meal) {
+  const image = typeof meal.image === 'string' && meal.image.includes('/next-week/')
+    ? meal.image.replace(/\.png$/i, '.jpg')
+    : meal.image
+  return { ...meal, image, packages: Array.isArray(meal.packages) && meal.packages.length === 3 ? meal.packages : [...PACKAGE_ORDER] }
+}
+
 function seedMenus(database) {
-  const { today } = orderPolicy()
-  for (let offset = 1; offset <= 10; offset += 1) {
-    const date = addDays(today, offset)
-    if (!database.menus[date]) {
-      database.menus[date] = Array.from({ length: 3 }, (_, index) => {
-        const template = mealTemplates[(offset + index) % mealTemplates.length]
-        return { ...template }
-      })
-    }
-  }
+  Object.entries(nextWeekMenus).forEach(([date, meals]) => {
+    const plannedMeals = meals.map(normalizeMeal)
+    const hasPlannedMenu = database.menus[date]?.length === plannedMeals.length
+      && database.menus[date].every((meal, index) => meal.id === plannedMeals[index].id && meal.image === plannedMeals[index].image)
+    if (!hasPlannedMenu) database.menus[date] = plannedMeals
+  })
+  // Days without a curated menu stay empty until the kitchen adds one from /admin —
+  // no more filling them in with rotating generic templates.
   return database
 }
 
 function ensureLocalDatabase() {
   fs.mkdirSync(dataDirectory, { recursive: true })
-  let database = { menus: {}, orders: [], products: [] }
+  let database = { menus: {}, orders: [], products: [], specialDays: {} }
 
   if (fs.existsSync(databasePath)) {
     try {
       database = JSON.parse(fs.readFileSync(databasePath, 'utf8'))
     } catch {
-      database = { menus: {}, orders: [], products: [] }
+      database = { menus: {}, orders: [], products: [], specialDays: {} }
     }
   }
 
   database.menus ||= {}
   database.orders ||= []
   database.products ||= []
+  database.specialDays ||= {}
+  database.menus = Object.fromEntries(Object.entries(database.menus).map(([date, meals]) => [date, meals.map(normalizeMeal)]))
+  database.products = database.products.map(normalizeMeal)
   if (database.products.length === 0) {
     database.products = mealTemplates.map((template) => ({ ...template }))
   }
@@ -139,11 +231,14 @@ function throwIfSupabaseError(operation, error) {
   if (error) throw new Error(`Supabase ${operation} failed: ${error.message}`)
 }
 
+function isMissingPackagesColumn(error) {
+  return Boolean(error?.message && /packages.*column|column.*packages/i.test(error.message))
+}
+
 function orderFromRow(row) {
   return {
     id: row.id,
     createdAt: row.created_at,
-    updatedAt: row.updated_at || row.created_at,
     deliveryDate: row.delivery_date,
     status: row.status,
     paymentMethod: row.payment_method,
@@ -156,7 +251,6 @@ function orderFromRow(row) {
     discountRate: Number(row.discount_rate),
     discountAmount: row.discount_amount,
     total: row.total,
-    distanceKm: row.distance_km === null || row.distance_km === undefined ? null : Number(row.distance_km),
   }
 }
 
@@ -167,26 +261,25 @@ async function getSupabaseMenus() {
     .order('menu_date', { ascending: true })
   throwIfSupabaseError('menu lookup', error)
 
-  const menus = Object.fromEntries((rows || []).map((row) => [row.menu_date, row.meals || []]))
-  const { today } = orderPolicy()
+  const menus = Object.fromEntries((rows || []).map((row) => [row.menu_date, (row.meals || []).map(normalizeMeal)]))
   const missingRows = []
 
-  for (let offset = 1; offset <= 10; offset += 1) {
-    const date = addDays(today, offset)
-    if (!menus[date]) {
-      const meals = Array.from({ length: 3 }, (_, index) => {
-        const template = mealTemplates[(offset + index) % mealTemplates.length]
-        return { ...template }
-      })
-      menus[date] = meals
-      missingRows.push({ menu_date: date, meals })
+  // Days without a curated menu stay empty until the kitchen adds one from /admin —
+  // no more filling them in with rotating generic templates.
+  Object.entries(nextWeekMenus).forEach(([date, meals]) => {
+    const plannedMeals = meals.map(normalizeMeal)
+    const hasPlannedMenu = menus[date]?.length === plannedMeals.length
+      && menus[date].every((meal, index) => meal.id === plannedMeals[index].id && meal.image === plannedMeals[index].image)
+    if (!hasPlannedMenu) {
+      menus[date] = plannedMeals
+      missingRows.push({ menu_date: date, meals: plannedMeals })
     }
-  }
+  })
 
   if (missingRows.length > 0) {
     const { error: seedError } = await supabase
       .from(menuTable)
-      .upsert(missingRows, { onConflict: 'menu_date', ignoreDuplicates: true })
+      .upsert(missingRows, { onConflict: 'menu_date' })
     throwIfSupabaseError('menu seed', seedError)
   }
 
@@ -208,18 +301,19 @@ export async function getMenu(date) {
 }
 
 export async function saveMenu(date, meals) {
+  const normalizedMeals = meals.map(normalizeMeal)
   if (!supabase) {
     const database = ensureLocalDatabase()
-    database.menus[date] = meals
+    database.menus[date] = normalizedMeals
     writeLocalDatabase(database)
-    return meals
+    return normalizedMeals
   }
 
   const { error } = await supabase
     .from(menuTable)
-    .upsert({ menu_date: date, meals, updated_at: new Date().toISOString() }, { onConflict: 'menu_date' })
+    .upsert({ menu_date: date, meals: normalizedMeals, updated_at: new Date().toISOString() }, { onConflict: 'menu_date' })
   throwIfSupabaseError('menu save', error)
-  return meals
+  return normalizedMeals
 }
 
 export async function saveOrder(order) {
@@ -245,48 +339,9 @@ export async function saveOrder(order) {
     discount_rate: order.discountRate,
     discount_amount: order.discountAmount,
     total: order.total,
-    distance_km: order.distanceKm ?? null,
   })
   throwIfSupabaseError('order save', error)
   return order
-}
-
-export const ORDER_STATUSES = ['accepted', 'completed', 'cancelled']
-
-export async function updateOrderStatus(id, status) {
-  if (!ORDER_STATUSES.includes(status)) return null
-
-  if (!supabase) {
-    const database = ensureLocalDatabase()
-    const index = database.orders.findIndex((order) => order.id === id)
-    if (index === -1) return null
-    database.orders[index] = { ...database.orders[index], status, updatedAt: new Date().toISOString() }
-    writeLocalDatabase(database)
-    return database.orders[index]
-  }
-
-  const { data, error } = await supabase
-    .from(orderTable)
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .maybeSingle()
-  throwIfSupabaseError('order status update', error)
-  return data ? orderFromRow(data) : null
-}
-
-export async function deleteOrder(id) {
-  if (!supabase) {
-    const database = ensureLocalDatabase()
-    const before = database.orders.length
-    database.orders = database.orders.filter((order) => order.id !== id)
-    writeLocalDatabase(database)
-    return database.orders.length < before
-  }
-
-  const { data, error } = await supabase.from(orderTable).delete().eq('id', id).select('id')
-  throwIfSupabaseError('order delete', error)
-  return (data || []).length > 0
 }
 
 export async function getOrders(limit = 200) {
@@ -301,6 +356,46 @@ export async function getOrders(limit = 200) {
   return (rows || []).map(orderFromRow)
 }
 
+export async function updateOrderStatus(id, status) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    const order = database.orders.find((item) => item.id === id)
+    if (!order) return null
+    order.status = status
+    writeLocalDatabase(database)
+    return order
+  }
+
+  const { data, error } = await supabase
+    .from(orderTable)
+    .update({ status })
+    .eq('id', id)
+    .select('*')
+    .maybeSingle()
+  throwIfSupabaseError('order status update', error)
+  return data ? orderFromRow(data) : null
+}
+
+export async function deleteOrder(id) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    const previousLength = database.orders.length
+    database.orders = database.orders.filter((item) => item.id !== id)
+    if (database.orders.length === previousLength) return false
+    writeLocalDatabase(database)
+    return true
+  }
+
+  const { data, error } = await supabase
+    .from(orderTable)
+    .delete()
+    .eq('id', id)
+    .select('id')
+    .maybeSingle()
+  throwIfSupabaseError('order delete', error)
+  return Boolean(data)
+}
+
 function productFromRow(row) {
   return {
     id: row.id,
@@ -312,6 +407,7 @@ function productFromRow(row) {
     tags: row.tags || [],
     image: row.image,
     available: row.available,
+    packages: Array.isArray(row.packages) ? row.packages : [...PACKAGE_ORDER],
   }
 }
 
@@ -326,6 +422,7 @@ function productToRow(product) {
     tags: product.tags,
     image: product.image,
     available: product.available,
+    packages: product.packages || [...PACKAGE_ORDER],
   }
 }
 
@@ -360,7 +457,13 @@ export async function createProduct(product) {
     return product
   }
 
-  const { error } = await supabase.from(productTable).insert(productToRow(product))
+  const row = productToRow(product)
+  let { error } = await supabase.from(productTable).insert(row)
+  if (isMissingPackagesColumn(error)) {
+    const legacyRow = Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'packages'))
+    const retry = await supabase.from(productTable).insert(legacyRow)
+    error = retry.error
+  }
   throwIfSupabaseError('product create', error)
   return product
 }
@@ -375,12 +478,24 @@ export async function updateProduct(id, patch) {
     return database.products[index]
   }
 
-  const { data, error } = await supabase
+  const row = productToRow({ ...patch, id })
+  let { data, error } = await supabase
     .from(productTable)
-    .update(productToRow({ ...patch, id }))
+    .update(row)
     .eq('id', id)
     .select()
     .maybeSingle()
+  if (isMissingPackagesColumn(error)) {
+    const legacyRow = Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'packages'))
+    const retry = await supabase
+      .from(productTable)
+      .update(legacyRow)
+      .eq('id', id)
+      .select()
+      .maybeSingle()
+    data = retry.data
+    error = retry.error
+  }
   throwIfSupabaseError('product update', error)
   return data ? productFromRow(data) : null
 }
@@ -396,6 +511,77 @@ export async function deleteProduct(id) {
 
   const { data, error } = await supabase.from(productTable).delete().eq('id', id).select()
   throwIfSupabaseError('product delete', error)
+  return (data || []).length > 0
+}
+
+function specialDayFromRow(row) {
+  return {
+    date: row.menu_date,
+    kind: row.kind,
+    label: row.label,
+    reason: row.reason || '',
+    packageName: row.package_name || undefined,
+    packagePrice: row.package_price ?? undefined,
+    packageIncludes: row.package_includes || [],
+    addons: row.addons || [],
+    image: row.image || undefined,
+  }
+}
+
+function specialDayToRow(date, specialDay) {
+  return {
+    menu_date: date,
+    kind: specialDay.kind,
+    label: specialDay.label,
+    reason: specialDay.reason || '',
+    package_name: specialDay.kind === 'special_package' ? specialDay.packageName : null,
+    package_price: specialDay.kind === 'special_package' ? specialDay.packagePrice : null,
+    package_includes: specialDay.kind === 'special_package' ? (specialDay.packageIncludes || []) : [],
+    addons: specialDay.kind === 'special_package' ? (specialDay.addons || []) : [],
+    image: specialDay.kind === 'special_package' ? (specialDay.image || null) : null,
+  }
+}
+
+export async function getSpecialDays() {
+  if (!supabase) return ensureLocalDatabase().specialDays
+
+  const { data: rows, error } = await supabase
+    .from(specialDayTable)
+    .select('*')
+    .order('menu_date', { ascending: true })
+  throwIfSupabaseError('special day lookup', error)
+  return Object.fromEntries((rows || []).map((row) => [row.menu_date, specialDayFromRow(row)]))
+}
+
+export async function saveSpecialDay(date, specialDay) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    database.specialDays[date] = { date, ...specialDay }
+    writeLocalDatabase(database)
+    return database.specialDays[date]
+  }
+
+  const row = specialDayToRow(date, specialDay)
+  const { data, error } = await supabase
+    .from(specialDayTable)
+    .upsert(row, { onConflict: 'menu_date' })
+    .select()
+    .single()
+  throwIfSupabaseError('special day save', error)
+  return specialDayFromRow(data)
+}
+
+export async function deleteSpecialDay(date) {
+  if (!supabase) {
+    const database = ensureLocalDatabase()
+    const existed = Boolean(database.specialDays[date])
+    delete database.specialDays[date]
+    writeLocalDatabase(database)
+    return existed
+  }
+
+  const { data, error } = await supabase.from(specialDayTable).delete().eq('menu_date', date).select('menu_date')
+  throwIfSupabaseError('special day delete', error)
   return (data || []).length > 0
 }
 

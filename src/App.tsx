@@ -1,54 +1,66 @@
-import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, Copy, CreditCard, Heart, Landmark, LoaderCircle,
-  LocateFixed, MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, TriangleAlert, Utensils, WifiOff, X,
+  ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, CreditCard, Heart, Landmark, LocateFixed,
+  MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
 } from 'lucide-react'
-import { checkDelivery, createOrder, getMenu, getMenuDays } from './api'
-import BrandDivider from './components/BrandDivider'
+import { createOrder, getMenu, getMenuDays } from './api'
+import { FiestaConfetti, FiestaGarland, FiestaHornFlourish } from './components/FiestaDecor'
 import FloatingDecor from './components/FloatingDecor'
+import Footer from './components/Footer'
 import Logo from './components/Logo'
-import Reveal from './components/Reveal'
-import { useParallax, useRipple, useScrollProgress, useScrolled } from './motion'
+import { dateFromKey, dayName, fullDate } from './lib/dates'
+import { money } from './lib/format'
+import { isFiestasPatrias } from './lib/season'
+import { useReveal } from './lib/useReveal'
 import {
-  BANK_TRANSFER, FREE_DELIVERY_RADIUS_KM, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES,
-  REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER,
+  BANK_TRANSFER, GARNISH_OPTIONS, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE,
+  REPEAT_GUISADO_TIER,
 } from './packages'
-import type { PackageTier } from './packages'
-import type { Coordinates, DeliveryCheck, Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder } from './types'
+import type { Garnish, PackageTier } from './packages'
+import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder, SpecialDay } from './types'
 
-const money = (value: number) =>
-  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value)
+// Leaflet (~40 KB gzip) is only needed once the checkout dialog opens, so it's
+// split into its own chunk instead of loading on every storefront visit.
+const DeliveryMap = lazy(() => import('./components/DeliveryMap'))
 
 const DELIVERY_ZONE = 'Lindavista, CDMX' as const
 const LINDAVISTA_QUERY = 'Lindavista, Gustavo A. Madero, Ciudad de México'
 const MAX_WEEKLY_SAVINGS = Math.max(...PACKAGE_ORDER.map((tier) => PACKAGES[tier].weeklyRegular - PACKAGES[tier].weeklyPrepay))
 
+type Coordinates = { latitude: number; longitude: number }
 type OrderMode = 'day' | 'week'
 
-function mapLinks(address: string, coordinates: Coordinates | null) {
-  const query = coordinates
-    ? `${coordinates.latitude},${coordinates.longitude}`
-    : address
-      ? `${address}, ${LINDAVISTA_QUERY}`
-      : LINDAVISTA_QUERY
+function externalMapUrl(coordinates: Coordinates | null) {
+  const query = coordinates ? `${coordinates.latitude},${coordinates.longitude}` : LINDAVISTA_QUERY
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+}
 
-  return {
-    embed: `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`,
-    external: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
+function isNearLindavista({ latitude, longitude }: Coordinates) {
+  return latitude >= 19.472 && latitude <= 19.516 && longitude >= -99.151 && longitude <= -99.106
+}
+
+// Free geocoder with no API key; fine for a single-neighborhood, low-volume storefront.
+async function geocodeLindavista(address: string): Promise<Coordinates | null> {
+  const params = new URLSearchParams({
+    q: `${address}, ${LINDAVISTA_QUERY}`,
+    format: 'jsonv2',
+    limit: '1',
+    countrycodes: 'mx',
+    viewbox: '-99.151,19.516,-99.106,19.472',
+    bounded: '1',
+  })
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+      headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) return null
+    const results = (await response.json()) as Array<{ lat: string; lon: string }>
+    const [first] = results
+    if (!first) return null
+    return { latitude: Number(first.lat), longitude: Number(first.lon) }
+  } catch {
+    return null
   }
-}
-
-function dateFromKey(date: string) {
-  return new Date(`${date}T12:00:00`)
-}
-
-function dayName(date: string, long = false) {
-  return new Intl.DateTimeFormat('es-MX', { weekday: long ? 'long' : 'short' }).format(dateFromKey(date)).replace('.', '')
-}
-
-function fullDate(date: string) {
-  const value = new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }).format(dateFromKey(date))
-  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 function loadFavorites() {
@@ -64,11 +76,13 @@ type Toast = { id: number; message: string; tone: 'success' | 'error' | 'info' }
 function BrandPreloader() {
   return (
     <div className="brand-preloader" role="status" aria-label="Cargando FoodiePack">
-      <FloatingDecor tone="dark" />
+      <FloatingDecor />
+      <FiestaGarland />
+      <FiestaConfetti />
       <div className="brand-preloader__lockup">
         <Logo hero theme="white" />
         <p>Tu cocina en la oficina</p>
-        <span aria-hidden="true"><i /></span>
+        <span aria-hidden="true"><i className={isFiestasPatrias() ? 'brand-preloader__line--fiesta' : ''} /></span>
       </div>
     </div>
   )
@@ -108,18 +122,21 @@ function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: nu
   )
 }
 
-function DishCard({ meal, index, isFavorite, onToggleFavorite }: {
+function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, selectedMealId, onChoosePackage }: {
   meal: Meal
   index: number
   isFavorite: boolean
   onToggleFavorite: () => void
+  selectedPackage: PackageTier | null
+  selectedMealId: string | null
+  onChoosePackage: (mealId: string, tier: PackageTier) => void
 }) {
+  const { ref, visible } = useReveal<HTMLElement>()
   return (
-    <Reveal
-      as="article"
-      variant="up"
-      delay={Math.min(index, 8) * 60}
-      className={`meal-card ${meal.available ? '' : 'meal-card--unavailable'}`}
+    <article
+      ref={ref}
+      className={`meal-card reveal ${meal.available ? '' : 'meal-card--unavailable'} ${visible ? 'reveal--visible' : ''}`}
+      style={{ transitionDelay: visible ? `${Math.min(index, 8) * 50}ms` : '0ms' }}
     >
       <div className="meal-card__media">
         <img src={meal.image} alt={meal.name} loading="lazy" decoding="async" />
@@ -140,32 +157,99 @@ function DishCard({ meal, index, isFavorite, onToggleFavorite }: {
       <div className="meal-card__content">
         <h2>{meal.name}</h2>
         <p>{meal.description}</p>
+        <div className="meal-card__packages">
+          <span>Elige paquete</span>
+          <div>
+            {PACKAGE_ORDER.filter((tier) => meal.packages.includes(tier)).map((tier) => {
+              const pack = PACKAGES[tier]
+              const selected = selectedMealId === meal.id && selectedPackage === tier
+              return (
+                <button
+                  type="button"
+                  key={tier}
+                  className={selected ? 'selected' : ''}
+                  disabled={!meal.available}
+                  onClick={() => onChoosePackage(meal.id, tier)}
+                >
+                  <b>{pack.label}</b><small>{money(pack.dailyPrice)}/día</small>
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <div className="meal-card__bottom">
-          <span>{meal.protein} g proteína</span>
-          <span>{meal.kcal} kcal</span>
           <b className={`dish-availability ${meal.available ? '' : 'dish-availability--out'}`}>{meal.available ? 'Disponible' : 'Agotado'}</b>
         </div>
       </div>
-    </Reveal>
+    </article>
+  )
+}
+
+function SpecialDayCard({ specialDay, chosen, onChoose }: { specialDay: SpecialDay; chosen: boolean; onChoose: () => void }) {
+  return (
+    <div className="special-day-card">
+      {specialDay.image && (
+        <div className="special-day-card__media">
+          <img src={specialDay.image} alt={specialDay.packageName || 'Menú especial'} loading="lazy" decoding="async" />
+        </div>
+      )}
+      <div className="special-day-card__body">
+        <div className="special-day-card__head">
+          <span className="special-day-card__badge"><Sparkles size={13} /> Menú especial de este día</span>
+          <FiestaHornFlourish />
+        </div>
+        <h2>{specialDay.packageName}</h2>
+        {specialDay.reason && <p>{specialDay.reason}</p>}
+        <strong className="special-day-card__price">{money(specialDay.packagePrice || 0)}<small>precio único</small></strong>
+        {Boolean(specialDay.packageIncludes?.length) && (
+          <ul className="special-day-card__includes">
+            {specialDay.packageIncludes!.map((item) => <li key={item}><Check size={13} /> {item}</li>)}
+          </ul>
+        )}
+        <button type="button" className={`special-day-card__choose ${chosen ? 'selected' : ''}`} onClick={onChoose}>
+          {chosen ? <><Check size={15} /> Elegido</> : 'Elegir este menú'}
+        </button>
+        {chosen && Boolean(specialDay.addons?.length) && (
+          <p className="special-day-card__hint">Puedes agregar extras desde tu pedido, a la derecha →</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function GarnishPicker({ garnish, onGarnish }: { garnish: Garnish; onGarnish: (value: Garnish) => void }) {
+  return (
+    <div className="garnish-picker">
+      <span>Elige tu guarnición</span>
+      <div>
+        {GARNISH_OPTIONS.map((option) => (
+          <button
+            type="button"
+            key={option.value}
+            className={garnish === option.value ? 'selected' : ''}
+            onClick={() => onGarnish(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
 function PackagePicker({ selected, onSelect }: { selected: PackageTier | null; onSelect: (tier: PackageTier) => void }) {
   return (
-    <Reveal className="package-grid" variant="up">
-      {PACKAGE_ORDER.map((tier, index) => {
+    <div className="package-grid">
+      {PACKAGE_ORDER.map((tier) => {
         const pack = PACKAGES[tier]
         const isSelected = selected === tier
         return (
-          <article
-            className={`package-card ${isSelected ? 'package-card--selected' : ''} ${tier === 'ejecutivo' ? 'package-card--popular' : ''}`}
-            key={tier}
-            style={{ '--i': index } as CSSProperties}
-          >
+          <article className={`package-card ${isSelected ? 'package-card--selected' : ''} ${tier === 'ejecutivo' ? 'package-card--popular' : ''}`} key={tier}>
             {tier === 'ejecutivo' && <span className="package-card__badge">Más pedido</span>}
             <h3>{pack.label}</h3>
             <p className="package-card__price"><b>{money(pack.dailyPrice)}</b><span>/día</span></p>
             <ul>
+              {pack.includes.map((item) => <li key={item}><span>{item}</span></li>)}
               <li><span>Semanal regular · 5 días</span><strong>{money(pack.weeklyRegular)}</strong></li>
               <li><span>Pago por adelantado</span><strong>{money(pack.weeklyPrepay)}</strong></li>
             </ul>
@@ -175,89 +259,112 @@ function PackagePicker({ selected, onSelect }: { selected: PackageTier | null; o
           </article>
         )
       })}
-    </Reveal>
+    </div>
   )
 }
 
 function PackagesSection({ selected, onSelect }: { selected: PackageTier | null; onSelect: (tier: PackageTier) => void }) {
-  const [copied, setCopied] = useState(false)
-
-  const copyClabe = async () => {
-    try {
-      await navigator.clipboard.writeText(BANK_TRANSFER.clabe)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    } catch {
-      setCopied(false)
-    }
-  }
-
   return (
     <section className="packages-section" id="paquetes" aria-labelledby="packages-title">
-      <FloatingDecor tone="light" soft />
-      <Reveal className="packages-section__head" variant="up">
+      <div className="packages-section__head">
         <p>Paquetes</p>
         <h2 id="packages-title">Elige tu paquete</h2>
         <span>Precio fijo por día. Tú eliges cuánto comer, la cocina decide el guisado del día.</span>
-      </Reveal>
+      </div>
 
       <PackagePicker selected={selected} onSelect={onSelect} />
-      <p className="packages-footnote">*Si prefieres repetir el mismo guisado en el Menú Completo, aplica un cargo de +{money(REPEAT_GUISADO_SURCHARGE)}.</p>
+      <p className="packages-footnote">*Si prefieres repetir el mismo guisado en Foodie+, aplica un cargo de +{money(REPEAT_GUISADO_SURCHARGE)}.</p>
 
       <div className="packages-info">
-        <Reveal className="key-points" variant="left">
+        <div className="key-points">
           <h3>Puntos clave para tu pedido</h3>
           <ul>
             {ORDER_KEY_POINTS.map((point) => (
               <li key={point.title}><strong>{point.title}:</strong> {point.detail}</li>
             ))}
           </ul>
-        </Reveal>
+        </div>
 
-        <Reveal className="bank-transfer-card" variant="right">
-          <Landmark size={22} />
-          <div>
-            <p>Datos para transferencia</p>
-            <strong>{BANK_TRANSFER.bank}</strong>
-            <span>CLABE {BANK_TRANSFER.clabe}</span>
-            <span>Titular: {BANK_TRANSFER.holder}</span>
-          </div>
-          <button type="button" onClick={copyClabe}>{copied ? <><Check size={14} /> Copiada</> : <><Copy size={14} /> Copiar CLABE</>}</button>
-        </Reveal>
       </div>
     </section>
   )
 }
 
-function OrderSummary({ packageTier, quantity, repeatGuisado, deliveryDate, canOrder, onQuantity, onToggleRepeat, onCheckout }: {
+function OrderSummary({
+  packageTier, quantity, repeatGuisado, garnish, deliveryDate, meal, canOrder, specialDay, specialDayChosen,
+  specialAddons, onQuantity, onToggleRepeat, onGarnish, onToggleAddon, onCheckout,
+}: {
   packageTier: PackageTier | null
   quantity: number
   repeatGuisado: boolean
+  garnish: Garnish
   deliveryDate: string
+  meal: Meal | null
   canOrder: boolean
+  specialDay: SpecialDay | null
+  specialDayChosen: boolean
+  specialAddons: string[]
   onQuantity: (change: number) => void
   onToggleRepeat: () => void
+  onGarnish: (value: Garnish) => void
+  onToggleAddon: (name: string) => void
   onCheckout: () => void
 }) {
   const pack = packageTier ? PACKAGES[packageTier] : null
   const canRepeat = packageTier === REPEAT_GUISADO_TIER
   const surcharge = pack && canRepeat && repeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0
   const subtotal = pack ? pack.dailyPrice * quantity : 0
-  const total = subtotal + surcharge
+  const addonsUnit = specialDay ? specialAddons.reduce((sum, name) => sum + (specialDay.addons?.find((addon) => addon.name === name)?.price || 0), 0) : 0
+  const specialUnit = specialDay ? (specialDay.packagePrice || 0) + addonsUnit : 0
+  const specialSubtotal = specialDayChosen ? specialUnit * quantity : 0
+  const usingSpecial = Boolean(specialDay) && specialDayChosen
+  const total = usingSpecial ? specialSubtotal : subtotal + surcharge
+  const ready = usingSpecial || Boolean(pack && meal)
 
   return (
     <aside className="order-summary" id="pedido">
       <div className="order-summary__head">
         <span>Tu pedido</span>
-        <strong>{pack ? pack.label : 'Elige un paquete'}</strong>
+        <strong>{usingSpecial ? specialDay!.packageName : (pack ? pack.label : 'Elige un paquete')}</strong>
       </div>
       <div className="order-summary__date">
         <Clock3 size={18} />
-        <p><span>Entrega</span><strong>{deliveryDate ? fullDate(deliveryDate) : 'Mañana'} · 12:00 a 2:00 pm</strong></p>
+        <p><span>Entrega</span><strong>{deliveryDate ? fullDate(deliveryDate) : 'Próximo día hábil'} · 12:00 a 2:00 pm</strong></p>
       </div>
-      {!pack && <div className="summary-empty"><ShoppingBag size={24} /><p>Elige uno de los 3 paquetes para continuar.</p></div>}
-      {pack && (
+      {!usingSpecial && (!pack || !meal) && (
+        <div className="summary-empty">
+          <ShoppingBag size={24} />
+          <p>{specialDay
+            ? 'Elige el menú especial o una comida del menú para continuar.'
+            : (pack ? 'Elige una comida del menú para continuar.' : 'Elige una comida y uno de los 3 paquetes para continuar.')}</p>
+        </div>
+      )}
+      {usingSpecial && (
         <div className="summary-items">
+          <div className="summary-package">
+            <p><strong>{specialDay!.packageName}</strong><span>{money(specialDay!.packagePrice || 0)} · precio único</span></p>
+            <div className="counter">
+              <button onClick={() => onQuantity(-1)} aria-label="Quitar una persona"><Minus size={12} /></button>
+              <span>{quantity}</span>
+              <button onClick={() => onQuantity(1)} aria-label="Agregar una persona"><Plus size={12} /></button>
+            </div>
+          </div>
+          {Boolean(specialDay!.addons?.length) && (
+            <div className="special-day-addons">
+              {specialDay!.addons!.map((addon) => (
+                <label key={addon.name}>
+                  <input type="checkbox" checked={specialAddons.includes(addon.name)} onChange={() => onToggleAddon(addon.name)} />
+                  <span>{addon.name}</span>
+                  <b>+{money(addon.price)}</b>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {!usingSpecial && pack && (
+        <div className="summary-items">
+          {meal && <div className="summary-meal"><span>Comida elegida</span><strong>{meal.name}</strong></div>}
           <div className="summary-package">
             <p><strong>{pack.label}</strong><span>{money(pack.dailyPrice)} por día</span></p>
             <div className="counter">
@@ -273,27 +380,36 @@ function OrderSummary({ packageTier, quantity, repeatGuisado, deliveryDate, canO
               <b>+{money(REPEAT_GUISADO_SURCHARGE)}</b>
             </label>
           )}
+          <GarnishPicker garnish={garnish} onGarnish={onGarnish} />
         </div>
       )}
       <div className="summary-totals">
-        <p><span>Paquete</span><strong>{money(subtotal)}</strong></p>
-        {surcharge > 0 && <p><span>Repetir guisado</span><strong>{money(surcharge)}</strong></p>}
+        {usingSpecial ? (
+          <p><span>{specialDay!.packageName}</span><strong>{money(specialSubtotal)}</strong></p>
+        ) : (
+          <>
+            <p><span>Paquete</span><strong>{money(subtotal)}</strong></p>
+            {surcharge > 0 && <p><span>Repetir guisado</span><strong>{money(surcharge)}</strong></p>}
+          </>
+        )}
         <p><span>Envío</span><strong>Gratis</strong></p>
         <p className="summary-total"><span>Total</span><strong>{money(total)}</strong></p>
       </div>
-      <button className="checkout-button" disabled={!pack || !canOrder} onClick={onCheckout}>Continuar <ArrowRight size={17} /></button>
+      <button className="checkout-button" disabled={!ready || !canOrder} onClick={onCheckout}>Continuar <ArrowRight size={17} /></button>
       <small>Pedido de demostración. No se realizará un cargo real.</small>
     </aside>
   )
 }
 
-function WeeklySummary({ packageTier, quantity, prepay, canOrder, onQuantity, onTogglePrepay, onCheckout }: {
+function WeeklySummary({ packageTier, quantity, prepay, garnish, canOrder, onQuantity, onTogglePrepay, onGarnish, onCheckout }: {
   packageTier: PackageTier | null
   quantity: number
   prepay: boolean
+  garnish: Garnish
   canOrder: boolean
   onQuantity: (change: number) => void
   onTogglePrepay: () => void
+  onGarnish: (value: Garnish) => void
   onCheckout: () => void
 }) {
   const pack = packageTier ? PACKAGES[packageTier] : null
@@ -327,6 +443,7 @@ function WeeklySummary({ packageTier, quantity, prepay, canOrder, onQuantity, on
             </span>
             <b>-{money(savings)}</b>
           </label>
+          <GarnishPicker garnish={garnish} onGarnish={onGarnish} />
         </div>
       )}
       <div className="summary-totals">
@@ -354,32 +471,31 @@ function App() {
   const [weeklyMenus, setWeeklyMenus] = useState<Record<string, MenuResponse>>({})
   const [weeklyLoading, setWeeklyLoading] = useState(false)
   const [packageTier, setPackageTier] = useState<PackageTier | null>(null)
+  const [selectedMealId, setSelectedMealId] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [repeatGuisado, setRepeatGuisado] = useState(false)
   const [prepay, setPrepay] = useState(false)
+  const [garnish, setGarnish] = useState<Garnish>('arroz')
+  const [specialAddons, setSpecialAddons] = useState<string[]>([])
+  const [specialDayChosen, setSpecialDayChosen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer')
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [order, setOrder] = useState<SavedOrder | null>(null)
   const [orderError, setOrderError] = useState('')
   const [deliveryAddress, setDeliveryAddress] = useState('')
-  const [pinnedAddress, setPinnedAddress] = useState('')
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates | null>(null)
   const [deliveryError, setDeliveryError] = useState('')
-  const [deliveryCheck, setDeliveryCheck] = useState<DeliveryCheck | null>(null)
-  const [checkingDelivery, setCheckingDelivery] = useState(false)
   const [locating, setLocating] = useState(false)
+  const [geocoding, setGeocoding] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [favorites, setFavorites] = useState<string[]>(loadFavorites)
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [isOnline, setIsOnline] = useState(() => navigator.onLine)
   const [retryTick, setRetryTick] = useState(0)
+  const [headerScrolled, setHeaderScrolled] = useState(false)
   const toastId = useRef(0)
-  const headerScrolled = useScrolled(8)
-  const progressRef = useScrollProgress<HTMLDivElement>()
-  const heroVisualRef = useParallax<HTMLDivElement>()
-  useRipple()
 
   const dismissToast = (id: number) => setToasts((items) => items.filter((item) => item.id !== id))
 
@@ -411,6 +527,13 @@ function App() {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
     }
+  }, [])
+
+  useEffect(() => {
+    const onScroll = () => setHeaderScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   useEffect(() => {
@@ -456,38 +579,26 @@ function App() {
     if (packageTier !== REPEAT_GUISADO_TIER) setRepeatGuisado(false)
   }, [packageTier])
 
-  // Detecta sola la distancia a la cocina en cuanto la dirección es suficientemente larga.
   useEffect(() => {
-    const address = deliveryAddress.trim()
-    if (!checkoutOpen || deliveryCoordinates || address.length < 10) return
-    let active = true
-    const timer = window.setTimeout(() => {
-      setCheckingDelivery(true)
-      checkDelivery({ address })
-        .then((result) => {
-          if (!active) return
-          setDeliveryCheck(result)
-          if (result.resolved) setPinnedAddress(address)
-        })
-        .catch(() => { if (active) setDeliveryCheck(null) })
-        .finally(() => { if (active) setCheckingDelivery(false) })
-    }, 900)
-    return () => {
-      active = false
-      window.clearTimeout(timer)
-    }
-  }, [deliveryAddress, checkoutOpen, deliveryCoordinates])
+    if (selectedMealId && menu && !menu.meals.some((meal) => meal.id === selectedMealId)) setSelectedMealId(null)
+  }, [menu, selectedMealId])
+
+  useEffect(() => {
+    setSpecialAddons([])
+    setSpecialDayChosen(false)
+  }, [selectedDate])
 
   const orderingOpen = Boolean(policy?.isOpen)
-  const isTomorrow = menu?.policy.tomorrow === selectedDate
+  const isNextAvailable = menu?.policy.tomorrow === selectedDate
   const featuredMeal = menu?.meals.find((meal) => meal.available) || menu?.meals[0]
-  const resolvedCoordinates = deliveryCoordinates
-    || (deliveryCheck?.resolved ? deliveryCheck.coordinates ?? null : null)
-  const deliveryMap = mapLinks(pinnedAddress, resolvedCoordinates)
-  const hasDeliveryPin = Boolean(pinnedAddress || deliveryCoordinates)
-  const deliveryDistanceKm = deliveryCheck?.resolved ? deliveryCheck.distanceKm ?? null : null
-  const radiusKm = deliveryCheck?.radiusKm ?? FREE_DELIVERY_RADIUS_KM
-  const outsideRadius = Boolean(deliveryCheck?.resolved && deliveryCheck.withinRadius === false)
+  const selectedMeal = menu?.meals.find((meal) => meal.id === selectedMealId) || null
+  const hasDeliveryPin = Boolean(deliveryCoordinates)
+  const specialDay = orderMode === 'day' ? (menu?.specialDay ?? null) : null
+  // A day can offer a special package (e.g. pozole) alongside a normal curated menu — the
+  // customer picks one or the other, so `hasSpecialDay` only says the option exists, while
+  // `usingSpecial` says which one is actually being ordered.
+  const hasSpecialDay = specialDay?.kind === 'special_package'
+  const usingSpecial = hasSpecialDay && specialDayChosen
 
   const currentMeals = useMemo(
     () => orderMode === 'day' ? (menu?.meals || []) : (weeklyMenus[activeWeekDay]?.meals || []),
@@ -510,8 +621,11 @@ function App() {
   const weekSpecialTotal = activePackage ? activePackage.weeklyPrepay * quantity : 0
   const weekSavings = weekRegularTotal - weekSpecialTotal
   const weekTotal = prepay ? weekSpecialTotal : weekRegularTotal
-  const activeTotal = orderMode === 'week' ? weekTotal : dayTotal
-  const badgeCount = activePackage ? quantity : 0
+  const specialAddonsUnit = specialDay ? specialAddons.reduce((sum, name) => sum + (specialDay.addons?.find((addon) => addon.name === name)?.price || 0), 0) : 0
+  const specialUnitPrice = specialDay ? (specialDay.packagePrice || 0) + specialAddonsUnit : 0
+  const specialTotal = specialUnitPrice * quantity
+  const activeTotal = usingSpecial ? specialTotal : (orderMode === 'week' ? weekTotal : dayTotal)
+  const badgeCount = usingSpecial ? quantity : (activePackage ? quantity : 0)
 
   const toggleFavorite = (mealId: string) => {
     setFavorites((current) => current.includes(mealId) ? current.filter((id) => id !== mealId) : [...current, mealId])
@@ -519,18 +633,28 @@ function App() {
 
   const choosePackage = (tier: PackageTier) => {
     setPackageTier(tier)
+    setSpecialDayChosen(false)
     pushToast(`${PACKAGES[tier].label} seleccionado`, 'success')
+  }
+
+  const chooseMealPackage = (mealId: string, tier: PackageTier) => {
+    setSelectedMealId(mealId)
+    setPackageTier(tier)
+    setSpecialDayChosen(false)
+    pushToast(`${PACKAGES[tier].label} · comida seleccionada`, 'success')
   }
 
   const changeQuantity = (change: number) => {
     setQuantity((current) => Math.min(10, Math.max(1, current + change)))
   }
 
+  const toggleSpecialAddon = (name: string) => {
+    setSpecialAddons((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name])
+  }
+
   const updateDeliveryAddress = (value: string) => {
     setDeliveryAddress(value)
-    setPinnedAddress('')
     setDeliveryCoordinates(null)
-    setDeliveryCheck(null)
     setDeliveryError('')
   }
 
@@ -540,49 +664,41 @@ function App() {
       setDeliveryError('Escribe la calle y el número antes de colocar el pin.')
       return
     }
-    setPinnedAddress(address)
-    setDeliveryCoordinates(null)
+    setGeocoding(true)
     setDeliveryError('')
-    setCheckingDelivery(true)
-    try {
-      const result = await checkDelivery({ address })
-      setDeliveryCheck(result)
-    } catch {
-      setDeliveryCheck(null)
-    } finally {
-      setCheckingDelivery(false)
+    const location = await geocodeLindavista(address)
+    setGeocoding(false)
+    if (!location) {
+      setDeliveryError('No encontramos esa dirección en Lindavista. Mueve el pin en el mapa hasta tu ubicación.')
+      return
     }
+    setDeliveryCoordinates(location)
+  }
+
+  const moveDeliveryPin = (location: Coordinates) => {
+    setDeliveryCoordinates(location)
+    setDeliveryError(isNearLindavista(location) ? '' : 'Ese punto está fuera de la zona de entrega (Lindavista).')
   }
 
   const useCurrentLocation = () => {
-    if (deliveryAddress.trim().length < 8) {
-      setDeliveryError('Primero escribe la dirección de la oficina.')
-      return
-    }
     if (!navigator.geolocation) {
-      setDeliveryError('Este dispositivo no permite obtener la ubicación. Puedes ubicar la dirección escrita.')
+      setDeliveryError('Este dispositivo no permite obtener la ubicación. Mueve el pin en el mapa manualmente.')
       return
     }
 
     setLocating(true)
     setDeliveryError('')
-    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
-      const location: Coordinates = { latitude: coords.latitude, longitude: coords.longitude }
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      const location = { latitude: coords.latitude, longitude: coords.longitude }
+      setLocating(false)
       setDeliveryCoordinates(location)
-      setPinnedAddress(deliveryAddress.trim())
-      setCheckingDelivery(true)
-      try {
-        setDeliveryCheck(await checkDelivery({ coordinates: location }))
-      } catch {
-        setDeliveryCheck(null)
-      } finally {
-        setCheckingDelivery(false)
-        setLocating(false)
+      if (!isNearLindavista(location)) {
+        setDeliveryError('Tu ubicación actual parece estar fuera de Lindavista. Mueve el pin hasta la dirección de entrega.')
       }
     }, () => {
       setLocating(false)
-      setDeliveryError('No pudimos obtener tu ubicación. Puedes ubicar la dirección escrita.')
-    }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 })
+      setDeliveryError('No pudimos obtener tu ubicación precisa. Revisa los permisos del navegador o mueve el pin manualmente.')
+    }, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 })
   }
 
   const placeOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -595,12 +711,17 @@ function App() {
       setDeliveryError('Ubica la dirección en el mapa antes de confirmar el pedido.')
       return
     }
-    if (outsideRadius) {
-      setDeliveryError(`Tu dirección está a ${deliveryDistanceKm?.toFixed(1)} km de la cocina y entregamos dentro de ${radiusKm} km a la redonda.`)
+    if (hasSpecialDay) {
+      if (!specialDayChosen && !packageTier) {
+        setOrderError('Elige el menú especial o una comida del menú.')
+        return
+      }
+    } else if (!packageTier) {
+      setOrderError('Elige uno de los 3 paquetes antes de continuar.')
       return
     }
-    if (!packageTier) {
-      setOrderError('Elige uno de los 3 paquetes antes de continuar.')
+    if (orderMode === 'week' && prepay && paymentMethod !== 'transfer') {
+      setOrderError('Selecciona Transferencia para usar el precio especial de pago adelantado.')
       return
     }
     const form = new FormData(event.currentTarget)
@@ -618,21 +739,29 @@ function App() {
           address: deliveryAddress.trim(),
           office: String(form.get('office')),
           pinConfirmed: true,
-          ...(resolvedCoordinates ? { coordinates: resolvedCoordinates } : {}),
+          ...(deliveryCoordinates ? { coordinates: deliveryCoordinates } : {}),
         },
         paymentMethod,
         orderMode,
         date: orderMode === 'day' ? selectedDate : (policy?.tomorrow || days[0]?.date || ''),
-        packageTier,
+        ...(usingSpecial ? {} : { packageTier: packageTier! }),
         quantity,
-        repeatGuisado: orderMode === 'day' && canRepeatGuisado && repeatGuisado,
+        repeatGuisado: orderMode === 'day' && !usingSpecial && canRepeatGuisado && repeatGuisado,
         prepay: orderMode === 'week' && prepay,
+        ...(usingSpecial ? {} : { garnish }),
+        ...(orderMode === 'day' && usingSpecial ? { mealId: 'special' } : {}),
+        ...(orderMode === 'day' && !usingSpecial && selectedMealId ? { mealId: selectedMealId } : {}),
+        ...(usingSpecial ? { specialAddons } : {}),
       })
       setOrder(response.order)
       setPackageTier(null)
+      setSelectedMealId(null)
       setQuantity(1)
       setRepeatGuisado(false)
       setPrepay(false)
+      setGarnish('arroz')
+      setSpecialAddons([])
+      setSpecialDayChosen(false)
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : 'No se pudo confirmar el pedido'
       setOrderError(message)
@@ -649,7 +778,6 @@ function App() {
   return (
     <div className="storefront">
       {preloading && <BrandPreloader />}
-      <div className="scroll-progress" ref={progressRef} aria-hidden="true" />
       {!isOnline && (
         <div className="offline-banner" role="alert">
           <WifiOff size={14} /> Sin conexión a internet. Algunas acciones no estarán disponibles.
@@ -657,7 +785,7 @@ function App() {
       )}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <header className={`store-header ${headerScrolled ? 'store-header--scrolled' : ''}`}>
-        <a href="/" aria-label="Inicio"><Logo /></a>
+        <a className="store-header__logo" href="/" aria-label="Inicio"><Logo horizontal /></a>
         <div className="store-header__delivery">
           <span>Envío gratis</span>
           <button onClick={scrollToMenu}>Lindavista, CDMX <ChevronDown size={14} /></button>
@@ -668,33 +796,35 @@ function App() {
       </header>
 
       <section className="brand-landing" aria-labelledby="landing-title">
-        <FloatingDecor tone="dark" />
+        <FloatingDecor />
+        <FiestaGarland />
+        <FiestaConfetti />
         <div className="brand-landing__inner">
           <div className="brand-landing__copy">
-            <p className="brand-landing__eyebrow"><Logo compact theme="white" /> <span>Lindavista, CDMX</span></p>
+            <div className="brand-landing__logo"><Logo hero theme="white" /></div>
+            <p>FoodiePack · Lindavista</p>
             <h1 id="landing-title">Tu cocina<br />en la <em>oficina.</em></h1>
-            <span>Pide hoy y mañana te llevamos comida fresca hasta tu oficina en Lindavista.</span>
+            <span>Resérvalo hoy y te llevamos comida fresca hasta tu oficina en Lindavista.</span>
             <div className="brand-landing__actions">
               <a href="#paquetes" onClick={(event) => { event.preventDefault(); scrollToPackages() }}>Ver paquetes <ArrowRight size={17} /></a>
               <small><Clock3 size={15} /> Pide hoy de 8:00 am a 6:00 pm</small>
             </div>
           </div>
-          <div className="brand-landing__visual" ref={heroVisualRef}>
+          <div className="brand-landing__visual">
             <div className="landing-dish" style={{ backgroundImage: featuredMeal ? `url(${featuredMeal.image})` : undefined }} role="img" aria-label={featuredMeal?.name || 'Comida preparada por FoodiePack'}>
               <div className="landing-date"><span>Entrega</span><strong>{menu?.policy.tomorrow ? dateFromKey(menu.policy.tomorrow).getDate() : '...'}</strong><small>{menu?.policy.tomorrow ? new Intl.DateTimeFormat('es-MX', { month: 'short' }).format(dateFromKey(menu.policy.tomorrow)).replace('.', '') : 'pronto'}</small></div>
             </div>
             <div className="landing-caption">
-              <span>Del menú de mañana</span>
+              <span>Menú del día</span>
               <strong>{featuredMeal?.name || 'Cocinando el menú…'}</strong>
               <b>Desde {money(PACKAGES.economico.dailyPrice)}/día</b>
             </div>
           </div>
         </div>
-        <BrandDivider direction="down" tone="cream" overlay />
       </section>
 
       <section className="weekly-promo" aria-labelledby="weekly-promo-title">
-        <Reveal className="weekly-promo__inner" variant="up">
+        <div className="weekly-promo__inner">
           <div className="weekly-promo__media">
             <img src="/assets/meals/weekly-hero.jpg" alt="Comidas de la semana en contenedores" loading="lazy" />
           </div>
@@ -704,66 +834,68 @@ function App() {
             <p>Elige tu paquete, paga por adelantado y ahorra hasta {money(MAX_WEEKLY_SAVINGS)} en tu semana.</p>
             <button type="button" onClick={() => { setOrderMode('week'); scrollToPackages() }}>Armar mi semana <ArrowRight size={16} /></button>
           </div>
-        </Reveal>
+        </div>
       </section>
 
       <PackagesSection selected={packageTier} onSelect={choosePackage} />
 
       <main className="order-workspace" id="menu-del-dia">
         <section className="menu-column">
-          <Reveal className={`order-window ${orderingOpen ? 'order-window--open' : ''}`} variant="up">
+          <div className={`order-window ${orderingOpen ? 'order-window--open' : ''}`}>
             <span className="order-window__status"><i />{orderingOpen ? 'Pedidos abiertos' : 'Pedidos cerrados'}</span>
             <p>Reserva hasta 5 días</p>
             <strong>8:00 am a 6:00 pm</strong>
             <small>Hora de Ciudad de México</small>
-          </Reveal>
+          </div>
 
           <div className="order-mode-toggle" role="tablist" aria-label="Modo de pedido">
             <button role="tab" aria-selected={orderMode === 'day'} className={orderMode === 'day' ? 'selected' : ''} onClick={() => setOrderMode('day')}>Pedido de mañana</button>
             <button role="tab" aria-selected={orderMode === 'week'} className={orderMode === 'week' ? 'selected' : ''} onClick={() => setOrderMode('week')}>Plan semanal <b>Ahorra</b></button>
           </div>
 
-          <div className="menu-switch" key={orderMode}>
-            {orderMode === 'day' ? (
-              <>
-                <div className="menu-title">
-                  <p>{isTomorrow ? 'Entrega de mañana' : 'Próximamente'}</p>
-                  <h1>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h1>
-                  <span>{isTomorrow
-                    ? (orderingOpen ? 'Haz tu pedido hoy. Lo cocinamos mañana por la mañana.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
-                    : 'Puedes revisar este menú. Las reservaciones abren el día anterior a las 8:00 am.'}</span>
-                </div>
+          {orderMode === 'day' ? (
+            <>
+              <div className="menu-title">
+                <p>{isNextAvailable ? 'Próxima entrega disponible' : 'Próximamente'}</p>
+                <h2>{selectedDate ? fullDate(selectedDate) : 'Menú'}</h2>
+                <span>{hasSpecialDay && specialDay
+                  ? specialDay.reason
+                  : (isNextAvailable
+                    ? (orderingOpen ? 'Haz tu pedido hoy antes de las 6:00 pm para reservar este día.' : 'La ventana de pedido está cerrada. Vuelve entre 8:00 am y 6:00 pm.')
+                    : 'Puedes revisar este menú. Las reservaciones abren cuando sea el próximo día disponible.')}</span>
+              </div>
 
-                <div className="date-strip" aria-label="Próximos menús">
-                  {days.map((day, index) => (
-                    <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}>
-                      <span>{index === 0 ? 'Mañana' : dayName(day.date)}</span>
-                      <strong>{dateFromKey(day.date).getDate()}</strong>
-                      <small>{day.mealCount} opciones</small>
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="menu-title">
-                  <p>Plan semanal</p>
-                  <h1>{activeWeekDay ? fullDate(activeWeekDay) : 'Elige tus días'}</h1>
-                  <span>Elige tu paquete arriba. La cocina decide el guisado de cada día; aquí puedes verlo por adelantado.</span>
-                </div>
+              <div className="date-strip" aria-label="Próximos menús">
+                {days.map((day, index) => (
+                  <button key={day.date} className={`${selectedDate === day.date ? 'selected' : ''} ${day.specialDay ? 'date-strip__special' : ''}`} onClick={() => setSelectedDate(day.date)}>
+                    <span>{index === 0 ? 'Próximo día hábil' : dayName(day.date)}</span>
+                    <strong>{dateFromKey(day.date).getDate()}</strong>
+                    <small>{day.specialDay
+                      ? `${day.specialDay.packageName || 'Especial'}${day.mealCount > 1 ? ' + menú' : ''}`
+                      : `${day.mealCount} opciones`}</small>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="menu-title">
+                <p>Plan semanal</p>
+                <h2>{activeWeekDay ? fullDate(activeWeekDay) : 'Elige tus días'}</h2>
+                <span>Elige tu paquete arriba. La cocina decide el guisado de cada día; aquí puedes verlo por adelantado.</span>
+              </div>
 
-                <div className="date-strip" aria-label="Días de tu plan semanal">
-                  {days.map((day, index) => (
-                    <button key={day.date} className={activeWeekDay === day.date ? 'selected' : ''} onClick={() => setActiveWeekDay(day.date)}>
-                      <span>{index === 0 ? 'Mañana' : dayName(day.date)}</span>
-                      <strong>{dateFromKey(day.date).getDate()}</strong>
-                      <small>{day.mealCount} opciones</small>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+              <div className="date-strip" aria-label="Días de tu plan semanal">
+                {days.map((day, index) => (
+                  <button key={day.date} className={activeWeekDay === day.date ? 'selected' : ''} onClick={() => setActiveWeekDay(day.date)}>
+                    <span>{index === 0 ? 'Próximo día hábil' : dayName(day.date)}</span>
+                    <strong>{dateFromKey(day.date).getDate()}</strong>
+                    <small>{day.mealCount} opciones</small>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           {error && (
             <div className="inline-error">
@@ -772,34 +904,55 @@ function App() {
             </div>
           )}
 
-          {!isLoadingCurrent && Boolean(currentMeals.length) && (
-            <div className="filter-chips" aria-label="Filtrar menú">
-              <button className={!activeTag && !onlyFavorites ? 'selected' : ''} onClick={() => { setActiveTag(null); setOnlyFavorites(false) }}>Todo</button>
-              {availableTags.map((tag) => (
-                <button key={tag} className={activeTag === tag ? 'selected' : ''} onClick={() => setActiveTag((current) => current === tag ? null : tag)}>{tag}</button>
-              ))}
-              <button className={`filter-chips__favorite ${onlyFavorites ? 'selected' : ''}`} onClick={() => setOnlyFavorites((value) => !value)}>
-                <Heart size={12} fill={onlyFavorites ? 'currentColor' : 'none'} /> Favoritos{favorites.length > 0 ? ` (${favorites.length})` : ''}
-              </button>
-            </div>
+          {orderMode === 'day' && hasSpecialDay && specialDay && (
+            <SpecialDayCard
+              specialDay={specialDay}
+              chosen={specialDayChosen}
+              onChoose={() => setSpecialDayChosen((value) => {
+                const next = !value
+                if (next) {
+                  setSelectedMealId(null)
+                  setPackageTier(null)
+                }
+                return next
+              })}
+            />
           )}
+          {(orderMode !== 'day' || !hasSpecialDay || currentMeals.length > 0) && (
+            <>
+              {!isLoadingCurrent && Boolean(currentMeals.length) && (
+                <div className="filter-chips" aria-label="Filtrar menú">
+                  <button className={!activeTag && !onlyFavorites ? 'selected' : ''} onClick={() => { setActiveTag(null); setOnlyFavorites(false) }}>Todo</button>
+                  {availableTags.map((tag) => (
+                    <button key={tag} className={activeTag === tag ? 'selected' : ''} onClick={() => setActiveTag((current) => current === tag ? null : tag)}>{tag}</button>
+                  ))}
+                  <button className={`filter-chips__favorite ${onlyFavorites ? 'selected' : ''}`} onClick={() => setOnlyFavorites((value) => !value)}>
+                    <Heart size={12} fill={onlyFavorites ? 'currentColor' : 'none'} /> Favoritos{favorites.length > 0 ? ` (${favorites.length})` : ''}
+                  </button>
+                </div>
+              )}
 
-          <div className="meal-grid">
-            {isLoadingCurrent && Array.from({ length: 4 }, (_, index) => <div className="meal-skeleton" key={index} />)}
-            {!isLoadingCurrent && visibleMeals.map((meal, index) => (
-              <DishCard
-                key={meal.id}
-                meal={meal}
-                index={index}
-                isFavorite={favorites.includes(meal.id)}
-                onToggleFavorite={() => toggleFavorite(meal.id)}
-              />
-            ))}
-            {!isLoadingCurrent && currentMeals.length === 0 && <div className="menu-empty"><h2>Menú pendiente</h2><p>La cocina todavía no publica las opciones para este día.</p></div>}
-            {!isLoadingCurrent && Boolean(currentMeals.length) && visibleMeals.length === 0 && (
-              <div className="menu-empty"><h2>Sin resultados</h2><p>Ningún platillo coincide con este filtro. Prueba con otro.</p></div>
-            )}
-          </div>
+              <div className="meal-grid">
+                {isLoadingCurrent && Array.from({ length: 4 }, (_, index) => <div className="meal-skeleton" key={index} />)}
+                {!isLoadingCurrent && visibleMeals.map((meal, index) => (
+                  <DishCard
+                    key={meal.id}
+                    meal={meal}
+                    index={index}
+                    isFavorite={favorites.includes(meal.id)}
+                    onToggleFavorite={() => toggleFavorite(meal.id)}
+                    selectedPackage={packageTier}
+                    selectedMealId={selectedMealId}
+                    onChoosePackage={chooseMealPackage}
+                  />
+                ))}
+                {!isLoadingCurrent && currentMeals.length === 0 && <div className="menu-empty"><h2>Menú pendiente</h2><p>La cocina todavía no publica las opciones para este día.</p></div>}
+                {!isLoadingCurrent && Boolean(currentMeals.length) && visibleMeals.length === 0 && (
+                  <div className="menu-empty"><h2>Sin resultados</h2><p>Ningún platillo coincide con este filtro. Prueba con otro.</p></div>
+                )}
+              </div>
+            </>
+          )}
         </section>
 
         {orderMode === 'day' ? (
@@ -807,10 +960,17 @@ function App() {
             packageTier={packageTier}
             quantity={quantity}
             repeatGuisado={repeatGuisado}
-            deliveryDate={menu?.policy.tomorrow || ''}
+            garnish={garnish}
+            deliveryDate={selectedDate}
+            meal={selectedMeal}
             canOrder={orderingOpen}
+            specialDay={hasSpecialDay ? specialDay : null}
+            specialDayChosen={specialDayChosen}
+            specialAddons={specialAddons}
             onQuantity={changeQuantity}
             onToggleRepeat={() => setRepeatGuisado((value) => !value)}
+            onGarnish={setGarnish}
+            onToggleAddon={toggleSpecialAddon}
             onCheckout={() => setCheckoutOpen(true)}
           />
         ) : (
@@ -818,42 +978,17 @@ function App() {
             packageTier={packageTier}
             quantity={quantity}
             prepay={prepay}
+            garnish={garnish}
             canOrder={orderingOpen}
             onQuantity={changeQuantity}
             onTogglePrepay={() => setPrepay((value) => !value)}
+            onGarnish={setGarnish}
             onCheckout={() => setCheckoutOpen(true)}
           />
         )}
       </main>
 
-      <footer className="store-footer">
-        <FloatingDecor tone="dark" soft />
-        <Reveal className="store-footer__brand" variant="up">
-          <Logo hero theme="white" />
-          <p>Tu cocina en la oficina. Comida casera y fresca, entregada en tu escritorio.</p>
-        </Reveal>
-        <Reveal className="store-footer__columns" variant="up" delay={90}>
-          <div>
-            <span>Entregas</span>
-            <strong>Lindavista Sur y San Felipe de Jesús</strong>
-            <small>Envío gratis dentro de {FREE_DELIVERY_RADIUS_KM} km a la redonda</small>
-            <small>De 12:00 a 2:00 pm</small>
-          </div>
-          <div>
-            <span>Pedidos</span>
-            <strong>De 8:00 am a 6:00 pm</strong>
-            <small>Hora de Ciudad de México</small>
-            <small>Pide un día antes para entrar en producción</small>
-          </div>
-          <div>
-            <span>Pagos</span>
-            <strong>{BANK_TRANSFER.bank}</strong>
-            <small>CLABE {BANK_TRANSFER.clabe}</small>
-            <small>Titular: {BANK_TRANSFER.holder}</small>
-          </div>
-        </Reveal>
-        <p className="store-footer__legal">© {new Date().getFullYear()} FoodiePack · Lindavista, Ciudad de México</p>
-      </footer>
+      <Footer />
 
       <nav className="app-tabbar" aria-label="Navegación">
         <button className={orderMode === 'day' ? 'active' : ''} onClick={() => { setOrderMode('day'); scrollToMenu() }}>
@@ -868,32 +1003,30 @@ function App() {
         </button>
       </nav>
 
-      {checkoutOpen && <button className="modal-backdrop" data-no-ripple aria-label="Cerrar" onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }} />}
+      {checkoutOpen && <button className="modal-backdrop" aria-label="Cerrar" onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }} />}
       {checkoutOpen && (
         <section className="checkout-dialog" role="dialog" aria-modal="true" aria-label="Confirmar pedido">
           <div className="sheet-handle" aria-hidden="true" />
           <button className="dialog-close" onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }} aria-label="Cerrar"><X size={20} /></button>
           {order ? (
             <div className="order-confirmed">
-              <Logo />
               <AcceptedOrderAnimation />
               <p>Pedido {order.id}</p>
-              <h2>{order.isWeeklyPlan ? 'Tu semana está lista.' : 'Nos vemos mañana.'}</h2>
+              <h2>{order.isWeeklyPlan ? 'Tu semana está lista.' : `Nos vemos el ${fullDate(order.deliveryDate).toLowerCase()}.`}</h2>
               <small>
                 La cocina aceptó tu pedido{order.isWeeklyPlan ? ', con tu paquete semanal' : ''}. Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.
+                {order.items[0]?.garnish && <> Guarnición: {order.items[0].garnish === 'arroz' ? 'arroz' : 'frijoles'}.</>}
                 {' '}{order.paymentMethod === 'transfer'
                   ? 'Envía tu comprobante de transferencia al WhatsApp del código QR para entrar en producción.'
-                  : `Pagarás ${order.paymentMethod === 'card' ? 'con tarjeta' : 'en efectivo'} al recibir.`}
+                  : order.paymentMethod === 'terminal'
+                    ? 'Pediste terminal: el repartidor la llevará para que pagues con tarjeta al recibir.'
+                    : 'Pagarás en efectivo al recibir.'}
               </small>
-              {typeof order.distanceKm === 'number' && (
-                <span className="confirmed-distance"><Navigation size={13} /> {order.distanceKm.toFixed(1)} km desde la cocina · envío gratis</span>
-              )}
               {order.delivery?.mapUrl && <a className="confirmed-map-link" href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={14} /> Ver dirección guardada</a>}
               <button onClick={() => { setCheckoutOpen(false); setOrder(null); setOrderError('') }}>Cerrar</button>
             </div>
           ) : (
             <form onSubmit={placeOrder}>
-              <Logo compact />
               <p>Confirmar pedido</p>
               <h2>{orderMode === 'week' ? 'Plan semanal' : 'Datos de entrega'}</h2>
               {orderMode === 'week' && (
@@ -903,52 +1036,50 @@ function App() {
                     <strong>{prepay ? `Ahorras ${money(weekSavings)}` : 'Pago regular, sin adelanto'}</strong></p>
                 </div>
               )}
+              {orderMode === 'day' && usingSpecial && specialDay && (
+                <div className="weekly-recap">
+                  <Sparkles size={16} />
+                  <p><span>{specialDay.packageName} · {quantity} {quantity === 1 ? 'persona' : 'personas'}</span>
+                    <strong>{specialAddons.length > 0 ? specialAddons.join(', ') : 'Sin extras'}</strong></p>
+                </div>
+              )}
+              {!usingSpecial && (
+                <div className="weekly-recap">
+                  <Utensils size={16} />
+                  <p><span>Guarnición elegida</span><strong>{garnish === 'arroz' ? 'Arroz' : 'Frijoles'}</strong></p>
+                </div>
+              )}
               <div className="delivery-zone-card">
                 <MapPin size={20} />
                 <p><span>Zona disponible</span><strong>Lindavista Sur y San Felipe de Jesús</strong></p>
-                <b>Envío gratis · menos de {radiusKm} km</b>
+                <b>Envío gratis · menos de 3 km</b>
               </div>
               <label>Nombre<input name="name" autoComplete="name" required /></label>
               <label>Teléfono<input name="phone" type="tel" autoComplete="tel" required /></label>
               <label>Dirección en Lindavista<input name="address" autoComplete="street-address" required minLength={8} value={deliveryAddress} onChange={(event) => updateDeliveryAddress(event.target.value)} placeholder="Calle y número" /></label>
               <label>Empresa, edificio u oficina<input name="office" autoComplete="organization" required minLength={2} placeholder="Empresa, edificio, piso u oficina" /></label>
               <div className="delivery-map-tools">
-                <button type="button" onClick={pinDeliveryAddress}><Navigation size={15} /> Ubicar dirección</button>
+                <button type="button" onClick={pinDeliveryAddress} disabled={geocoding}><Navigation size={15} /> {geocoding ? 'Buscando…' : 'Ubicar dirección'}</button>
                 <button type="button" onClick={useCurrentLocation} disabled={locating}><LocateFixed size={15} /> {locating ? 'Ubicando…' : 'Usar mi ubicación'}</button>
               </div>
               <div className={`delivery-map ${hasDeliveryPin ? 'delivery-map--pinned' : ''}`}>
-                <iframe title="Pin de entrega en Lindavista" src={deliveryMap.embed} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
+                <Suspense fallback={<div className="delivery-map__canvas" />}>
+                  <DeliveryMap coordinates={deliveryCoordinates} onMove={moveDeliveryPin} />
+                </Suspense>
                 <div>
-                  <span><i />{hasDeliveryPin ? 'Pin listo' : 'Vista de la zona'}</span>
-                  <a href={deliveryMap.external} target="_blank" rel="noreferrer">Abrir en Google Maps <ArrowRight size={13} /></a>
+                  <span><i />{hasDeliveryPin ? 'Arrastra el pin para ajustarlo' : 'Toca el mapa o usa tu ubicación'}</span>
+                  <a href={externalMapUrl(deliveryCoordinates)} target="_blank" rel="noreferrer">Abrir en Google Maps <ArrowRight size={13} /></a>
                 </div>
-              </div>
-              <div className={`delivery-radius${outsideRadius ? ' delivery-radius--out' : deliveryDistanceKm !== null ? ' delivery-radius--in' : ''}`} aria-live="polite">
-                {checkingDelivery ? (
-                  <><LoaderCircle size={17} className="spin" /><p><strong>Midiendo la distancia…</strong><span>Comparando tu dirección con la cocina.</span></p></>
-                ) : deliveryDistanceKm !== null ? (
-                  outsideRadius ? (
-                    <><TriangleAlert size={17} /><p><strong>A {deliveryDistanceKm.toFixed(1)} km de la cocina</strong><span>Entregamos dentro de {radiusKm} km a la redonda. Escríbenos por WhatsApp y vemos tu caso.</span></p></>
-                  ) : (
-                    <><Check size={17} /><p><strong>Dentro del radio · {deliveryDistanceKm.toFixed(1)} km</strong><span>Envío gratis confirmado para esta dirección.</span></p></>
-                  )
-                ) : deliveryCheck && !deliveryCheck.resolved ? (
-                  <><TriangleAlert size={17} /><p><strong>No pudimos ubicar esa dirección</strong><span>Revisa la calle y el número, o pulsa «Usar mi ubicación» para medir desde donde estás.</span></p></>
-                ) : hasDeliveryPin ? (
-                  <><MapPin size={17} /><p><strong>Pin colocado, distancia sin verificar</strong><span>No pudimos medirla sola. La cocina revisará la dirección antes de salir.</span></p></>
-                ) : (
-                  <><Navigation size={17} /><p><strong>Medimos los {radiusKm} km en automático</strong><span>Escribe tu dirección y calculamos la distancia a la cocina.</span></p></>
-                )}
               </div>
               {deliveryError && <div className="delivery-error">{deliveryError}</div>}
               <label>Indicaciones opcionales<textarea name="notes" maxLength={300} /></label>
 
               <div className="payment-method">
                 <span>Método de pago</span>
-                <div className="payment-method__options payment-method__options--three">
+                <div className="payment-method__options">
                   <button type="button" className={paymentMethod === 'transfer' ? 'selected' : ''} onClick={() => setPaymentMethod('transfer')}><Landmark size={16} /> Transferencia</button>
-                  <button type="button" className={paymentMethod === 'card' ? 'selected' : ''} onClick={() => setPaymentMethod('card')}><CreditCard size={16} /> Tarjeta</button>
-                  <button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => setPaymentMethod('cash')}><Banknote size={16} /> Efectivo</button>
+                  <button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => { setPaymentMethod('cash'); setPrepay(false) }}><Banknote size={16} /> Efectivo</button>
+                  <button type="button" className={paymentMethod === 'terminal' ? 'selected' : ''} onClick={() => { setPaymentMethod('terminal'); setPrepay(false) }}><CreditCard size={16} /> Pedir terminal</button>
                 </div>
                 {paymentMethod === 'transfer' && (
                   <div className="bank-transfer-card bank-transfer-card--inline">
@@ -961,11 +1092,19 @@ function App() {
                     </div>
                   </div>
                 )}
+                {paymentMethod === 'terminal' && (
+                  <div className="bank-transfer-card bank-transfer-card--inline">
+                    <CreditCard size={20} />
+                    <div>
+                      <p>El repartidor llevará una terminal para que pagues con tarjeta al recibir tu pedido.</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {orderError && <div className="inline-error"><span>{orderError}</span></div>}
               <div className="checkout-dialog__total"><span>Total</span><strong>{money(activeTotal)}</strong></div>
-              <button className="checkout-button" disabled={submitting || !isOnline || outsideRadius}>{submitting ? 'Confirmando…' : outsideRadius ? `Fuera del radio de ${radiusKm} km` : (isOnline ? 'Confirmar pedido' : 'Sin conexión')}</button>
+              <button className="checkout-button" disabled={submitting || !isOnline}>{submitting ? 'Confirmando…' : (isOnline ? 'Confirmar pedido' : 'Sin conexión')}</button>
               <small>Este prototipo no procesa pagos reales.</small>
             </form>
           )}

@@ -1,18 +1,18 @@
 import { ChangeEvent, CSSProperties, DragEvent, FormEvent, useEffect, useId, useRef, useState } from 'react'
 import {
-  ArrowLeft, Ban, Banknote, Building2, Check, CheckCircle2, ClipboardList, CreditCard, Eye, EyeOff,
-  ImagePlus, Landmark, Loader2, LogOut, MapPin, Navigation, PackageOpen, Pencil, Phone, Plus, Receipt,
-  RefreshCw, RotateCcw, Save, ShoppingBag, StickyNote, Trash2, TriangleAlert, UtensilsCrossed, X,
+  ArrowLeft, Banknote, CalendarOff, Check, CheckCircle2, CircleX, ClipboardList, CreditCard, Eye, EyeOff,
+  ImagePlus, Landmark, Loader2, LogOut, MapPin, PackageOpen, Pencil, Phone, Plus, Receipt, Save, ShoppingBag,
+  Trash2, UtensilsCrossed, X,
 } from 'lucide-react'
 import {
-  adminLogin, createAdminProduct, deleteAdminOrder, deleteAdminProduct, getAdminMenu, getAdminOrders,
-  getAdminProducts, getMenuDays, saveAdminMenu, updateAdminOrderStatus, updateAdminProduct, uploadAdminImage,
+  adminLogin, createAdminProduct, deleteAdminOrder, deleteAdminProduct, deleteAdminSpecialDay, getAdminMenu,
+  getAdminOrders, getAdminProducts, getAdminSpecialDays, getMenuDays, saveAdminMenu, saveAdminSpecialDay,
+  updateAdminOrderStatus, updateAdminProduct, uploadAdminImage,
 } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
-import Reveal from './components/Reveal'
-import { useRipple } from './motion'
-import type { Meal, MenuDay, OrderStatus, SavedOrder } from './types'
+import { PACKAGE_ORDER } from './packages'
+import type { Meal, MenuDay, SavedOrder, SpecialDay } from './types'
 
 const TOKEN_KEY = 'foodiepack:admin-session'
 const placeholderImages = [
@@ -34,134 +34,15 @@ function shortDay(date: string) {
   return new Intl.DateTimeFormat('es-MX', { weekday: 'short' }).format(dateFromKey(date)).replace('.', '')
 }
 
+function orderStatusLabel(status: string) {
+  if (status === 'cancelled') return 'Cancelado'
+  if (status === 'accepted') return 'Aceptado'
+  return 'Confirmado'
+}
+
 function longDate(date: string) {
   const value = new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }).format(dateFromKey(date))
   return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
-const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  accepted: 'Aceptado',
-  completed: 'Completado',
-  cancelled: 'Cancelado',
-}
-
-const ORDER_FILTERS = [
-  { key: 'all', label: 'Todos' },
-  { key: 'accepted', label: 'Por entregar' },
-  { key: 'completed', label: 'Completados' },
-  { key: 'cancelled', label: 'Cancelados' },
-] as const
-
-type OrderFilter = (typeof ORDER_FILTERS)[number]['key']
-
-function paymentLabel(method: SavedOrder['paymentMethod']) {
-  if (method === 'card') return 'Tarjeta'
-  if (method === 'cash') return 'Efectivo'
-  return 'Transferencia'
-}
-
-function PaymentIcon({ method }: { method: SavedOrder['paymentMethod'] }) {
-  if (method === 'card') return <CreditCard size={13} />
-  if (method === 'cash') return <Banknote size={13} />
-  return <Landmark size={13} />
-}
-
-function OrderCard({ order, index, busy, onStatus, onDelete }: {
-  order: SavedOrder
-  index: number
-  busy: boolean
-  onStatus: (status: OrderStatus) => void
-  onDelete: () => void
-}) {
-  const units = order.items.reduce((sum, item) => sum + item.quantity, 0)
-  const address = order.delivery?.address || order.customer.address || ''
-  const distanceKm = order.distanceKm ?? order.delivery?.distanceKm ?? null
-  const outsideRadius = order.delivery?.withinRadius === false
-
-  return (
-    <Reveal as="article" variant="up" className={`order-card order-card--${order.status}`} style={{ '--i': index } as CSSProperties}>
-      <div className="order-card__head">
-        <div>
-          <strong>{order.id}</strong>
-          {order.isWeeklyPlan && <em className="plan-badge">Plan semanal</em>}
-        </div>
-        <span className={`order-status order-status--${order.status}`}><i />{ORDER_STATUS_LABELS[order.status]}</span>
-      </div>
-
-      <div className="order-card__grid">
-        <div className="order-field">
-          <span>Entrega</span>
-          <strong>{longDate(order.deliveryDate)}</strong>
-          <small>12:00 a 2:00 pm</small>
-        </div>
-        <div className="order-field">
-          <span>Cliente</span>
-          <strong>{order.customer.name}</strong>
-          <a href={`tel:${order.customer.phone}`}><Phone size={11} /> {order.customer.phone}</a>
-        </div>
-        <div className="order-field">
-          <span>Paquete</span>
-          <strong>{order.items[0]?.packageLabel || '—'}</strong>
-          <small>{units} {units === 1 ? 'persona' : 'personas'}{order.items[0]?.repeatGuisado ? ' · repite guisado' : ''}</small>
-        </div>
-        <div className="order-field">
-          <span>Pago</span>
-          <strong className="order-payment"><PaymentIcon method={order.paymentMethod} /> {paymentLabel(order.paymentMethod)}</strong>
-          <small>{order.items[0]?.prepay ? 'Pagado por adelantado' : 'Al recibir'}</small>
-        </div>
-        <div className="order-field order-field--total">
-          <span>Total</span>
-          <strong>{money(order.total)}</strong>
-          {order.discountAmount > 0 && <small className="order-discount">Descuento {money(order.discountAmount)}</small>}
-        </div>
-      </div>
-
-      <div className="order-address-block">
-        <MapPin size={16} />
-        <div>
-          <span>Dirección de entrega</span>
-          <strong>{address || 'Sin dirección registrada'}</strong>
-          {order.delivery?.office && <p><Building2 size={11} /> {order.delivery.office}</p>}
-          <p className="order-address-block__zone">{order.delivery?.zone || 'Lindavista, CDMX'}</p>
-          <div className="order-address-block__links">
-            {order.delivery?.mapUrl && <a href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={11} /> Ver pin en Google Maps</a>}
-            {distanceKm !== null && (
-              <b className={outsideRadius ? 'order-distance order-distance--out' : 'order-distance'}>
-                {outsideRadius ? <TriangleAlert size={11} /> : <Navigation size={11} />}
-                {distanceKm.toFixed(1)} km {outsideRadius ? `· fuera de ${order.delivery?.radiusKm ?? 3} km` : '· dentro del radio'}
-              </b>
-            )}
-            {distanceKm === null && <b className="order-distance order-distance--unknown"><Navigation size={11} /> Distancia sin verificar</b>}
-          </div>
-        </div>
-      </div>
-
-      {order.customer.notes && (
-        <p className="order-notes"><StickyNote size={13} /> {order.customer.notes}</p>
-      )}
-
-      <div className="order-card__actions">
-        {order.status !== 'completed' && (
-          <button className="order-action order-action--complete" onClick={() => onStatus('completed')} disabled={busy}>
-            {busy ? <Loader2 size={13} className="spin" /> : <CheckCircle2 size={13} />} Marcar completado
-          </button>
-        )}
-        {order.status !== 'cancelled' && (
-          <button className="order-action order-action--cancel" onClick={() => onStatus('cancelled')} disabled={busy}>
-            <Ban size={13} /> Cancelar
-          </button>
-        )}
-        {order.status !== 'accepted' && (
-          <button className="order-action" onClick={() => onStatus('accepted')} disabled={busy}>
-            <RotateCcw size={13} /> Reabrir
-          </button>
-        )}
-        <button className="order-action order-action--delete" onClick={onDelete} disabled={busy}>
-          <Trash2 size={13} /> Eliminar
-        </button>
-      </div>
-    </Reveal>
-  )
 }
 
 function resizeImageToBase64(file: File, maxSize = 900, quality = 0.82): Promise<string> {
@@ -215,7 +96,6 @@ function Login({ onSuccess }: { onSuccess: (token: string) => void }) {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  useRipple()
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -235,7 +115,7 @@ function Login({ onSuccess }: { onSuccess: (token: string) => void }) {
 
   return (
     <main className="admin-login">
-      <FloatingDecor tone="dark" />
+      <FloatingDecor />
       <section>
         <Logo hero />
         <p>Acceso de cocina</p>
@@ -322,6 +202,7 @@ function ProductCard({
       tags: draft.tagsText.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 4),
       image: draft.image,
       available: draft.available,
+      packages: [...PACKAGE_ORDER],
     }
     try {
       const response = isNew || !meal
@@ -402,7 +283,7 @@ function ProductCard({
           <div className="editor-fields product-view">
             <strong>{meal.name}</strong>
             <p>{meal.description}</p>
-            <div className="product-view__tags">{meal.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+            <div className="product-view__tags">{meal.tags.map((tag) => <span key={tag}>{tag}</span>)}<span>3 paquetes</span></div>
             <div className="product-view__stats"><span>{money(meal.price)}</span><span>{meal.protein}g proteína</span><span>{meal.kcal} kcal</span></div>
             {localError && <span className="inline-error inline-error--tight">{localError}</span>}
           </div>
@@ -419,26 +300,277 @@ function ProductCard({
   )
 }
 
+type SpecialDayDraft = {
+  date: string
+  kind: 'closed' | 'special_package'
+  label: string
+  reason: string
+  packageName: string
+  packagePrice: string
+  packageIncludesText: string
+  addons: Array<{ name: string; price: string }>
+  image: string
+}
+
+function emptySpecialDayDraft(): SpecialDayDraft {
+  return { date: '', kind: 'special_package', label: '', reason: '', packageName: '', packagePrice: '', packageIncludesText: '', addons: [], image: '' }
+}
+
+function draftFromSpecialDay(day: SpecialDay): SpecialDayDraft {
+  return {
+    date: day.date,
+    kind: day.kind,
+    label: day.label,
+    reason: day.reason || '',
+    packageName: day.packageName || '',
+    packagePrice: day.packagePrice != null ? String(day.packagePrice) : '',
+    packageIncludesText: (day.packageIncludes || []).join(', '),
+    addons: (day.addons || []).map((addon) => ({ name: addon.name, price: String(addon.price) })),
+    image: day.image || '',
+  }
+}
+
+function SpecialDayRow({ specialDay, token, isNew, onSaved, onDeleted, onCancelNew }: {
+  specialDay?: SpecialDay
+  token: string
+  isNew?: boolean
+  onSaved: (day: SpecialDay, wasNew: boolean) => void
+  onDeleted: (date: string) => void
+  onCancelNew?: () => void
+}) {
+  const fileInputId = useId()
+  const [editing, setEditing] = useState(Boolean(isNew))
+  const [draft, setDraft] = useState<SpecialDayDraft>(() => specialDay ? draftFromSpecialDay(specialDay) : emptySpecialDayDraft())
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [localError, setLocalError] = useState('')
+
+  const field = <K extends keyof SpecialDayDraft>(key: K, value: SpecialDayDraft[K]) =>
+    setDraft((current) => ({ ...current, [key]: value }))
+
+  const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setLocalError('')
+    try {
+      const base64 = await resizeImageToBase64(file)
+      const { url } = await uploadAdminImage(base64, 'image/jpeg', token)
+      field('image', url)
+    } catch (uploadError) {
+      setLocalError(uploadError instanceof Error ? uploadError.message : 'No se pudo subir la imagen')
+    } finally {
+      setUploading(false)
+      event.target.value = ''
+    }
+  }
+
+  const startEdit = () => {
+    if (specialDay) setDraft(draftFromSpecialDay(specialDay))
+    setLocalError('')
+    setEditing(true)
+  }
+
+  const cancel = () => {
+    if (isNew) { onCancelNew?.(); return }
+    if (specialDay) setDraft(draftFromSpecialDay(specialDay))
+    setLocalError('')
+    setEditing(false)
+  }
+
+  const addAddon = () => field('addons', [...draft.addons, { name: '', price: '' }])
+  const updateAddon = (index: number, patch: Partial<{ name: string; price: string }>) =>
+    field('addons', draft.addons.map((addon, i) => i === index ? { ...addon, ...patch } : addon))
+  const removeAddon = (index: number) => field('addons', draft.addons.filter((_, i) => i !== index))
+
+  const save = async () => {
+    const date = isNew ? draft.date : specialDay?.date
+    if (!date) { setLocalError('Elige una fecha.'); return }
+    if (!draft.label.trim()) { setLocalError('Escribe una etiqueta para identificar este día.'); return }
+    setSaving(true)
+    setLocalError('')
+    const payload = {
+      kind: draft.kind,
+      label: draft.label.trim(),
+      reason: draft.reason.trim(),
+      ...(draft.kind === 'special_package' ? {
+        packageName: draft.packageName.trim(),
+        packagePrice: Number(draft.packagePrice) || 0,
+        packageIncludes: draft.packageIncludesText.split(',').map((item) => item.trim()).filter(Boolean),
+        addons: draft.addons.map((addon) => ({ name: addon.name.trim(), price: Number(addon.price) || 0 })).filter((addon) => addon.name),
+        ...(draft.image ? { image: draft.image } : {}),
+      } : { packageIncludes: [], addons: [] }),
+    }
+    try {
+      const { specialDay: saved } = await saveAdminSpecialDay(date, payload, token)
+      onSaved(saved, Boolean(isNew))
+      if (!isNew) setEditing(false)
+    } catch (saveError) {
+      setLocalError(saveError instanceof Error ? saveError.message : 'No se pudo guardar el día especial')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!specialDay) return
+    if (!window.confirm(`¿Eliminar el día especial del ${longDate(specialDay.date)}?`)) return
+    setDeleting(true)
+    setLocalError('')
+    try {
+      await deleteAdminSpecialDay(specialDay.date, token)
+      onDeleted(specialDay.date)
+    } catch (deleteError) {
+      setLocalError(deleteError instanceof Error ? deleteError.message : 'No se pudo eliminar')
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <article className={`editor-row special-day-row${isNew ? ' catalog-card--new' : ''}`}>
+      {editing ? (
+        <>
+          <div className="editor-fields">
+            {isNew && <label>Fecha<input type="date" value={draft.date} onChange={(event) => field('date', event.target.value)} required /></label>}
+            <div className="special-day-kind-toggle">
+              <button type="button" className={draft.kind === 'special_package' ? 'selected' : ''} onClick={() => field('kind', 'special_package')}>Menú especial</button>
+              <button type="button" className={draft.kind === 'closed' ? 'selected' : ''} onClick={() => field('kind', 'closed')}>Día cerrado</button>
+            </div>
+            <label>Etiqueta interna<input value={draft.label} onChange={(event) => field('label', event.target.value)} placeholder="Menú especial de pozole" /></label>
+            <label>Mensaje para el cliente<input value={draft.reason} onChange={(event) => field('reason', event.target.value)} placeholder="Solo pozole este día, precio único." /></label>
+            {draft.kind === 'special_package' && (
+              <>
+                <div>
+                  <label>Nombre del menú<input value={draft.packageName} onChange={(event) => field('packageName', event.target.value)} placeholder="Pozole" /></label>
+                  <label>Precio único<input type="number" min="0" value={draft.packagePrice} onChange={(event) => field('packagePrice', event.target.value)} /></label>
+                </div>
+                <label>Incluye (separado por comas)<input value={draft.packageIncludesText} onChange={(event) => field('packageIncludesText', event.target.value)} placeholder="Crema, Tostadas, Verdura" /></label>
+                <div className="special-day-image-picker">
+                  {draft.image && <div className="special-day-image-picker__preview" style={{ backgroundImage: `url(${draft.image})` }} />}
+                  <label className="image-upload-btn" htmlFor={fileInputId}>
+                    {uploading ? <Loader2 size={12} className="spin" /> : <ImagePlus size={12} />} {uploading ? 'Subiendo…' : draft.image ? 'Cambiar foto' : 'Subir foto'}
+                  </label>
+                  <input id={fileInputId} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={handleFile} />
+                </div>
+                <div className="special-day-addons-editor">
+                  <span>Extras opcionales</span>
+                  {draft.addons.map((addon, index) => (
+                    <div key={index} className="special-day-addons-editor__row">
+                      <input value={addon.name} onChange={(event) => updateAddon(index, { name: event.target.value })} placeholder="Agua de sabor" />
+                      <input type="number" min="0" value={addon.price} onChange={(event) => updateAddon(index, { price: event.target.value })} placeholder="15" />
+                      <button type="button" onClick={() => removeAddon(index)} aria-label="Quitar extra"><X size={13} /></button>
+                    </div>
+                  ))}
+                  <button type="button" className="admin-secondary" onClick={addAddon}><Plus size={13} /> Agregar extra</button>
+                </div>
+              </>
+            )}
+            {localError && <span className="inline-error inline-error--tight">{localError}</span>}
+          </div>
+          <div className="editor-controls">
+            <button className="admin-primary" disabled={saving} onClick={save} type="button">{saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />} Guardar</button>
+            <button className="admin-secondary" onClick={cancel} type="button"><X size={14} /> Cancelar</button>
+          </div>
+        </>
+      ) : specialDay ? (
+        <>
+          {specialDay.kind === 'special_package' && specialDay.image && (
+            <div className="editor-photo" style={{ backgroundImage: `url(${specialDay.image})` }} />
+          )}
+          <div className="editor-fields product-view">
+            <strong>{longDate(specialDay.date)}</strong>
+            <p>{specialDay.kind === 'closed' ? (specialDay.reason || 'Cerrado, sin pedidos') : `${specialDay.packageName} · ${money(specialDay.packagePrice || 0)}`}</p>
+            {specialDay.kind === 'special_package' && Boolean(specialDay.packageIncludes?.length) && (
+              <div className="product-view__tags">{specialDay.packageIncludes!.map((item) => <span key={item}>{item}</span>)}</div>
+            )}
+            {localError && <span className="inline-error inline-error--tight">{localError}</span>}
+          </div>
+          <div className="editor-controls">
+            <button className="edit-toggle" onClick={startEdit} type="button"><Pencil size={12} /> Editar</button>
+            <button className="delete-meal" onClick={remove} disabled={deleting} type="button">{deleting ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />} Eliminar</button>
+          </div>
+        </>
+      ) : null}
+    </article>
+  )
+}
+
+function SpecialDaysPanel({ token }: { token: string }) {
+  const [specialDays, setSpecialDays] = useState<SpecialDay[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [addingNew, setAddingNew] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    getAdminSpecialDays(token)
+      .then(({ specialDays: list }) => setSpecialDays([...list].sort((a, b) => a.date.localeCompare(b.date))))
+      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : 'No se pudieron cargar los días especiales'))
+      .finally(() => setLoading(false))
+  }, [token])
+
+  const handleSaved = (day: SpecialDay, wasNew: boolean) => {
+    setSpecialDays((current) => {
+      const next = wasNew ? [...current, day] : current.map((item) => item.date === day.date ? day : item)
+      return next.sort((a, b) => a.date.localeCompare(b.date))
+    })
+    if (wasNew) setAddingNew(false)
+  }
+
+  const handleDeleted = (date: string) => setSpecialDays((current) => current.filter((item) => item.date !== date))
+
+  return (
+    <>
+      <header className="admin-page-head">
+        <div>
+          <p>Días especiales</p>
+          <h1>Feriados y menús especiales</h1>
+          <span>Cierra un día por feriado, o crea un paquete de precio único fuera de los 3 paquetes estándar (como el menú de pozole).</span>
+        </div>
+        <div className="admin-head-actions">
+          <button className="admin-primary" onClick={() => setAddingNew(true)} disabled={addingNew}><Plus size={14} /> Nuevo día especial</button>
+        </div>
+      </header>
+
+      {error && <div className="inline-error">{error}</div>}
+
+      {loading ? (
+        <div className="admin-loading"><Loader2 size={22} className="spin" /> Cargando…</div>
+      ) : (
+        <div className="special-days-list">
+          {addingNew && (
+            <SpecialDayRow isNew token={token} onSaved={handleSaved} onDeleted={handleDeleted} onCancelNew={() => setAddingNew(false)} />
+          )}
+          {!addingNew && specialDays.length === 0 && (
+            <div className="admin-empty"><PackageOpen size={26} /><strong>Sin días especiales</strong>Agrega un feriado o un menú de precio único cuando lo necesites.</div>
+          )}
+          {specialDays.map((day) => (
+            <SpecialDayRow key={day.date} specialDay={day} token={token} onSaved={handleSaved} onDeleted={handleDeleted} />
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
 function AdminApp() {
   const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY) || '')
-  const [tab, setTab] = useState<'menu' | 'orders'>('menu')
+  const [tab, setTab] = useState<'menu' | 'orders' | 'special'>('menu')
   const [days, setDays] = useState<MenuDay[]>([])
   const [selectedDate, setSelectedDate] = useState('')
   const [meals, setMeals] = useState<Meal[]>([])
   const [products, setProducts] = useState<Meal[]>([])
   const [addingProduct, setAddingProduct] = useState(false)
   const [orders, setOrders] = useState<SavedOrder[]>([])
-  const [orderFilter, setOrderFilter] = useState<OrderFilter>('all')
-  const [orderBusy, setOrderBusy] = useState('')
-  const [ordersTick, setOrdersTick] = useState(0)
   const [loading, setLoading] = useState(false)
   const [productsLoading, setProductsLoading] = useState(false)
   const [dayBusy, setDayBusy] = useState(false)
+  const [orderBusyId, setOrderBusyId] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const dayQueueRef = useRef(Promise.resolve())
-  useRipple()
 
   const logout = () => {
     sessionStorage.removeItem(TOKEN_KEY)
@@ -483,20 +615,12 @@ function AdminApp() {
 
   useEffect(() => {
     if (!token || tab !== 'orders') return
-    let active = true
     setLoading(true)
-    setError('')
     getAdminOrders(token)
-      .then(({ orders: currentOrders }) => { if (active) setOrders(currentOrders) })
-      .catch((requestError) => {
-        if (!active) return
-        const text = requestError instanceof Error ? requestError.message : 'No se pudieron cargar los pedidos'
-        setError(text)
-        if (/sesión|acceso/i.test(text)) logout()
-      })
-      .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [tab, token, ordersTick])
+      .then(({ orders: currentOrders }) => setOrders(currentOrders))
+      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : 'No se pudieron cargar los pedidos'))
+      .finally(() => setLoading(false))
+  }, [tab, token])
 
   if (!token) return <Login onSuccess={setToken} />
 
@@ -551,49 +675,6 @@ function AdminApp() {
     setProducts((current) => current.filter((item) => item.id !== id))
   }
 
-  const flash = (text: string) => {
-    setMessage(text)
-    window.setTimeout(() => setMessage((current) => current === text ? '' : current), 1800)
-  }
-
-  const refreshOrders = () => setOrdersTick((tick) => tick + 1)
-
-  const changeOrderStatus = async (order: SavedOrder, status: OrderStatus) => {
-    if (order.status === status) return
-    if (status === 'cancelled' && !window.confirm(`¿Cancelar el pedido ${order.id} de ${order.customer.name}?`)) return
-    setOrderBusy(order.id)
-    setError('')
-    const previous = orders
-    setOrders((current) => current.map((item) => item.id === order.id ? { ...item, status } : item))
-    try {
-      const { order: saved } = await updateAdminOrderStatus(order.id, status, token)
-      setOrders((current) => current.map((item) => item.id === saved.id ? saved : item))
-      flash(status === 'completed' ? 'Pedido completado' : status === 'cancelled' ? 'Pedido cancelado' : 'Pedido reabierto')
-    } catch (requestError) {
-      setOrders(previous)
-      setError(requestError instanceof Error ? requestError.message : 'No se pudo actualizar el pedido')
-    } finally {
-      setOrderBusy('')
-    }
-  }
-
-  const removeOrder = async (order: SavedOrder) => {
-    if (!window.confirm(`¿Eliminar el pedido ${order.id}? Esta acción no se puede deshacer.`)) return
-    setOrderBusy(order.id)
-    setError('')
-    const previous = orders
-    setOrders((current) => current.filter((item) => item.id !== order.id))
-    try {
-      await deleteAdminOrder(order.id, token)
-      flash('Pedido eliminado')
-    } catch (requestError) {
-      setOrders(previous)
-      setError(requestError instanceof Error ? requestError.message : 'No se pudo eliminar el pedido')
-    } finally {
-      setOrderBusy('')
-    }
-  }
-
   const handleDrop = (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
     setDragOver(false)
@@ -603,26 +684,61 @@ function AdminApp() {
   }
 
   const availableCount = meals.filter((meal) => meal.available).length
-  const activeOrders = orders.filter((order) => order.status === 'accepted')
-  const completedOrders = orders.filter((order) => order.status === 'completed')
-  const cancelledOrders = orders.filter((order) => order.status === 'cancelled')
-  const visibleOrders = orderFilter === 'all' ? orders : orders.filter((order) => order.status === orderFilter)
-  const totalRevenue = orders
-    .filter((order) => order.status !== 'cancelled')
-    .reduce((sum, order) => sum + order.total, 0)
+  const totalRevenue = orders.reduce((sum, order) => order.status === 'cancelled' ? sum : sum + order.total, 0)
+
+  const cancelOrder = async (order: SavedOrder) => {
+    if (order.status === 'cancelled' || !window.confirm(`¿Cancelar el pedido ${order.id}? Se conservará el registro con estado cancelado.`)) return
+    setOrderBusyId(order.id)
+    setError('')
+    try {
+      const { order: updatedOrder } = await updateAdminOrderStatus(order.id, 'cancelled', token)
+      setOrders((current) => current.map((item) => item.id === updatedOrder.id ? updatedOrder : item))
+      setMessage('Pedido cancelado')
+      window.setTimeout(() => setMessage((current) => current === 'Pedido cancelado' ? '' : current), 1800)
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'No se pudo cancelar el pedido')
+    } finally {
+      setOrderBusyId('')
+    }
+  }
+
+  const removeOrder = async (order: SavedOrder) => {
+    if (!window.confirm(`¿Eliminar definitivamente el pedido ${order.id}? Esta acción no se puede deshacer.`)) return
+    setOrderBusyId(order.id)
+    setError('')
+    try {
+      await deleteAdminOrder(order.id, token)
+      setOrders((current) => current.filter((item) => item.id !== order.id))
+      setMessage('Pedido eliminado')
+      window.setTimeout(() => setMessage((current) => current === 'Pedido eliminado' ? '' : current), 1800)
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'No se pudo eliminar el pedido')
+    } finally {
+      setOrderBusyId('')
+    }
+  }
 
   return (
     <div className="admin-shell">
       <aside className="admin-nav">
-        <Logo compact theme="white" />
+        <Logo compact />
         <div>
           <button className={tab === 'menu' ? 'selected' : ''} onClick={() => setTab('menu')}><ClipboardList size={15} /> Menús</button>
+          <button className={tab === 'special' ? 'selected' : ''} onClick={() => setTab('special')}><CalendarOff size={15} /> Días especiales</button>
           <button className={tab === 'orders' ? 'selected' : ''} onClick={() => setTab('orders')}><ShoppingBag size={15} /> Pedidos</button>
         </div>
         <button className="logout-button" onClick={logout}><LogOut size={15} /> Salir</button>
       </aside>
 
       <main className="admin-main">
+        <div className="admin-main__brand">
+          <Logo />
+          <div className="admin-main__brand-copy">
+            <strong>FOODIE PACK</strong>
+            <span>foodiepack.com.mx · Administración</span>
+          </div>
+          <span className="admin-main__status"><i /> Sistema operativo</span>
+        </div>
         {tab === 'menu' ? <>
           <header className="admin-page-head">
             <div><p>Menú diario</p><h1>{selectedDate ? longDate(selectedDate) : 'Cargando…'}</h1><span>Arrastra un producto del catálogo al día, o usa el botón "Agregar al día".</span></div>
@@ -632,14 +748,14 @@ function AdminApp() {
             </div>
           </header>
 
-          <Reveal className="admin-stats" variant="up">
+          <div className="admin-stats">
             <div className="admin-stat"><UtensilsCrossed size={20} /><span><b>{meals.length}</b>Platillos hoy</span></div>
             <div className="admin-stat admin-stat--accent"><CheckCircle2 size={20} /><span><b>{availableCount}</b>Disponibles</span></div>
             <div className="admin-stat"><PackageOpen size={20} /><span><b>{products.length}</b>En tu catálogo</span></div>
-          </Reveal>
+          </div>
 
           <div className="admin-date-strip">
-            {days.map((day, index) => <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}><span>{index === 0 ? 'Mañana' : shortDay(day.date)}</span><strong>{dateFromKey(day.date).getDate()}</strong></button>)}
+            {days.map((day, index) => <button key={day.date} className={selectedDate === day.date ? 'selected' : ''} onClick={() => setSelectedDate(day.date)}><span>{index === 0 ? 'Próximo hábil' : shortDay(day.date)}</span><strong>{dateFromKey(day.date).getDate()}</strong></button>)}
           </div>
 
           {error && <div className="inline-error">{error}</div>}
@@ -706,57 +822,48 @@ function AdminApp() {
               </div>
             </section>
           </div>
+        </> : tab === 'special' ? <>
+          <SpecialDaysPanel token={token} />
         </> : <>
-          <header className="admin-page-head">
-            <div><p>Operación</p><h1>Pedidos</h1><span>Marca cada pedido como completado o cancelado, y elimina los que ya no necesites.</span></div>
-            <div className="admin-head-actions">
-              {message && <span className="save-message"><Check size={14} /> {message}</span>}
-              <button className="admin-secondary" onClick={refreshOrders} disabled={loading}>
-                {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} Actualizar
-              </button>
-            </div>
-          </header>
+          <header className="admin-page-head"><div><p>Foodie Pack · Operación</p><h1>Pedidos</h1><span>Aquí llegan los pedidos aceptados.</span></div></header>
 
-          <Reveal className="admin-stats" variant="up">
-            <div className="admin-stat"><ShoppingBag size={20} /><span><b>{activeOrders.length}</b>Por entregar</span></div>
-            <div className="admin-stat admin-stat--accent"><CheckCircle2 size={20} /><span><b>{completedOrders.length}</b>Completados</span></div>
-            <div className="admin-stat"><Ban size={20} /><span><b>{cancelledOrders.length}</b>Cancelados</span></div>
-            <div className="admin-stat"><Receipt size={20} /><span><b>{money(totalRevenue)}</b>Ingresos</span></div>
-          </Reveal>
-
-          <div className="orders-filters" role="tablist" aria-label="Filtrar pedidos">
-            {ORDER_FILTERS.map((filter) => (
-              <button
-                key={filter.key}
-                role="tab"
-                aria-selected={orderFilter === filter.key}
-                className={orderFilter === filter.key ? 'selected' : ''}
-                onClick={() => setOrderFilter(filter.key)}
-              >
-                {filter.label} <b>{filter.key === 'all' ? orders.length : orders.filter((order) => order.status === filter.key).length}</b>
-              </button>
-            ))}
+          <div className="admin-stats">
+            <div className="admin-stat"><ShoppingBag size={20} /><span><b>{orders.length}</b>Pedidos</span></div>
+            <div className="admin-stat admin-stat--accent"><Receipt size={20} /><span><b>{money(totalRevenue)}</b>Ingresos</span></div>
           </div>
 
           {error && <div className="inline-error">{error}</div>}
           {loading && <div className="admin-loading"><Loader2 size={22} className="spin" /> Cargando pedidos…</div>}
-
-          <div className="orders-list">
-            {!loading && visibleOrders.map((order, index) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                index={index}
-                busy={orderBusy === order.id}
-                onStatus={(status) => changeOrderStatus(order, status)}
-                onDelete={() => removeOrder(order)}
-              />
+          <div className="orders-table">
+            <div className="orders-table__head"><span>Pedido</span><span>Entrega</span><span>Cliente</span><span>Dirección</span><span>Paquete</span><span>Pago</span><span>Total</span><span>Estado</span><span>Acciones</span></div>
+            {!loading && orders.map((order, index) => (
+              <div className="orders-table__row" key={order.id} style={{ '--i': index } as CSSProperties}>
+                <strong>{order.id}{order.isWeeklyPlan && <em className="plan-badge">Plan semanal</em>}</strong>
+                <span>{longDate(order.deliveryDate)}</span>
+                <span className="order-customer">
+                  <strong>{order.customer.name}</strong>
+                  {order.customer.phone && <a href={`tel:${order.customer.phone}`}><Phone size={11} /> {order.customer.phone}</a>}
+                </span>
+                <span className="order-address">
+                  <strong>{order.delivery?.address || order.customer.address || 'Sin dirección'}</strong>
+                  {order.delivery?.office && <small>{order.delivery.office}</small>}
+                  {order.delivery?.mapUrl && <a href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={12} /> Ver pin</a>}
+                </span>
+                <span>{order.items[0]?.packageLabel || '—'} · {order.items.reduce((sum, item) => sum + item.quantity, 0)}{order.items[0]?.mealName ? <small className="order-meal-name">{order.items[0].mealName}</small> : null}{order.items[0]?.garnish ? <small className="order-meal-name">Guarnición: {order.items[0].garnish === 'arroz' ? 'Arroz' : 'Frijoles'}</small> : null}</span>
+                <span className="order-payment">
+                  {order.paymentMethod === 'card' || order.paymentMethod === 'terminal' ? <CreditCard size={13} /> : order.paymentMethod === 'cash' ? <Banknote size={13} /> : <Landmark size={13} />}
+                  {' '}{order.paymentMethod === 'card' ? 'Tarjeta' : order.paymentMethod === 'terminal' ? 'Terminal' : order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}
+                </span>
+                <strong>{money(order.total)}{order.discountAmount > 0 && <small className="order-discount">-{money(order.discountAmount)}</small>}</strong>
+                <b className={`order-status ${order.status === 'accepted' ? '' : order.status === 'cancelled' ? 'order-status--cancelled' : 'status-confirmed'}`}>{orderStatusLabel(order.status)}</b>
+                <span className="order-actions" aria-label={`Acciones del pedido ${order.id}`}>
+                  <button className="order-action order-action--cancel" type="button" title={order.status === 'cancelled' ? 'Pedido ya cancelado' : 'Cancelar pedido'} disabled={order.status === 'cancelled' || orderBusyId === order.id} onClick={() => cancelOrder(order)}><CircleX size={13} /><span>Cancelar</span></button>
+                  <button className="order-action order-action--delete" type="button" title="Eliminar pedido" disabled={orderBusyId === order.id} onClick={() => removeOrder(order)}><Trash2 size={13} /><span>Eliminar</span></button>
+                </span>
+              </div>
             ))}
             {!loading && orders.length === 0 && (
               <div className="admin-empty"><PackageOpen size={26} /><strong>Todavía no hay pedidos</strong>Aquí aparecerán en cuanto lleguen.</div>
-            )}
-            {!loading && orders.length > 0 && visibleOrders.length === 0 && (
-              <div className="admin-empty"><PackageOpen size={26} /><strong>Nada en este filtro</strong>Cambia de pestaña para ver los demás pedidos.</div>
             )}
           </div>
         </>}

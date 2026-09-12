@@ -7,19 +7,36 @@ import '@fontsource/dm-sans/400.css'
 import '@fontsource/dm-sans/500.css'
 import '@fontsource/dm-sans/600.css'
 import '@fontsource/dm-sans/700.css'
-import '@fontsource/caveat/600.css'
-import '@fontsource/caveat/700.css'
 import './styles.css'
 import App from './App'
+import InstallPrompt from './components/InstallPrompt'
+import { initAnalytics } from './lib/analytics'
+
+initAnalytics()
 
 const AdminApp = lazy(() => import('./AdminApp'))
+const WeekMenuApp = lazy(() => import('./WeekMenuApp'))
 const currentPath = window.location.pathname.replace(/\/$/, '')
 const isAdminRoute = currentPath === '/admin' || currentPath === '/gestion-cocina'
+const isWeekMenuRoute = currentPath === '/menu-semana' || currentPath === '/semana'
+
+function Route() {
+  if (isAdminRoute) return <AdminApp />
+  if (isWeekMenuRoute) return <WeekMenuApp />
+  return <App />
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    {!isAdminRoute && <InstallPrompt />}
     <Suspense fallback={<div className="route-loading">Cargando…</div>}>
-      {isAdminRoute ? <AdminApp /> : <App />}
+      <Route />
     </Suspense>
   </React.StrictMode>,
 )

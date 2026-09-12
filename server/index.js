@@ -7,14 +7,14 @@ import helmet from 'helmet'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import {
-  ORDER_STATUSES, createProduct, deleteOrder, deleteProduct, getMenu, getMenus, getOrders,
-  getProducts, saveMenu, saveOrder, storageMode, updateOrderStatus, updateProduct, uploadProductImage,
+  createProduct, deleteOrder, deleteProduct, deleteSpecialDay, getMenu, getMenus, getOrders, getProducts,
+  getSpecialDays, saveMenu, saveOrder, saveSpecialDay, storageMode, updateOrderStatus, updateProduct,
+  uploadProductImage,
 } from './store.js'
+import { addBusinessDays, MIN_ORDER_DATE, orderPolicy } from './time.js'
 import {
-  FREE_DELIVERY_RADIUS_KM, KITCHEN_LOCATION, evaluateDeliveryPoint, resolveDeliveryLocation,
-} from './delivery.js'
-import { addDays, orderPolicy } from './time.js'
-import { PACKAGES, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS } from './packages.js'
+  GARNISH_OPTIONS, PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS,
+} from './packages.js'
 
 const app = express()
 const port = Number(process.env.PORT || 8787)
@@ -47,6 +47,7 @@ app.use(express.json({ limit: '4mb' }))
 
 const loginAttempts = new Map()
 const loginSchema = z.object({ password: z.string().min(8).max(200) })
+const packagesSchema = z.array(z.enum(PACKAGE_ORDER)).length(3).refine((packages) => new Set(packages).size === 3)
 const customerSchema = z.object({
   name: z.string().trim().min(2).max(80),
   phone: z.string().trim().min(8).max(24),
@@ -65,13 +66,22 @@ const deliverySchema = z.object({
 const orderSchema = z.object({
   customer: customerSchema,
   delivery: deliverySchema,
-  paymentMethod: z.enum(['card', 'cash', 'transfer']),
+  paymentMethod: z.enum(['cash', 'transfer', 'terminal']),
   orderMode: z.enum(['day', 'week']),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  packageTier: z.enum(['economico', 'ejecutivo', 'completo']),
+  packageTier: z.enum(['economico', 'ejecutivo', 'completo']).optional(),
   quantity: z.number().int().min(1).max(10),
   repeatGuisado: z.boolean().optional().default(false),
   prepay: z.boolean().optional().default(false),
+  garnish: z.enum(GARNISH_OPTIONS).optional(),
+  mealId: z.string().trim().min(1).max(100).optional(),
+  specialAddons: z.array(z.string().trim().min(1).max(60)).max(5).optional().default([]),
+}).superRefine((data, context) => {
+  if (data.prepay && data.paymentMethod !== 'transfer') {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['prepay'], message: 'El precio de adelanto requiere transferencia.' })
+  }
+  // A special-package day (see below) needs neither mealId nor packageTier, so that
+  // check is deferred to the route handler once the day's special config is known.
 })
 const mealSchema = z.object({
   id: z.string().min(1).max(100),
@@ -83,6 +93,7 @@ const mealSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(40)).max(4),
   image: z.string().min(1).max(300).default('/assets/meals/pollo-citrico.jpg'),
   available: z.boolean(),
+  packages: packagesSchema.default([...PACKAGE_ORDER]),
 })
 const menuSchema = z.object({ meals: z.array(mealSchema).max(20) })
 const productSchema = z.object({
@@ -94,20 +105,51 @@ const productSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(40)).max(4),
   image: z.string().min(1).max(300).default('/assets/meals/pollo-citrico.jpg'),
   available: z.boolean().default(true),
+  packages: packagesSchema.default([...PACKAGE_ORDER]),
 })
-const deliveryCheckSchema = z.object({
-  address: z.string().trim().max(180).optional().default(''),
-  coordinates: z.object({
-    latitude: z.number().min(-90).max(90),
-    longitude: z.number().min(-180).max(180),
-  }).optional(),
-})
-const orderStatusSchema = z.object({ status: z.enum(ORDER_STATUSES) })
+const orderStatusSchema = z.object({ status: z.enum(['accepted', 'cancelled']) })
 const uploadSchema = z.object({
   fileBase64: z.string().min(1),
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
 })
 const MAX_UPLOAD_BYTES = 3_500_000
+const specialDayAddonSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  price: z.number().int().min(0).max(2000),
+})
+const specialDaySchema = z.object({
+  kind: z.enum(['closed', 'special_package']),
+  label: z.string().trim().min(2).max(80),
+  reason: z.string().trim().max(240).optional().default(''),
+  packageName: z.string().trim().min(2).max(80).optional(),
+  packagePrice: z.number().int().min(0).max(5000).optional(),
+  packageIncludes: z.array(z.string().trim().min(1).max(80)).max(10).optional().default([]),
+  addons: z.array(specialDayAddonSchema).max(5).optional().default([]),
+  image: z.string().min(1).max(300).optional(),
+}).superRefine((data, context) => {
+  if (data.kind === 'special_package') {
+    if (!data.packageName) context.addIssue({ code: z.ZodIssueCode.custom, path: ['packageName'], message: 'Escribe el nombre del menú especial.' })
+    if (data.packagePrice === undefined) context.addIssue({ code: z.ZodIssueCode.custom, path: ['packagePrice'], message: 'Escribe el precio único del menú especial.' })
+  }
+})
+
+// Skips weekends (isBusinessDay via addBusinessDays) and any date marked 'closed' in
+// special_menu_days, sliding the window forward so a holiday never shrinks the number
+// of orderable days a customer sees.
+async function eligibleOrderDates(today, count) {
+  const specialDays = await getSpecialDays()
+  const dates = []
+  let cursor = today
+  let guard = 0
+  while (dates.length < count && guard < 60) {
+    cursor = addBusinessDays(cursor, 1)
+    guard += 1
+    if (cursor < MIN_ORDER_DATE) continue
+    if (specialDays[cursor]?.kind === 'closed') continue
+    dates.push(cursor)
+  }
+  return { dates, specialDays }
+}
 
 function googleMapsUrl(delivery) {
   const query = delivery.coordinates
@@ -135,13 +177,7 @@ function requireAdmin(request, response, next) {
 }
 
 app.get('/api/health', (_request, response) => {
-  response.json({
-    ok: true,
-    service: 'foodiepack-api',
-    storage: storageMode(),
-    policy: orderPolicy(),
-    delivery: { zone: deliveryZone, radiusKm: FREE_DELIVERY_RADIUS_KM, kitchen: KITCHEN_LOCATION },
-  })
+  response.json({ ok: true, service: 'foodiepack-api', storage: storageMode(), policy: orderPolicy() })
 })
 
 app.get('/api/menu', async (request, response) => {
@@ -149,22 +185,32 @@ app.get('/api/menu', async (request, response) => {
   const date = typeof request.query.date === 'string' ? request.query.date : policy.tomorrow
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return response.status(400).json({ error: 'Fecha inválida' })
 
-  const eligibleDates = Array.from({ length: WEEKLY_PLAN_DAYS }, (_, index) => addDays(policy.tomorrow, index))
+  const { dates: eligibleDates, specialDays } = await eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
+  const specialDay = specialDays[date] || null
+  // A special-package day (e.g. pozole) can coexist with a normal curated menu on the
+  // same date, so the normal meals always load alongside whatever special is set.
   const meals = await getMenu(date)
   response.json({
     date,
     meals,
     canOrder: eligibleDates.includes(date) && policy.isOpen,
     policy,
+    specialDay,
   })
 })
 
 app.get('/api/menu-days', async (_request, response) => {
   const policy = orderPolicy()
-  const dates = Array.from({ length: WEEKLY_PLAN_DAYS }, (_, index) => addDays(policy.today, index + 1))
+  const { dates, specialDays } = await eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
   const menus = await getMenus()
   const days = dates.map((date) => {
-    return { date, mealCount: (menus[date] || []).filter((meal) => meal.available).length }
+    const specialDay = specialDays[date] || null
+    const normalCount = (menus[date] || []).filter((meal) => meal.available).length
+    return {
+      date,
+      mealCount: (specialDay ? 1 : 0) + normalCount,
+      specialDay,
+    }
   })
   response.json({ days, policy })
 })
@@ -181,33 +227,61 @@ app.post('/api/orders', async (request, response) => {
     })
   }
 
-  const eligibleDates = Array.from({ length: WEEKLY_PLAN_DAYS }, (_, index) => addDays(policy.tomorrow, index))
+  const { dates: eligibleDates, specialDays } = await eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
+  const { orderMode, packageTier, quantity, repeatGuisado, prepay, garnish, specialAddons } = parsed.data
+  const specialDay = orderMode === 'day' ? specialDays[parsed.data.date] : null
+  // A date can offer both a special package and a normal curated menu at once (e.g. the
+  // pozole special alongside a normal guisado), so the client says which one it wants via
+  // mealId: 'special' — the mere presence of a special that day is no longer enough.
+  const orderingSpecial = specialDay?.kind === 'special_package' && parsed.data.mealId === 'special'
+
+  if (specialDay?.kind === 'closed') {
+    return response.status(409).json({ error: specialDay.reason || 'No se reciben pedidos para este día.', policy })
+  }
   if (!eligibleDates.includes(parsed.data.date)) {
     return response.status(409).json({ error: 'Solo puedes reservar dentro de los próximos 5 días disponibles.', policy })
   }
 
-  const location = await resolveDeliveryLocation({
-    address: parsed.data.delivery.address,
-    coordinates: parsed.data.delivery.coordinates,
-  })
-  if (location && !location.withinRadius) {
-    return response.status(409).json({
-      error: `Tu dirección está a ${location.distanceKm.toFixed(1)} km de la cocina y entregamos dentro de ${FREE_DELIVERY_RADIUS_KM} km a la redonda. Escríbenos por WhatsApp para revisar tu caso.`,
-      delivery: location,
-    })
-  }
-
-  const { orderMode, packageTier, quantity, repeatGuisado, prepay } = parsed.data
-  const pack = PACKAGES[packageTier]
-  const canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
-
+  let selectedMeal = null
+  let pack = null
+  let packageLabel
+  let unitPrice
   let subtotal
   let discountAmount = 0
-  if (orderMode === 'week') {
-    subtotal = pack.weeklyRegular * quantity
-    discountAmount = prepay ? (pack.weeklyRegular - pack.weeklyPrepay) * quantity : 0
+  let canRepeatGuisado = false
+  let chosenGarnish = null
+  let chosenAddons = []
+
+  if (orderingSpecial) {
+    chosenAddons = (specialDay.addons || []).filter((addon) => specialAddons.includes(addon.name))
+    unitPrice = specialDay.packagePrice + chosenAddons.reduce((sum, addon) => sum + addon.price, 0)
+    packageLabel = specialDay.packageName
+    subtotal = unitPrice * quantity
   } else {
-    subtotal = pack.dailyPrice * quantity + (canRepeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0)
+    if (!packageTier) return response.status(400).json({ error: 'Elige uno de los 3 paquetes.', policy })
+    pack = PACKAGES[packageTier]
+    packageLabel = pack.label
+    if (orderMode === 'day') {
+      const menu = await getMenu(parsed.data.date)
+      selectedMeal = menu.find((meal) => meal.id === parsed.data.mealId) || null
+      if (!selectedMeal) return response.status(409).json({ error: 'Selecciona un guisado disponible para ese día.', policy })
+      if (!selectedMeal.available) return response.status(409).json({ error: 'Ese guisado ya no está disponible.', policy })
+      if (!selectedMeal.packages?.includes(packageTier)) {
+        return response.status(409).json({ error: 'Ese guisado no tiene disponible el paquete seleccionado.', policy })
+      }
+    }
+    canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
+    chosenGarnish = garnish || 'arroz'
+
+    if (orderMode === 'week') {
+      subtotal = pack.weeklyRegular * quantity
+      discountAmount = prepay ? (pack.weeklyRegular - pack.weeklyPrepay) * quantity : 0
+      unitPrice = prepay ? pack.weeklyPrepay : pack.weeklyRegular
+    } else {
+      const surcharge = canRepeatGuisado ? REPEAT_GUISADO_SURCHARGE * quantity : 0
+      subtotal = pack.dailyPrice * quantity + surcharge
+      unitPrice = pack.dailyPrice
+    }
   }
   const discountRate = subtotal > 0 ? Number((discountAmount / subtotal).toFixed(4)) : 0
   const total = subtotal - discountAmount
@@ -224,73 +298,28 @@ app.post('/api/orders', async (request, response) => {
       zone: deliveryZone,
       address: parsed.data.delivery.address,
       office: parsed.data.delivery.office,
-      mapUrl: googleMapsUrl({ ...parsed.data.delivery, coordinates: parsed.data.delivery.coordinates || location?.coordinates }),
-      ...(parsed.data.delivery.coordinates || location?.coordinates
-        ? { coordinates: parsed.data.delivery.coordinates || location.coordinates }
-        : {}),
-      radiusKm: FREE_DELIVERY_RADIUS_KM,
-      ...(location
-        ? { distanceKm: location.distanceKm, withinRadius: location.withinRadius, locationSource: location.source }
-        : { distanceKm: null, withinRadius: null, locationSource: 'unverified' }),
+      mapUrl: googleMapsUrl(parsed.data.delivery),
+      ...(parsed.data.delivery.coordinates ? { coordinates: parsed.data.delivery.coordinates } : {}),
     },
     items: [{
-      packageTier,
-      packageLabel: pack.label,
+      packageTier: orderingSpecial ? 'especial' : packageTier,
+      packageLabel,
       quantity,
-      unitPrice: orderMode === 'week' ? (prepay ? pack.weeklyPrepay : pack.weeklyRegular) : pack.dailyPrice,
+      unitPrice,
       repeatGuisado: canRepeatGuisado,
       prepay: orderMode === 'week' && prepay,
+      ...(chosenGarnish ? { garnish: chosenGarnish } : {}),
+      ...(selectedMeal ? { mealId: selectedMeal.id, mealName: selectedMeal.name, menuDate: parsed.data.date } : {}),
+      ...(chosenAddons.length > 0 ? { specialAddons: chosenAddons.map((addon) => addon.name) } : {}),
     }],
     subtotal,
     deliveryFee: 0,
     discountRate,
     discountAmount,
     total,
-    distanceKm: location ? location.distanceKm : null,
   }
   await saveOrder(order)
   response.status(201).json({ order })
-})
-
-const deliveryCheckAttempts = new Map()
-
-app.post('/api/delivery/check', async (request, response) => {
-  const ip = request.ip
-  const attempt = deliveryCheckAttempts.get(ip) || { count: 0, resetAt: Date.now() + 60_000 }
-  if (Date.now() > attempt.resetAt) {
-    attempt.count = 0
-    attempt.resetAt = Date.now() + 60_000
-  }
-  attempt.count += 1
-  deliveryCheckAttempts.set(ip, attempt)
-  if (attempt.count > 30) return response.status(429).json({ error: 'Demasiadas consultas seguidas. Espera un minuto.' })
-
-  const parsed = deliveryCheckSchema.safeParse(request.body)
-  if (!parsed.success) return response.status(400).json({ error: 'Revisa la dirección' })
-
-  const fromPin = evaluateDeliveryPoint(parsed.data.coordinates)
-  const location = fromPin
-    ? { ...fromPin, source: 'pin', label: '' }
-    : await resolveDeliveryLocation({ address: parsed.data.address })
-
-  if (!location) {
-    return response.json({
-      resolved: false,
-      radiusKm: FREE_DELIVERY_RADIUS_KM,
-      kitchen: KITCHEN_LOCATION,
-    })
-  }
-
-  response.json({
-    resolved: true,
-    radiusKm: FREE_DELIVERY_RADIUS_KM,
-    kitchen: KITCHEN_LOCATION,
-    coordinates: location.coordinates,
-    distanceKm: location.distanceKm,
-    withinRadius: location.withinRadius,
-    source: location.source,
-    label: location.label,
-  })
 })
 
 app.post('/api/admin/login', (request, response) => {
@@ -328,6 +357,26 @@ app.put('/api/admin/menu/:date', requireAdmin, async (request, response) => {
   response.json({ date: request.params.date, meals })
 })
 
+app.get('/api/admin/special-days', requireAdmin, async (_request, response) => {
+  const specialDays = await getSpecialDays()
+  response.json({ specialDays: Object.values(specialDays) })
+})
+
+app.put('/api/admin/special-days/:date', requireAdmin, async (request, response) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(request.params.date)) return response.status(400).json({ error: 'Fecha inválida' })
+  const parsed = specialDaySchema.safeParse(request.body)
+  if (!parsed.success) return response.status(400).json({ error: 'Revisa los datos del día especial' })
+  const specialDay = await saveSpecialDay(request.params.date, parsed.data)
+  response.json({ specialDay })
+})
+
+app.delete('/api/admin/special-days/:date', requireAdmin, async (request, response) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(request.params.date)) return response.status(400).json({ error: 'Fecha inválida' })
+  const removed = await deleteSpecialDay(request.params.date)
+  if (!removed) return response.status(404).json({ error: 'Día especial no encontrado' })
+  response.status(204).end()
+})
+
 app.get('/api/admin/orders', requireAdmin, async (_request, response) => {
   const orders = await getOrders()
   response.json({ orders })
@@ -335,7 +384,7 @@ app.get('/api/admin/orders', requireAdmin, async (_request, response) => {
 
 app.patch('/api/admin/orders/:id', requireAdmin, async (request, response) => {
   const parsed = orderStatusSchema.safeParse(request.body)
-  if (!parsed.success) return response.status(400).json({ error: 'Estado no válido' })
+  if (!parsed.success) return response.status(400).json({ error: 'Estado de pedido inválido' })
   const order = await updateOrderStatus(request.params.id, parsed.data.status)
   if (!order) return response.status(404).json({ error: 'Pedido no encontrado' })
   response.json({ order })

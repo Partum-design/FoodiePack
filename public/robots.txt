@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /gestion-cocina
+
+Sitemap: https://www.foodiepack.com.mx/sitemap.xml

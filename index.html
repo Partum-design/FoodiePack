@@ -3,22 +3,52 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0e5039" />
-    <meta name="description" content="FoodiePack — Tu cocina en la oficina. Comida casera y fresca entregada en Lindavista, CDMX." />
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" href="/assets/brand/icon-192.png" type="image/png" sizes="192x192" />
-    <link rel="apple-touch-icon" href="/assets/brand/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0b4b39" />
+    <meta name="description" content="FoodiePack — comida rica y lista para tu semana." />
+    <link rel="canonical" href="https://www.foodiepack.com.mx/" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="FoodiePack" />
+
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="FoodiePack" />
+    <meta property="og:locale" content="es_MX" />
+    <meta property="og:url" content="https://www.foodiepack.com.mx/" />
     <meta property="og:title" content="FoodiePack · Tu cocina en la oficina" />
-    <meta property="og:description" content="Comida casera y fresca entregada en tu oficina en Lindavista, CDMX." />
-    <meta property="og:image" content="/assets/brand/logo-verde-naranja.png" />
+    <meta property="og:description" content="FoodiePack — comida rica y lista para tu semana." />
+    <meta property="og:image" content="https://www.foodiepack.com.mx/assets/meals/weekly-hero.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="FoodiePack · Tu cocina en la oficina" />
+    <meta name="twitter:description" content="FoodiePack — comida rica y lista para tu semana." />
+    <meta name="twitter:image" content="https://www.foodiepack.com.mx/assets/meals/weekly-hero.jpg" />
+
     <title>FoodiePack · Tu cocina en la oficina</title>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FoodEstablishment",
+        "name": "FoodiePack",
+        "url": "https://www.foodiepack.com.mx/",
+        "logo": "https://www.foodiepack.com.mx/assets/brand/logo-verde-naranja.png",
+        "image": "https://www.foodiepack.com.mx/assets/meals/weekly-hero.jpg",
+        "description": "Tu cocina en la oficina. Comida casera lista para pedir, con entrega gratuita en Lindavista, CDMX.",
+        "areaServed": { "@type": "Place", "name": "Lindavista, Ciudad de México" },
+        "servesCuisine": "Mexicana",
+        "priceRange": "$60–$90 MXN",
+        "telephone": "+52 1 56 6035 6369",
+        "acceptsReservations": false
+      }
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-shell" aria-hidden="true"><span></span></div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

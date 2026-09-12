@@ -1,4 +1,6 @@
-import type { DeliveryCheck, Meal, MenuDay, MenuResponse, OrderPolicy, OrderStatus, PaymentMethod, SavedOrder } from './types'
+import type { Garnish } from './packages'
+import type { Meal, MenuDay, MenuResponse, OrderPolicy, PaymentMethod, SavedOrder, SpecialDay } from './types'
+import type { PackageTier } from './packages'
 
 const configuredUrl = import.meta.env.VITE_API_URL as string | undefined
 const API_URL = (configuredUrl || '/api').replace(/\/$/, '')
@@ -48,16 +50,15 @@ export function createOrder(payload: {
   paymentMethod: PaymentMethod
   orderMode: 'day' | 'week'
   date: string
-  packageTier: string
+  packageTier?: PackageTier
   quantity: number
   repeatGuisado: boolean
   prepay: boolean
+  garnish?: Garnish
+  mealId?: string
+  specialAddons?: string[]
 }) {
   return request<{ order: SavedOrder }>('/orders', { method: 'POST', body: JSON.stringify(payload) })
-}
-
-export function checkDelivery(payload: { address?: string; coordinates?: { latitude: number; longitude: number } }) {
-  return request<DeliveryCheck>('/delivery/check', { method: 'POST', body: JSON.stringify(payload) })
 }
 
 export function adminLogin(password: string) {
@@ -84,7 +85,7 @@ export function getAdminOrders(token: string) {
   return request<{ orders: SavedOrder[] }>('/admin/orders', { headers: adminHeaders(token) })
 }
 
-export function updateAdminOrderStatus(id: string, status: OrderStatus, token: string) {
+export function updateAdminOrderStatus(id: string, status: 'accepted' | 'cancelled', token: string) {
   return request<{ order: SavedOrder }>(`/admin/orders/${id}`, {
     method: 'PATCH',
     headers: adminHeaders(token),
@@ -131,5 +132,24 @@ export function uploadAdminImage(fileBase64: string, contentType: string, token:
     method: 'POST',
     headers: adminHeaders(token),
     body: JSON.stringify({ fileBase64, contentType }),
+  })
+}
+
+export function getAdminSpecialDays(token: string) {
+  return request<{ specialDays: SpecialDay[] }>('/admin/special-days', { headers: adminHeaders(token) })
+}
+
+export function saveAdminSpecialDay(date: string, specialDay: Omit<SpecialDay, 'date'>, token: string) {
+  return request<{ specialDay: SpecialDay }>(`/admin/special-days/${date}`, {
+    method: 'PUT',
+    headers: adminHeaders(token),
+    body: JSON.stringify(specialDay),
+  })
+}
+
+export function deleteAdminSpecialDay(date: string, token: string) {
+  return request<Record<string, never>>(`/admin/special-days/${date}`, {
+    method: 'DELETE',
+    headers: adminHeaders(token),
   })
 }

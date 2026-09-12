@@ -1,0 +1,371 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  ArrowRight, Calendar, Check, Loader2, MessageCircle, Minus, Plus, RefreshCw, Utensils, Wand2,
+} from 'lucide-react'
+import { getMenu, getMenuDays } from './api'
+import { FiestaConfetti, FiestaGarland } from './components/FiestaDecor'
+import FloatingDecor from './components/FloatingDecor'
+import Logo from './components/Logo'
+import { buildWhatsAppUrl } from './lib/contact'
+import { dayName, fullDate, shortDate } from './lib/dates'
+import { money } from './lib/format'
+import { useReveal } from './lib/useReveal'
+import {
+  DOUBLE_GARNISH_OPTIONS, GARNISH_OPTIONS, garnishChoiceLabel, PACKAGE_ORDER, PACKAGES, UTENSILS_SURCHARGE,
+} from './packages'
+import type { GarnishChoice, PackageTier } from './packages'
+import type { Meal, MenuDay, MenuResponse, OrderPolicy } from './types'
+
+function DayCard({
+  day, meals, selectedMealId, onChoose, garnishChoice, isDoubleGarnish, onGarnish, selectedAddons, onToggleAddon,
+}: {
+  day: MenuDay
+  meals: Meal[]
+  selectedMealId: string | null
+  onChoose: (mealId: string) => void
+  garnishChoice: GarnishChoice
+  isDoubleGarnish: boolean
+  onGarnish: (value: GarnishChoice) => void
+  selectedAddons: string[]
+  onToggleAddon: (name: string) => void
+}) {
+  const { ref, visible } = useReveal<HTMLDivElement>()
+  const specialDay = day.specialDay?.kind === 'special_package' ? day.specialDay : null
+  const specialChosen = selectedMealId === 'special'
+  const done = Boolean(selectedMealId)
+  const garnishOptions = isDoubleGarnish ? DOUBLE_GARNISH_OPTIONS : GARNISH_OPTIONS
+  // A day can offer a special package (e.g. pozole) alongside its normal curated menu, so
+  // both sections render together; the "sin menú aún" empty state only applies when there's
+  // no special either (otherwise it'd wrongly show under a pozole-only day).
+  const showMealSection = meals.length > 0 || !specialDay
+
+  return (
+    <div ref={ref} className={`week-day reveal ${visible ? 'reveal--visible' : ''}`}>
+      <div className="week-day__head">
+        <div>
+          <strong>{dayName(day.date, true)}</strong>
+          <span>{fullDate(day.date)}</span>
+        </div>
+        {done && <b className="week-day__check"><Check size={12} /> Elegido</b>}
+      </div>
+
+      {specialDay && (
+        <button
+          type="button"
+          className={`week-day__special ${specialChosen ? 'selected' : ''}`}
+          onClick={() => onChoose('special')}
+        >
+          {specialDay.image && <img src={specialDay.image} alt={specialDay.packageName || 'Menú especial'} loading="lazy" decoding="async" />}
+          <div>
+            <strong>{specialDay.packageName} · {money(specialDay.packagePrice || 0)}</strong>
+            {specialDay.packageIncludes && specialDay.packageIncludes.length > 0 && (
+              <span>Incluye {specialDay.packageIncludes.join(', ').toLowerCase()}.</span>
+            )}
+          </div>
+          <span className="week-day__special-pick">{specialChosen ? <><Check size={13} /> Elegido</> : 'Elegir'}</span>
+        </button>
+      )}
+      {specialDay && specialChosen && Boolean(specialDay.addons?.length) && (
+        <div className="special-day-addons">
+          {specialDay.addons!.map((addon) => (
+            <label key={addon.name}>
+              <input type="checkbox" checked={selectedAddons.includes(addon.name)} onChange={() => onToggleAddon(addon.name)} />
+              <span>{addon.name}</span>
+              <b>+{money(addon.price)}</b>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {showMealSection && (
+        <>
+          <div className="week-day__meals">
+            {meals.map((meal) => (
+              <button
+                type="button"
+                key={meal.id}
+                className={`week-meal-card ${selectedMealId === meal.id ? 'selected' : ''} ${!meal.available ? 'unavailable' : ''}`}
+                disabled={!meal.available}
+                onClick={() => onChoose(meal.id)}
+              >
+                <span className="week-meal-card__media">
+                  <img src={meal.image} alt="" loading="lazy" decoding="async" />
+                  {selectedMealId === meal.id && <i className="week-meal-card__badge"><Check size={13} /></i>}
+                  {!meal.available && <em>Agotado</em>}
+                </span>
+                <b>{meal.name}</b>
+              </button>
+            ))}
+            {meals.length === 0 && <p className="week-day__empty">La cocina todavía no publica el menú de este día.</p>}
+          </div>
+          {meals.length > 0 && (
+            <div className="week-day__garnish">
+              <span>{isDoubleGarnish ? '¿Cómo quieres tus 2 guarniciones?' : '¿Arroz o frijoles?'}</span>
+              <div>
+                {garnishOptions.map((option) => (
+                  <button
+                    type="button"
+                    key={option.value}
+                    className={garnishChoice === option.value ? 'selected' : ''}
+                    onClick={() => onGarnish(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function WeekMenuApp() {
+  const [days, setDays] = useState<MenuDay[]>([])
+  const [policy, setPolicy] = useState<OrderPolicy | null>(null)
+  const [menus, setMenus] = useState<Record<string, MenuResponse>>({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [retryTick, setRetryTick] = useState(0)
+  const [packageTier, setPackageTier] = useState<PackageTier>('ejecutivo')
+  const [quantity, setQuantity] = useState(1)
+  const [garnishSelections, setGarnishSelections] = useState<Record<string, GarnishChoice>>({})
+  const [selections, setSelections] = useState<Record<string, string>>({})
+  const [wantsUtensils, setWantsUtensils] = useState(false)
+  const [specialAddonSelections, setSpecialAddonSelections] = useState<Record<string, string[]>>({})
+
+  const isDoubleGarnish = packageTier === 'completo'
+  const defaultGarnish: GarnishChoice = isDoubleGarnish ? 'mixto' : 'arroz'
+
+  // Guarniciones válidas dependen del paquete elegido (1 vs 2 guarniciones).
+  useEffect(() => {
+    setGarnishSelections({})
+  }, [packageTier])
+
+  useEffect(() => {
+    document.title = 'FoodiePack · Menú de la semana'
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    setError('')
+    getMenuDays()
+      .then(({ days: availableDays, policy: currentPolicy }) => {
+        if (!active) return null
+        setDays(availableDays)
+        setPolicy(currentPolicy)
+        return Promise.all(availableDays.map((day) => getMenu(day.date).then((response) => [day.date, response] as const)))
+      })
+      .then((entries) => {
+        if (!active || !entries) return
+        setMenus(Object.fromEntries(entries))
+      })
+      .catch(() => { if (active) setError('No pudimos cargar el menú de la semana. Intenta de nuevo.') })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [retryTick])
+
+  const pack = PACKAGES[packageTier]
+  const totalDays = days.length
+  const selectedCount = useMemo(
+    () => days.filter((day) => selections[day.date]).length,
+    [days, selections],
+  )
+
+  const changeQuantity = (change: number) => setQuantity((current) => Math.min(10, Math.max(1, current + change)))
+
+  const chooseMeal = (date: string, mealId: string) => {
+    setSelections((current) => {
+      const next = { ...current }
+      if (next[date] === mealId) delete next[date]
+      else next[date] = mealId
+      return next
+    })
+  }
+
+  const chooseGarnish = (date: string, value: GarnishChoice) => {
+    setGarnishSelections((current) => ({ ...current, [date]: value }))
+  }
+
+  const toggleSpecialAddon = (date: string, name: string) => {
+    setSpecialAddonSelections((current) => {
+      const selected = current[date] || []
+      const next = selected.includes(name) ? selected.filter((item) => item !== name) : [...selected, name]
+      return { ...current, [date]: next }
+    })
+  }
+
+  const autoFillWeek = () => {
+    setSelections((current) => {
+      const next = { ...current }
+      days.forEach((day) => {
+        if (next[day.date]) return
+        if (day.specialDay?.kind === 'special_package') {
+          next[day.date] = 'special'
+          return
+        }
+        const meals = menus[day.date]?.meals || []
+        const pick = meals.find((meal) => meal.available)
+        if (pick) next[day.date] = pick.id
+      })
+      return next
+    })
+  }
+
+  const whatsappMessage = useMemo(() => {
+    const lines: string[] = []
+    lines.push('¡Hola! 👋 Quiero armar mi semana con FoodiePack:')
+    lines.push('')
+    lines.push(`📦 Paquete: ${pack.label} (${money(pack.dailyPrice)}/día)`)
+    lines.push(`👥 Para: ${quantity} ${quantity === 1 ? 'persona' : 'personas'}`)
+    lines.push(`🍴 Cubiertos: ${wantsUtensils ? `Sí (+${money(UTENSILS_SURCHARGE)})` : 'No, ya tengo'}`)
+    lines.push('')
+    const chosenDays = days.filter((day) => selections[day.date])
+    if (chosenDays.length > 0) {
+      chosenDays.forEach((day) => {
+        const weekday = dayName(day.date, true)
+        const label = `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${shortDate(day.date)}`
+        if (selections[day.date] === 'special' && day.specialDay?.kind === 'special_package') {
+          const chosenAddons = specialAddonSelections[day.date] || []
+          const addonsText = chosenAddons.length > 0 ? ` + ${chosenAddons.join(' + ')}` : ''
+          lines.push(`🗓️ ${label}: ${day.specialDay.packageName} (${money(day.specialDay.packagePrice || 0)}, menú especial)${addonsText}`)
+          return
+        }
+        const meal = menus[day.date]?.meals.find((item) => item.id === selections[day.date])
+        const dayGarnish = garnishSelections[day.date] ?? defaultGarnish
+        const garnishLabel = garnishChoiceLabel(dayGarnish, isDoubleGarnish)
+        const garnishTag = isDoubleGarnish ? 'Guarniciones' : 'Guarnición'
+        lines.push(`🗓️ ${label}: ${meal?.name} — 🍚 ${garnishTag}: ${garnishLabel}`)
+      })
+    } else {
+      lines.push('Todavía no elegí mi comida de cada día, ¿me ayudan con las opciones?')
+    }
+    lines.push('')
+    lines.push('Quedo al pendiente para confirmar dirección, horario y forma de pago. ¡Gracias! 🙌')
+    return lines.join('\n')
+  }, [pack, quantity, wantsUtensils, days, menus, selections, garnishSelections, defaultGarnish, isDoubleGarnish, specialAddonSelections])
+
+  const whatsappHref = buildWhatsAppUrl(whatsappMessage)
+
+  return (
+    <div className="week-menu-page">
+      <header className="week-menu-page__header">
+        <a href="/" aria-label="Ir a la tienda de FoodiePack"><Logo horizontal /></a>
+        <a className="week-menu-page__back" href="/">‹ Tienda principal</a>
+      </header>
+
+      <section className="week-hero-wrap">
+        <FloatingDecor />
+        <FiestaGarland />
+        <FiestaConfetti />
+        <div className="week-hero">
+          <span className="week-hero__badge"><Calendar size={13} /> Menú de la semana</span>
+          <h1>Arma tu semana <em>en 3 toques.</em></h1>
+          <p>Elige tu paquete, tu comida de cada día y te dejamos el mensaje de WhatsApp listo para enviar. Nosotros confirmamos el resto contigo.</p>
+        </div>
+      </section>
+
+      <div className="week-menu-page__body">
+      {error && (
+        <div className="inline-error week-menu-page__error">
+          <span>{error}</span>
+          <button type="button" onClick={() => setRetryTick((tick) => tick + 1)}><RefreshCw size={13} /> Reintentar</button>
+        </div>
+      )}
+
+      <section className="week-block" aria-labelledby="week-package-title">
+        <div className="week-block__head">
+          <span className="week-step">1</span>
+          <h2 id="week-package-title">Elige tu paquete</h2>
+        </div>
+        <div className="week-package-grid">
+          {PACKAGE_ORDER.map((tier) => {
+            const option = PACKAGES[tier]
+            const selected = packageTier === tier
+            return (
+              <button
+                type="button"
+                key={tier}
+                className={`week-package-card ${selected ? 'selected' : ''} ${tier === 'ejecutivo' ? 'popular' : ''}`}
+                onClick={() => setPackageTier(tier)}
+              >
+                {tier === 'ejecutivo' && <span className="week-package-card__badge">Más pedido</span>}
+                <b>{option.label}</b>
+                <strong>{money(option.dailyPrice)}<small>/día</small></strong>
+                <p>{option.includes[0]}</p>
+                <span className="week-package-card__pick">{selected ? <><Check size={13} /> Elegido</> : 'Elegir'}</span>
+              </button>
+            )
+          })}
+        </div>
+        <div className="week-quantity">
+          <span>¿Para cuántas personas es el pedido?</span>
+          <div className="counter counter--lg">
+            <button type="button" onClick={() => changeQuantity(-1)} aria-label="Quitar una persona"><Minus size={14} /></button>
+            <span>{quantity}</span>
+            <button type="button" onClick={() => changeQuantity(1)} aria-label="Agregar una persona"><Plus size={14} /></button>
+          </div>
+        </div>
+        <div className="week-utensils">
+          <span><Utensils size={14} /> ¿Quieres cubiertos? (+{money(UTENSILS_SURCHARGE)})</span>
+          <div>
+            <button type="button" className={!wantsUtensils ? 'selected' : ''} onClick={() => setWantsUtensils(false)}>
+              No, ya tengo
+            </button>
+            <button type="button" className={wantsUtensils ? 'selected' : ''} onClick={() => setWantsUtensils(true)}>
+              Sí, agrégalos
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="week-block" aria-labelledby="week-days-title">
+        <div className="week-block__head">
+          <span className="week-step">2</span>
+          <h2 id="week-days-title">Elige tu comida y guarnición de cada día</h2>
+        </div>
+        <button type="button" className="week-autofill" onClick={autoFillWeek} disabled={loading || totalDays === 0}>
+          <Wand2 size={16} /> Elegir toda la semana automáticamente
+        </button>
+        <p className="week-autofill-hint">Te llenamos los 5 días con un toque. Si quieres cambiar algún platillo o guarnición, solo tócalo.</p>
+
+        {loading && <div className="week-days__loading"><Loader2 size={22} className="spin" /> Cargando el menú de la semana…</div>}
+
+        <div className="week-days">
+          {!loading && days.map((day) => (
+            <DayCard
+              key={day.date}
+              day={day}
+              meals={menus[day.date]?.meals || []}
+              selectedMealId={selections[day.date] || null}
+              onChoose={(mealId) => chooseMeal(day.date, mealId)}
+              garnishChoice={garnishSelections[day.date] ?? defaultGarnish}
+              isDoubleGarnish={isDoubleGarnish}
+              onGarnish={(value) => chooseGarnish(day.date, value)}
+              selectedAddons={specialAddonSelections[day.date] || []}
+              onToggleAddon={(name) => toggleSpecialAddon(day.date, name)}
+            />
+          ))}
+        </div>
+      </section>
+
+      </div>
+
+      <div className="week-menu-page__spacer" />
+
+      <div className="week-summary-bar">
+        <div className="week-summary-bar__info">
+          <strong>{pack.label} · {quantity} {quantity === 1 ? 'persona' : 'personas'}</strong>
+          <span>{selectedCount}/{totalDays || 5} días elegidos {policy && !policy.isOpen ? '· pedidos cerrados por ahora' : ''}</span>
+        </div>
+        <a className="week-summary-bar__cta" href={whatsappHref} target="_blank" rel="noreferrer">
+          <MessageCircle size={18} /> Enviar por WhatsApp <ArrowRight size={16} />
+        </a>
+      </div>
+    </div>
+  )
+}
+
+export default WeekMenuApp

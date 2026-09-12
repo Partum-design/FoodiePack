@@ -1,24 +1,6 @@
-import type { PackageTier } from './packages'
+import type { Garnish, PackageTier } from './packages'
 
-export type PaymentMethod = 'card' | 'cash' | 'transfer'
-
-export type OrderStatus = 'accepted' | 'completed' | 'cancelled'
-
-export type Coordinates = {
-  latitude: number
-  longitude: number
-}
-
-export type DeliveryCheck = {
-  resolved: boolean
-  radiusKm: number
-  kitchen: Coordinates
-  coordinates?: Coordinates
-  distanceKm?: number
-  withinRadius?: boolean
-  source?: 'pin' | 'address'
-  label?: string
-}
+export type PaymentMethod = 'card' | 'cash' | 'transfer' | 'terminal'
 
 export type Meal = {
   id: string
@@ -30,6 +12,7 @@ export type Meal = {
   tags: string[]
   image: string
   available: boolean
+  packages: PackageTier[]
 }
 
 export type OrderPolicy = {
@@ -42,16 +25,32 @@ export type OrderPolicy = {
   currentTime: string
 }
 
+export type SpecialDayAddon = { name: string; price: number }
+
+export type SpecialDay = {
+  date: string
+  kind: 'closed' | 'special_package'
+  label: string
+  reason: string
+  packageName?: string
+  packagePrice?: number
+  packageIncludes?: string[]
+  addons?: SpecialDayAddon[]
+  image?: string
+}
+
 export type MenuResponse = {
   date: string
   meals: Meal[]
   canOrder: boolean
   policy: OrderPolicy
+  specialDay?: SpecialDay | null
 }
 
 export type MenuDay = {
   date: string
   mealCount: number
+  specialDay?: SpecialDay | null
 }
 
 export type PackageOrderInput = {
@@ -61,6 +60,7 @@ export type PackageOrderInput = {
   quantity: number
   repeatGuisado: boolean
   prepay: boolean
+  garnish?: Garnish
 }
 
 export type DeliveryLocation = {
@@ -68,19 +68,17 @@ export type DeliveryLocation = {
   address: string
   office: string
   mapUrl: string
-  coordinates?: Coordinates
-  radiusKm?: number
-  distanceKm?: number | null
-  withinRadius?: boolean | null
-  locationSource?: 'pin' | 'address' | 'unverified'
+  coordinates?: {
+    latitude: number
+    longitude: number
+  }
 }
 
 export type SavedOrder = {
   id: string
   createdAt: string
-  updatedAt?: string
   deliveryDate: string
-  status: OrderStatus
+  status: string
   paymentMethod: PaymentMethod
   isWeeklyPlan: boolean
   customer: {
@@ -97,11 +95,14 @@ export type SavedOrder = {
     unitPrice: number
     repeatGuisado: boolean
     prepay: boolean
+    garnish?: Garnish
+    mealId?: string
+    mealName?: string
+    menuDate?: string
   }>
   subtotal: number
   deliveryFee: number
   discountRate: number
   discountAmount: number
   total: number
-  distanceKm?: number | null
 }

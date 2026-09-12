@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FoodiePack</string>
+    <string name="title_activity_main">FoodiePack</string>
+    <string name="package_name">com.foodiepack.app</string>
+    <string name="custom_url_scheme">com.foodiepack.app</string>
+</resources>
