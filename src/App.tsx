@@ -1,9 +1,10 @@
 import { FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight, Banknote, CalendarDays, Check, ChevronDown, Clock3, CreditCard, Heart, Landmark, LocateFixed,
-  MapPin, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
+  MapPin, Menu, Minus, Navigation, Plus, RefreshCw, ShoppingBag, Sparkles, Utensils, WifiOff, X,
 } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
+import AppMenu from './components/AppMenu'
 import { FiestaConfetti, FiestaGarland, FiestaHornFlourish } from './components/FiestaDecor'
 import FloatingDecor from './components/FloatingDecor'
 import Footer from './components/Footer'
@@ -495,6 +496,7 @@ function App() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine)
   const [retryTick, setRetryTick] = useState(0)
   const [headerScrolled, setHeaderScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const toastId = useRef(0)
 
   const dismissToast = (id: number) => setToasts((items) => items.filter((item) => item.id !== id))
@@ -774,6 +776,8 @@ function App() {
   const scrollToMenu = () => document.querySelector('#menu-del-dia')?.scrollIntoView({ behavior: 'smooth' })
   const scrollToSummary = () => document.querySelector('#pedido')?.scrollIntoView({ behavior: 'smooth' })
   const scrollToPackages = () => document.querySelector('#paquetes')?.scrollIntoView({ behavior: 'smooth' })
+  const goToDayMenu = () => { setOrderMode('day'); scrollToMenu() }
+  const goToWeekPlan = () => { setOrderMode('week'); scrollToMenu() }
 
   return (
     <div className="storefront">
@@ -786,14 +790,45 @@ function App() {
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <header className={`store-header ${headerScrolled ? 'store-header--scrolled' : ''}`}>
         <a className="store-header__logo" href="/" aria-label="Inicio"><Logo horizontal /></a>
-        <div className="store-header__delivery">
-          <span>Envío gratis</span>
-          <button onClick={scrollToMenu}>Lindavista, CDMX <ChevronDown size={14} /></button>
+
+        <nav className="store-header__nav" aria-label="Secciones">
+          <button type="button" className={orderMode === 'day' ? 'active' : ''} onClick={goToDayMenu}>Menú del día</button>
+          <button type="button" className={orderMode === 'week' ? 'active' : ''} onClick={goToWeekPlan}>Plan semanal</button>
+          <button type="button" onClick={scrollToPackages}>Paquetes</button>
+          <a href="/menu-semana">Carta de la semana</a>
+        </nav>
+
+        <div className="store-header__actions">
+          <div className="store-header__delivery">
+            <span>Envío gratis</span>
+            <button onClick={scrollToMenu}>Lindavista, CDMX <ChevronDown size={14} /></button>
+          </div>
+          <button className="header-cart" onClick={scrollToSummary}>
+            <ShoppingBag size={18} /><span>Pedido</span>{badgeCount > 0 && <b key={badgeCount} className="header-cart__badge">{badgeCount}</b>}
+          </button>
+          <button
+            type="button"
+            className={`header-menu-toggle ${menuOpen ? 'header-menu-toggle--open' : ''}`}
+            onClick={() => setMenuOpen((value) => !value)}
+            aria-expanded={menuOpen}
+            aria-controls="app-menu"
+            aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'}
+          >
+            {menuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
-        <button className="header-cart" onClick={scrollToSummary}>
-          <ShoppingBag size={18} /><span>Pedido</span>{badgeCount > 0 && <b key={badgeCount} className="header-cart__badge">{badgeCount}</b>}
-        </button>
       </header>
+
+      <AppMenu
+        open={menuOpen}
+        badgeCount={badgeCount}
+        weeklySavings={MAX_WEEKLY_SAVINGS}
+        onClose={() => setMenuOpen(false)}
+        onGoMenu={goToDayMenu}
+        onGoWeek={goToWeekPlan}
+        onGoPackages={scrollToPackages}
+        onGoOrder={scrollToSummary}
+      />
 
       <section className="brand-landing" aria-labelledby="landing-title">
         <FloatingDecor />
@@ -991,15 +1026,23 @@ function App() {
       <Footer />
 
       <nav className="app-tabbar" aria-label="Navegación">
-        <button className={orderMode === 'day' ? 'active' : ''} onClick={() => { setOrderMode('day'); scrollToMenu() }}>
+        <button className={orderMode === 'day' ? 'active' : ''} onClick={goToDayMenu}>
           <Utensils size={20} /><span>Menú</span>
         </button>
-        <button className={orderMode === 'week' ? 'active' : ''} onClick={() => { setOrderMode('week'); scrollToMenu() }}>
+        <button className={orderMode === 'week' ? 'active' : ''} onClick={goToWeekPlan}>
           <CalendarDays size={20} /><span>Semana</span>
         </button>
         <button onClick={scrollToSummary}>
           <span className="app-tabbar__cart"><ShoppingBag size={20} />{badgeCount > 0 && <b>{badgeCount}</b>}</span>
           <span>Pedido</span>
+        </button>
+        <button
+          className={menuOpen ? 'active' : ''}
+          onClick={() => setMenuOpen((value) => !value)}
+          aria-expanded={menuOpen}
+          aria-controls="app-menu"
+        >
+          <Menu size={20} /><span>Más</span>
         </button>
       </nav>
 
