@@ -1,4 +1,5 @@
 import { Facebook, Instagram, MessageCircle } from 'lucide-react'
+import { trackWhatsAppLead } from '../lib/analytics'
 import { buildWhatsAppUrl, SOCIAL_LINKS, WHATSAPP_DISPLAY } from '../lib/contact'
 import Logo from './Logo'
 
@@ -26,6 +27,7 @@ export default function Footer() {
             href={buildWhatsAppUrl('Hola, quiero más información de FoodiePack')}
             target="_blank"
             rel="noreferrer"
+            onClick={() => trackWhatsAppLead('footer')}
           >
             <MessageCircle size={19} />
             <span>Escríbenos por WhatsApp</span>
@@ -51,6 +53,7 @@ export default function Footer() {
 
       <div className="site-footer__bottom">
         <span>© {new Date().getFullYear()} FoodiePack · Lindavista, CDMX</span>
+        <a href="/privacidad">Aviso de privacidad</a>
       </div>
     </footer>
   )

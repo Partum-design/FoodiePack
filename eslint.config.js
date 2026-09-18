@@ -37,6 +37,14 @@ export default tseslint.config(
     },
   },
   {
+    files: ['public/ga-init.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: globals.browser,
+    },
+  },
+  {
     files: ['public/sw.js'],
     languageOptions: {
       ecmaVersion: 2022,

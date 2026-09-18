@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download, Share, SquarePlus, X } from 'lucide-react'
+import { trackEvent } from '../lib/analytics'
 
 const DISMISSED_KEY = 'foodiepack:install-dismissed'
 
@@ -28,6 +29,7 @@ function InstallPrompt() {
       setDeferredPrompt(event)
     }
     const onInstalled = () => {
+      trackEvent('pwa_install')
       setDeferredPrompt(null)
       setShowIosHint(false)
       localStorage.setItem(DISMISSED_KEY, '1')

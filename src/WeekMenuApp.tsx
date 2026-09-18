@@ -5,6 +5,7 @@ import {
 import { getMenu, getMenuDays } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
+import { trackEvent, trackWhatsAppLead } from './lib/analytics'
 import { buildWhatsAppUrl } from './lib/contact'
 import { dayName, fullDate, shortDate } from './lib/dates'
 import { money } from './lib/format'
@@ -286,7 +287,15 @@ function WeekMenuApp() {
                 type="button"
                 key={tier}
                 className={`week-package-card ${selected ? 'selected' : ''} ${tier === 'ejecutivo' ? 'popular' : ''}`}
-                onClick={() => setPackageTier(tier)}
+                onClick={() => {
+                  if (tier !== packageTier) {
+                    trackEvent('select_item', {
+                      item_list_name: 'carta_semana',
+                      items: [{ item_id: tier, item_name: option.label, item_category: 'plan_semanal', price: option.dailyPrice, quantity }],
+                    })
+                  }
+                  setPackageTier(tier)
+                }}
               >
                 {tier === 'ejecutivo' && <span className="week-package-card__badge">Más pedido</span>}
                 <b>{option.label}</b>
@@ -357,7 +366,13 @@ function WeekMenuApp() {
           <strong>{pack.label} · {quantity} {quantity === 1 ? 'persona' : 'personas'}</strong>
           <span>{selectedCount}/{totalDays || 5} días elegidos {policy && !policy.isOpen ? '· pedidos cerrados por ahora' : ''}</span>
         </div>
-        <a className="week-summary-bar__cta" href={whatsappHref} target="_blank" rel="noreferrer">
+        <a
+          className="week-summary-bar__cta"
+          href={whatsappHref}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => trackWhatsAppLead('carta_semana', { package: pack.label, people: quantity, days_selected: selectedCount })}
+        >
           <MessageCircle size={18} /> Enviar por WhatsApp <ArrowRight size={16} />
         </a>
       </div>

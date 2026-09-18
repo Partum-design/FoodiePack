@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { CalendarDays, Clock3, MapPin, MessageCircle, ShoppingBag, Sparkles, Utensils } from 'lucide-react'
+import { trackWhatsAppLead } from '../lib/analytics'
 import { buildWhatsAppUrl, WHATSAPP_DISPLAY } from '../lib/contact'
 import { money } from '../lib/format'
 import { PACKAGES } from '../packages'
@@ -68,7 +69,7 @@ export default function AppMenu({
             href={buildWhatsAppUrl('Hola, quiero más información de FoodiePack')}
             target="_blank"
             rel="noreferrer"
-            onClick={onClose}
+            onClick={() => { onClose(); trackWhatsAppLead('menu') }}
           >
             <i><MessageCircle size={18} /></i>
             <span>WhatsApp<small>{WHATSAPP_DISPLAY}</small></span>

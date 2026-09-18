@@ -8,6 +8,8 @@ import AppMenu from './components/AppMenu'
 import FloatingDecor from './components/FloatingDecor'
 import Footer from './components/Footer'
 import Logo from './components/Logo'
+import { trackAddPaymentInfo, trackAddToCart, trackBeginCheckout, trackPurchase } from './lib/analytics'
+import type { AnalyticsItem } from './lib/analytics'
 import { dateFromKey, dayName, fullDate } from './lib/dates'
 import { money } from './lib/format'
 import { useReveal } from './lib/useReveal'
@@ -28,6 +30,22 @@ const MAX_WEEKLY_SAVINGS = Math.max(...PACKAGE_ORDER.map((tier) => PACKAGES[tier
 
 type Coordinates = { latitude: number; longitude: number }
 type OrderMode = 'day' | 'week'
+
+// GA4 line item for a package. Prices are per person: daily price, or the weekly price (5 days) in week mode.
+function packageLineItem(
+  tier: PackageTier, mode: OrderMode, quantity: number,
+  extras: { prepay?: boolean; surcharge?: number; mealName?: string } = {},
+): AnalyticsItem {
+  const pack = PACKAGES[tier]
+  return {
+    item_id: tier,
+    item_name: pack.label,
+    item_category: mode === 'week' ? 'plan_semanal' : 'menu_del_dia',
+    ...(extras.mealName ? { item_variant: extras.mealName } : {}),
+    price: mode === 'week' ? (extras.prepay ? pack.weeklyPrepay : pack.weeklyRegular) : pack.dailyPrice + (extras.surcharge ?? 0),
+    quantity,
+  }
+}
 
 function externalMapUrl(coordinates: Coordinates | null) {
   const query = coordinates ? `${coordinates.latitude},${coordinates.longitude}` : LINDAVISTA_QUERY
@@ -626,13 +644,41 @@ function App() {
     setFavorites((current) => current.includes(mealId) ? current.filter((id) => id !== mealId) : [...current, mealId])
   }
 
+  // What is in the order right now, as GA4 line items (used by begin_checkout / add_payment_info).
+  const cartItems = (): AnalyticsItem[] => {
+    if (usingSpecial && specialDay) {
+      return [{ item_id: 'especial', item_name: specialDay.packageName || 'Menú especial', item_category: 'menu_especial', price: specialUnitPrice, quantity }]
+    }
+    if (!packageTier) return []
+    return [packageLineItem(packageTier, orderMode, quantity, {
+      prepay,
+      surcharge: canRepeatGuisado && repeatGuisado ? REPEAT_GUISADO_SURCHARGE : 0,
+      mealName: selectedMeal?.name,
+    })]
+  }
+
+  const openCheckout = () => {
+    setCheckoutOpen(true)
+    trackBeginCheckout(cartItems(), activeTotal)
+  }
+
+  // add_to_cart fires only when the order goes from empty to non-empty, so picking a package and then a
+  // dish (or switching tiers) doesn't count as several separate additions.
   const choosePackage = (tier: PackageTier) => {
+    if (!packageTier) {
+      const item = packageLineItem(tier, orderMode, quantity)
+      trackAddToCart([item], item.price * quantity)
+    }
     setPackageTier(tier)
     setSpecialDayChosen(false)
     pushToast(`${PACKAGES[tier].label} seleccionado`, 'success')
   }
 
   const chooseMealPackage = (mealId: string, tier: PackageTier) => {
+    if (!packageTier) {
+      const item = packageLineItem(tier, orderMode, quantity, { mealName: currentMeals.find((meal) => meal.id === mealId)?.name })
+      trackAddToCart([item], item.price * quantity)
+    }
     setSelectedMealId(mealId)
     setPackageTier(tier)
     setSpecialDayChosen(false)
@@ -722,6 +768,7 @@ function App() {
     const form = new FormData(event.currentTarget)
     setSubmitting(true)
     setOrderError('')
+    trackAddPaymentInfo(cartItems(), activeTotal, paymentMethod)
     try {
       const response = await createOrder({
         customer: {
@@ -749,6 +796,20 @@ function App() {
         ...(usingSpecial ? { specialAddons } : {}),
       })
       setOrder(response.order)
+      trackPurchase({
+        transactionId: response.order.id,
+        value: response.order.total,
+        shipping: response.order.deliveryFee,
+        paymentType: response.order.paymentMethod,
+        items: response.order.items.map((item) => ({
+          item_id: item.packageTier,
+          item_name: item.packageLabel,
+          item_category: response.order.isWeeklyPlan ? 'plan_semanal' : ((item.packageTier as string) === 'especial' ? 'menu_especial' : 'menu_del_dia'),
+          ...(item.mealName ? { item_variant: item.mealName } : {}),
+          price: item.unitPrice,
+          quantity: item.quantity,
+        })),
+      })
       setPackageTier(null)
       setSelectedMealId(null)
       setQuantity(1)
@@ -934,14 +995,16 @@ function App() {
             <SpecialDayCard
               specialDay={specialDay}
               chosen={specialDayChosen}
-              onChoose={() => setSpecialDayChosen((value) => {
-                const next = !value
+              onChoose={() => {
+                const next = !specialDayChosen
+                setSpecialDayChosen(next)
                 if (next) {
                   setSelectedMealId(null)
                   setPackageTier(null)
+                  const price = specialDay.packagePrice || 0
+                  trackAddToCart([{ item_id: 'especial', item_name: specialDay.packageName || 'Menú especial', item_category: 'menu_especial', price, quantity }], price * quantity)
                 }
-                return next
-              })}
+              }}
             />
           )}
           {(orderMode !== 'day' || !hasSpecialDay || currentMeals.length > 0) && (
@@ -997,7 +1060,7 @@ function App() {
             onToggleRepeat={() => setRepeatGuisado((value) => !value)}
             onGarnish={setGarnish}
             onToggleAddon={toggleSpecialAddon}
-            onCheckout={() => setCheckoutOpen(true)}
+            onCheckout={openCheckout}
           />
         ) : (
           <WeeklySummary
@@ -1009,7 +1072,7 @@ function App() {
             onQuantity={changeQuantity}
             onTogglePrepay={() => setPrepay((value) => !value)}
             onGarnish={setGarnish}
-            onCheckout={() => setCheckoutOpen(true)}
+            onCheckout={openCheckout}
           />
         )}
       </main>
@@ -1140,6 +1203,7 @@ function App() {
               <div className="checkout-dialog__total"><span>Total</span><strong>{money(activeTotal)}</strong></div>
               <button className="checkout-button" disabled={submitting || !isOnline}>{submitting ? 'Confirmando…' : (isOnline ? 'Confirmar pedido' : 'Sin conexión')}</button>
               <small>Este prototipo no procesa pagos reales.</small>
+              <small>Al confirmar tu pedido aceptas nuestro <a href="/privacidad" target="_blank" rel="noreferrer">Aviso de privacidad</a>.</small>
             </form>
           )}
         </section>

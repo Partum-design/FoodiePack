@@ -10,19 +10,19 @@ import '@fontsource/dm-sans/700.css'
 import './styles.css'
 import App from './App'
 import InstallPrompt from './components/InstallPrompt'
-import { initAnalytics } from './lib/analytics'
-
-initAnalytics()
 
 const AdminApp = lazy(() => import('./AdminApp'))
 const WeekMenuApp = lazy(() => import('./WeekMenuApp'))
+const PrivacyApp = lazy(() => import('./PrivacyApp'))
 const currentPath = window.location.pathname.replace(/\/$/, '')
 const isAdminRoute = currentPath === '/admin' || currentPath === '/gestion-cocina'
 const isWeekMenuRoute = currentPath === '/menu-semana' || currentPath === '/semana'
+const isPrivacyRoute = currentPath === '/privacidad' || currentPath === '/aviso-de-privacidad'
 
 function Route() {
   if (isAdminRoute) return <AdminApp />
   if (isWeekMenuRoute) return <WeekMenuApp />
+  if (isPrivacyRoute) return <PrivacyApp />
   return <App />
 }
 
