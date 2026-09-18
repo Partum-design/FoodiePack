@@ -1,4 +1,5 @@
-const GA_MEASUREMENT_ID = 'G-1X9623HM16'
+// The first ID also loads gtag.js; every ID gets its own config so hits go to all properties.
+const GA_MEASUREMENT_IDS = ['G-Y84JYTSWHW', 'G-1X9623HM16']
 
 declare global {
   interface Window {
@@ -17,13 +18,18 @@ export function initAnalytics() {
   initialized = true
 
   window.dataLayer = window.dataLayer || []
-  window.gtag = (...args: unknown[]) => window.dataLayer!.push(args)
+  // gtag.js only recognizes commands pushed as the `arguments` object; pushing a rest-args
+  // array is silently ignored and no hits are ever sent.
+  window.gtag = function gtag() {
+    // eslint-disable-next-line prefer-rest-params
+    window.dataLayer!.push(arguments)
+  }
   window.gtag('js', new Date())
-  window.gtag('config', GA_MEASUREMENT_ID)
+  GA_MEASUREMENT_IDS.forEach((id) => window.gtag!('config', id))
 
   const script = document.createElement('script')
   script.async = true
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_IDS[0]}`
   document.head.appendChild(script)
 }
 
