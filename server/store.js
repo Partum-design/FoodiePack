@@ -119,6 +119,19 @@ const week1418MealImages = {
   longanizaConPapas: '/assets/meals/week-14-18/longaniza-con-papas.jpg',
 }
 
+const week2125MealImages = {
+  tortasDePapa: '/assets/meals/next-week/papas-rajas.jpg',
+  salchichaConCrema: '/assets/meals/next-week/salchicha-mexicana.jpg',
+  polloAlGuajillo: '/assets/meals/week-14-18/mole-con-pollo.jpg',
+  huevoSalsaVerde: '/assets/meals/next-week/huevo-pasilla.jpg',
+  carnePuercoSalsaVerde: '/assets/meals/next-week/longaniza-verde.jpg',
+  rajasConCrema: '/assets/meals/pasta-poblano.jpg',
+  moleVerde: '/assets/meals/salmon-verde.jpg',
+  papasConCrema: '/assets/meals/next-week/papas-rajas.jpg',
+  chicharronJitomate: '/assets/meals/res-chipotle.jpg',
+  calabacitasMexicana: '/assets/meals/next-week/calabacita-mexicana.jpg',
+}
+
 export const nextWeekMenus = {
   '2026-08-31': [
     { id: 'menu-2026-08-31-alambre-puerco', name: 'Alambre de puerco', description: 'Alambre casero de puerco con verduras; acompáñalo con la base del día.', price: 60, protein: 30, kcal: 560, tags: ['Guisado del día'], image: nextWeekMealImages.alambreLunes, available: true, packages: [...PACKAGE_ORDER] },
@@ -172,6 +185,26 @@ export const nextWeekMenus = {
   '2026-09-18': [
     { id: 'menu-2026-09-18-rollitos-de-jamon', name: 'Rollitos de jamón', description: 'Rollitos de jamón con queso, servidos con la base y guarnición del día.', price: 60, protein: 26, kcal: 500, tags: ['Guisado del día'], image: week1418MealImages.rollitosDeJamon, available: true, packages: [...PACKAGE_ORDER] },
     { id: 'menu-2026-09-18-longaniza-con-papas', name: 'Longaniza con papas', description: 'Longaniza con papas, servida con la base y guarnición del día.', price: 60, protein: 28, kcal: 570, tags: ['Guisado del día'], image: week1418MealImages.longanizaConPapas, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-21': [
+    { id: 'menu-2026-09-21-tortas-de-papa', name: 'Tortas de papa', description: 'Tortas caseras de papa, doradas y servidas con la base y guarnición del día.', price: 60, protein: 12, kcal: 460, tags: ['Vegetariano'], image: week2125MealImages.tortasDePapa, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-21-salchicha-con-crema', name: 'Salchicha con crema', description: 'Salchicha en salsa cremosa, servida con la base y guarnición del día.', price: 60, protein: 24, kcal: 540, tags: ['Guisado del día'], image: week2125MealImages.salchichaConCrema, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-22': [
+    { id: 'menu-2026-09-22-pollo-al-guajillo', name: 'Pollo al guajillo', description: 'Pollo en salsa de chile guajillo, servido con la base y guarnición del día.', price: 60, protein: 32, kcal: 560, tags: ['Guisado del día'], image: week2125MealImages.polloAlGuajillo, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-22-huevo-salsa-verde', name: 'Huevo en salsa verde', description: 'Huevo en salsa verde casera, servido con la base y guarnición del día.', price: 60, protein: 21, kcal: 440, tags: ['Vegetariano'], image: week2125MealImages.huevoSalsaVerde, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-23': [
+    { id: 'menu-2026-09-23-carne-puerco-salsa-verde', name: 'Carne de puerco en salsa verde', description: 'Carne de puerco en salsa verde, servida con la base y guarnición del día.', price: 60, protein: 31, kcal: 570, tags: ['Guisado del día'], image: week2125MealImages.carnePuercoSalsaVerde, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-23-rajas-con-crema', name: 'Rajas con crema', description: 'Rajas con crema, una opción vegetariana servida con la base del día.', price: 60, protein: 10, kcal: 420, tags: ['Vegetariano'], image: week2125MealImages.rajasConCrema, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-24': [
+    { id: 'menu-2026-09-24-mole-verde', name: 'Mole verde', description: 'Mole verde casero, servido con la base y guarnición del día.', price: 60, protein: 30, kcal: 550, tags: ['Guisado del día'], image: week2125MealImages.moleVerde, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-24-papas-con-crema', name: 'Papas con crema', description: 'Papas con crema, una opción vegetariana servida con la base del día.', price: 60, protein: 9, kcal: 430, tags: ['Vegetariano'], image: week2125MealImages.papasConCrema, available: true, packages: [...PACKAGE_ORDER] },
+  ],
+  '2026-09-25': [
+    { id: 'menu-2026-09-25-chicharron-jitomate', name: 'Chicharrón en salsa de jitomate', description: 'Chicharrón en salsa de jitomate, servido con la base y guarnición del día.', price: 60, protein: 28, kcal: 590, tags: ['Guisado del día'], image: week2125MealImages.chicharronJitomate, available: true, packages: [...PACKAGE_ORDER] },
+    { id: 'menu-2026-09-25-calabacitas-mexicana', name: 'Calabacitas a la mexicana', description: 'Calabacitas a la mexicana, una opción vegetariana servida con la base del día.', price: 60, protein: 10, kcal: 390, tags: ['Vegetariano'], image: week2125MealImages.calabacitasMexicana, available: true, packages: [...PACKAGE_ORDER] },
   ],
 }
 
