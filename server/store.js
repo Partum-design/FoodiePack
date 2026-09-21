@@ -120,16 +120,16 @@ const week1418MealImages = {
 }
 
 const week2125MealImages = {
-  tortasDePapa: '/assets/meals/next-week/papas-rajas.jpg',
-  salchichaConCrema: '/assets/meals/next-week/salchicha-mexicana.jpg',
-  polloAlGuajillo: '/assets/meals/week-14-18/mole-con-pollo.jpg',
-  huevoSalsaVerde: '/assets/meals/next-week/huevo-pasilla.jpg',
-  carnePuercoSalsaVerde: '/assets/meals/next-week/longaniza-verde.jpg',
-  rajasConCrema: '/assets/meals/pasta-poblano.jpg',
-  moleVerde: '/assets/meals/salmon-verde.jpg',
-  papasConCrema: '/assets/meals/next-week/papas-rajas.jpg',
-  chicharronJitomate: '/assets/meals/res-chipotle.jpg',
-  calabacitasMexicana: '/assets/meals/next-week/calabacita-mexicana.jpg',
+  tortasDePapa: '/assets/meals/week-21-25/tortas-de-papa.jpg',
+  salchichaConCrema: '/assets/meals/week-21-25/salchicha-con-crema.jpg',
+  polloAlGuajillo: '/assets/meals/week-21-25/pollo-al-guajillo.jpg',
+  huevoSalsaVerde: '/assets/meals/week-21-25/huevo-salsa-verde.jpg',
+  carnePuercoSalsaVerde: '/assets/meals/week-21-25/carne-puerco-salsa-verde.jpg',
+  rajasConCrema: '/assets/meals/week-21-25/rajas-con-crema.jpg',
+  moleVerde: '/assets/meals/week-21-25/mole-verde.jpg',
+  papasConCrema: '/assets/meals/week-21-25/papas-con-crema.jpg',
+  chicharronJitomate: '/assets/meals/week-21-25/chicharron-jitomate.jpg',
+  calabacitasMexicana: '/assets/meals/week-21-25/calabacitas-mexicana.jpg',
 }
 
 export const nextWeekMenus = {
