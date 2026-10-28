@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { CalendarDays, Clock3, MapPin, MessageCircle, ShoppingBag, Sparkles, Utensils } from 'lucide-react'
+import { CalendarDays, ChevronRight, Clock3, Download, MapPin, MessageCircle, ShoppingBag, Sparkles, Utensils, X } from 'lucide-react'
 import { trackWhatsAppLead } from '../lib/analytics'
 import { buildWhatsAppUrl, WHATSAPP_DISPLAY } from '../lib/contact'
 import { money } from '../lib/format'
@@ -14,14 +14,12 @@ type AppMenuProps = {
   onGoWeek: () => void
   onGoPackages: () => void
   onGoOrder: () => void
+  onGoApp: () => void
 }
 
-/**
- * Slide-down navigation used on phones and tablets, where the header has no room
- * for inline links. Rendered only while open so the entry animation replays each time.
- */
+/** Side drawer used on phones and tablets, where the header has no room for links. */
 export default function AppMenu({
-  open, badgeCount, weeklySavings, onClose, onGoMenu, onGoWeek, onGoPackages, onGoOrder,
+  open, badgeCount, weeklySavings, onClose, onGoMenu, onGoWeek, onGoPackages, onGoOrder, onGoApp,
 }: AppMenuProps) {
   useEffect(() => {
     if (!open) return
@@ -39,48 +37,50 @@ export default function AppMenu({
 
   const pick = (action: () => void) => () => { onClose(); action() }
 
+  const items = [
+    { icon: <Utensils size={19} />, label: 'Menú del día', hint: 'Guisados del próximo día hábil', action: onGoMenu },
+    { icon: <CalendarDays size={19} />, label: 'Plan semanal', hint: `Ahorra hasta ${money(weeklySavings)}`, action: onGoWeek },
+    { icon: <Sparkles size={19} />, label: 'Paquetes', hint: `Desde ${money(PACKAGES.economico.dailyPrice)} por día`, action: onGoPackages },
+    { icon: <ShoppingBag size={19} />, label: 'Mi pedido', hint: badgeCount > 0 ? `${badgeCount} ${badgeCount === 1 ? 'persona' : 'personas'}` : 'Aún vacío', action: onGoOrder, badge: badgeCount },
+    { icon: <Download size={19} />, label: 'Descarga la app', hint: 'Gratis, en tu pantalla de inicio', action: onGoApp },
+  ]
+
   return (
     <>
-      <button className="app-menu__backdrop" aria-label="Cerrar menú" onClick={onClose} />
-      <div className="app-menu" id="app-menu" role="dialog" aria-modal="true" aria-label="Menú de navegación">
-        <nav className="app-menu__list" aria-label="Secciones">
-          <button type="button" onClick={pick(onGoMenu)}>
-            <i><Utensils size={18} /></i>
-            <span>Menú del día<small>Guisados del próximo día hábil</small></span>
-          </button>
-          <button type="button" onClick={pick(onGoWeek)}>
-            <i><CalendarDays size={18} /></i>
-            <span>Plan semanal<small>Ahorra hasta {money(weeklySavings)}</small></span>
-          </button>
-          <button type="button" onClick={pick(onGoPackages)}>
-            <i><Sparkles size={18} /></i>
-            <span>Paquetes<small>Desde {money(PACKAGES.economico.dailyPrice)} por día</small></span>
-          </button>
-          <button type="button" onClick={pick(onGoOrder)}>
-            <i><ShoppingBag size={18} /></i>
-            <span>Mi pedido<small>{badgeCount > 0 ? `${badgeCount} ${badgeCount === 1 ? 'persona' : 'personas'} en tu pedido` : 'Aún no eliges paquete'}</small></span>
-            {badgeCount > 0 && <b>{badgeCount}</b>}
-          </button>
-          <a href="/menu-semana" onClick={onClose}>
-            <i><CalendarDays size={18} /></i>
-            <span>Carta de la semana<small>Arma tus 5 días y pide por WhatsApp</small></span>
-          </a>
-          <a
-            href={buildWhatsAppUrl('Hola, quiero más información de FoodiePack')}
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => { onClose(); trackWhatsAppLead('menu') }}
-          >
-            <i><MessageCircle size={18} /></i>
-            <span>WhatsApp<small>{WHATSAPP_DISPLAY}</small></span>
+      <button className="fp-sheet-backdrop" aria-label="Cerrar menú" onClick={onClose} />
+      <aside className="fp-drawer" id="app-menu" role="dialog" aria-modal="true" aria-label="Menú de navegación">
+        <div className="fp-drawer__head">
+          <img src="/assets/brand/logo-horizontal.png" alt="FoodiePack" />
+          <button className="fp-icon-btn" onClick={onClose} aria-label="Cerrar menú"><X size={19} /></button>
+        </div>
+        <nav className="fp-drawer__list" aria-label="Secciones">
+          {items.map((item, index) => (
+            <button type="button" key={item.label} onClick={pick(item.action)} style={{ animationDelay: `${60 + index * 40}ms` }}>
+              <i>{item.icon}</i>
+              <span>{item.label}<small>{item.hint}</small></span>
+              {item.badge ? <b>{item.badge}</b> : <ChevronRight size={17} />}
+            </button>
+          ))}
+          <a href="/menu-semana" onClick={onClose} style={{ animationDelay: '260ms' }}>
+            <i><CalendarDays size={19} /></i>
+            <span>Carta de la semana<small>Arma tus 5 días por WhatsApp</small></span>
+            <ChevronRight size={17} />
           </a>
         </nav>
-
-        <div className="app-menu__foot">
+        <a
+          className="fp-drawer__whatsapp"
+          href={buildWhatsAppUrl('Hola, quiero más información de FoodiePack')}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => { onClose(); trackWhatsAppLead('menu') }}
+        >
+          <MessageCircle size={20} /><span><small>¿Dudas? Escríbenos</small>{WHATSAPP_DISPLAY}</span>
+        </a>
+        <div className="fp-drawer__foot">
           <p><MapPin size={14} /> Lindavista, CDMX · envío gratis</p>
           <p><Clock3 size={14} /> Pedidos de 8:00 am a 6:00 pm</p>
         </div>
-      </div>
+      </aside>
     </>
   )
 }

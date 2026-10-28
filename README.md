@@ -56,6 +56,15 @@ npx supabase@latest db push
 
 La migración `20260828100000_seed_next_week_menu_and_packages.sql` agrega los tres paquetes al catálogo y publica el menú del 31 de agosto al 4 de septiembre de 2026. También puedes ejecutar ese SQL desde el SQL Editor de Supabase si no tienes la CLI autenticada.
 
+### Conectar un proyecto de Supabase nuevo
+
+1. Crea el proyecto en Supabase (región `us-east-1`, cerca de Vercel).
+2. En **SQL Editor**, pega todo `supabase/setup.sql` y ejecútalo (crea tablas, RLS, paquetes y menús).
+3. En **Project Settings → API** copia la *Project URL* y la clave **service_role** (secreta).
+4. En Vercel → proyecto `foodiepack` → **Settings → Environment Variables** (Production), reemplaza `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`.
+5. Redeploy de producción. Verifica en `https://www.foodiepack.com.mx/api/menu-days` que regrese días y no un error.
+6. Publica el menú de la semana desde `/admin`.
+
 ## Vercel
 
 ```bash
