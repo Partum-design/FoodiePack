@@ -39,7 +39,7 @@ PORT=8787
 WEB_ORIGIN=https://foodiepack.com.mx,https://www.foodiepack.com.mx
 ADMIN_PASSWORD=una-contraseña-larga
 JWT_SECRET=un-secreto-aleatorio-de-al-menos-32-caracteres
-SUPABASE_URL=https://icyjsedrzwruihrveyay.supabase.co
+SUPABASE_URL=https://sthqpzywhsvnsbjnoysn.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=tu-clave-service-role-de-supabase
 ```
 
@@ -50,7 +50,7 @@ SUPABASE_SERVICE_ROLE_KEY=tu-clave-service-role-de-supabase
 La migración en `supabase/migrations/` crea las tablas `menu_days` y `orders`, activa RLS y deja el acceso exclusivamente para `service_role`. Con la CLI de Supabase autenticada:
 
 ```bash
-npx supabase@latest link --project-ref icyjsedrzwruihrveyay
+npx supabase@latest link --project-ref sthqpzywhsvnsbjnoysn
 npx supabase@latest db push
 ```
 
