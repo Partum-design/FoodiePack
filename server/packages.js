@@ -10,4 +10,13 @@ export const REPEAT_GUISADO_SURCHARGE = 15
 export const REPEAT_GUISADO_TIER = 'completo'
 export const WEEKLY_PLAN_DAYS = 5
 
-export const GARNISH_OPTIONS = ['arroz', 'frijoles']
+export const GARNISH_OPTIONS = ['arroz', 'frijoles', 'mixto']
+// Packages that come with two sides (Foodie+): 2 arroz, 2 frijoles or one of each.
+export const DOUBLE_GARNISH_TIERS = ['completo']
+
+export function garnishLabel(choice, tier) {
+  const isDouble = DOUBLE_GARNISH_TIERS.includes(tier)
+  if (choice === 'mixto') return 'Arroz y frijoles'
+  const base = choice === 'frijoles' ? 'Frijoles' : 'Arroz'
+  return isDouble ? `2 ${base.toLowerCase()}` : base
+}

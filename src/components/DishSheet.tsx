@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Check, Minus, Plus, X } from 'lucide-react'
 import { money } from '../lib/format'
-import { GARNISH_OPTIONS, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER } from '../packages'
+import { isDoubleGarnish, normalizeGarnish, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER } from '../packages'
+import GarnishPicker from './GarnishPicker'
 import type { Garnish, PackageTier } from '../packages'
 import type { Meal } from '../types'
 
@@ -18,7 +19,14 @@ export default function DishSheet({ meal, mode, initial, onClose, onConfirm }: {
   const tiers = PACKAGE_ORDER.filter((tier) => meal.packages.includes(tier))
   const [tier, setTier] = useState<PackageTier>(initial.tier && tiers.includes(initial.tier) ? initial.tier : (tiers.includes('ejecutivo') ? 'ejecutivo' : tiers[0]))
   const [quantity, setQuantity] = useState(initial.quantity || 1)
-  const [garnish, setGarnish] = useState<Garnish>(initial.garnish || 'arroz')
+  const [garnish, setGarnish] = useState<Garnish>(() => normalizeGarnish(initial.garnish || 'arroz', tier))
+  const [garnishTouched, setGarnishTouched] = useState(false)
+
+  const pickTier = (next: PackageTier) => {
+    setTier(next)
+    // Foodie+ defaults to one of each side until the person picks something else.
+    setGarnish((current) => (isDoubleGarnish(next) && !garnishTouched ? 'mixto' : normalizeGarnish(current, next)))
+  }
   const [repeatGuisado, setRepeatGuisado] = useState(Boolean(initial.repeatGuisado))
 
   useEffect(() => {
@@ -54,7 +62,7 @@ export default function DishSheet({ meal, mode, initial, onClose, onConfirm }: {
                 const item = PACKAGES[option]
                 const active = option === tier
                 return (
-                  <button type="button" key={option} role="radio" aria-checked={active} className={`fp-tier ${active ? 'is-active' : ''}`} onClick={() => setTier(option)}>
+                  <button type="button" key={option} role="radio" aria-checked={active} className={`fp-tier ${active ? 'is-active' : ''}`} onClick={() => pickTier(option)}>
                     <span className="fp-tier__radio" aria-hidden="true">{active && <Check size={13} />}</span>
                     <span className="fp-tier__main">
                       <strong>{item.label}{option === 'ejecutivo' && <em>Más pedido</em>}</strong>
@@ -72,12 +80,7 @@ export default function DishSheet({ meal, mode, initial, onClose, onConfirm }: {
             </div>
             {mode === 'week' && <p className="fp-hint">Pagando la semana por adelantado: {money(pack.weeklyPrepay)}. Lo eliges en tu pedido.</p>}
 
-            <h3>Guarnición</h3>
-            <div className="fp-segment fp-segment--small">
-              {GARNISH_OPTIONS.map((option) => (
-                <button type="button" key={option.value} className={garnish === option.value ? 'is-active' : ''} onClick={() => setGarnish(option.value)}>{option.label}</button>
-              ))}
-            </div>
+            <GarnishPicker tier={tier} value={garnish} onChange={(value) => { setGarnish(value); setGarnishTouched(true) }} />
 
             {canRepeat && (
               <label className="fp-check">

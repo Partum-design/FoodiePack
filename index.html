@@ -1,32 +1,43 @@
 <!doctype html>
-<html lang="es">
+<html lang="es-MX">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b4b39" />
-    <meta name="description" content="FoodiePack — comida rica y lista para tu semana." />
+    <title>Comida casera a domicilio en Lindavista, CDMX | FoodiePack</title>
+    <meta name="description" content="Comida corrida casera con entrega gratis a tu oficina en Lindavista y colonias cercanas de Gustavo A. Madero, CDMX. Menú del día desde $60. Pide antes de las 6 pm y recibe al día siguiente." />
+    <meta name="keywords" content="comida a domicilio Lindavista, comida corrida Lindavista, comida casera Lindavista, comida para oficina Gustavo A. Madero, menú del día Lindavista, comida saludable CDMX norte" />
+    <meta name="theme-color" content="#0d4d3b" />
     <link rel="canonical" href="https://www.foodiepack.com.mx/" />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="preload" as="image" href="/assets/brand/logo-blanco-naranja.png" fetchpriority="high" />
+    <link rel="preload" as="image" href="/assets/brand/logo-horizontal.png" />
+    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="FoodiePack" />
 
+    <!-- Local SEO -->
+    <meta name="geo.region" content="MX-CMX" />
+    <meta name="geo.placename" content="Lindavista, Gustavo A. Madero, Ciudad de México" />
+    <meta name="geo.position" content="19.4936;-99.1287" />
+    <meta name="ICBM" content="19.4936, -99.1287" />
+
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="FoodiePack" />
     <meta property="og:locale" content="es_MX" />
     <meta property="og:url" content="https://www.foodiepack.com.mx/" />
-    <meta property="og:title" content="FoodiePack · Tu cocina en la oficina" />
-    <meta property="og:description" content="FoodiePack — comida rica y lista para tu semana." />
+    <meta property="og:title" content="FoodiePack · Comida casera a domicilio en Lindavista" />
+    <meta property="og:description" content="Tu cocina en la oficina: comida corrida casera desde $60 con envío gratis en Lindavista, CDMX." />
     <meta property="og:image" content="https://www.foodiepack.com.mx/assets/meals/weekly-hero.jpg" />
+    <meta property="og:image:width" content="1400" />
+    <meta property="og:image:height" content="933" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="FoodiePack · Tu cocina en la oficina" />
-    <meta name="twitter:description" content="FoodiePack — comida rica y lista para tu semana." />
+    <meta name="twitter:title" content="FoodiePack · Comida casera a domicilio en Lindavista" />
+    <meta name="twitter:description" content="Tu cocina en la oficina: comida corrida casera desde $60 con envío gratis en Lindavista, CDMX." />
     <meta name="twitter:image" content="https://www.foodiepack.com.mx/assets/meals/weekly-hero.jpg" />
-
-    <title>FoodiePack · Tu cocina en la oficina</title>
 
     <!-- Google tag (GA4). Static so Google's tag-coverage crawler finds it on every route without
          running JS; the config lives in /ga-init.js so the CSP needs no script-src 'unsafe-inline'. -->
@@ -36,23 +47,129 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "FoodEstablishment",
-        "name": "FoodiePack",
-        "url": "https://www.foodiepack.com.mx/",
-        "logo": "https://www.foodiepack.com.mx/assets/brand/logo-verde-naranja.png",
-        "image": "https://www.foodiepack.com.mx/assets/meals/weekly-hero.jpg",
-        "description": "Tu cocina en la oficina. Comida casera lista para pedir, con entrega gratuita en Lindavista, CDMX.",
-        "areaServed": { "@type": "Place", "name": "Lindavista, Ciudad de México" },
-        "servesCuisine": "Mexicana",
-        "priceRange": "$60–$90 MXN",
-        "telephone": "+52 1 56 6035 6369",
-        "acceptsReservations": false
+        "@graph": [
+          {
+            "@type": ["Restaurant", "FoodEstablishment"],
+            "@id": "https://www.foodiepack.com.mx/#negocio",
+            "name": "FoodiePack",
+            "alternateName": "FoodiePack Lindavista",
+            "slogan": "Tu cocina en la oficina",
+            "url": "https://www.foodiepack.com.mx/",
+            "logo": "https://www.foodiepack.com.mx/assets/brand/logo-verde-naranja.png",
+            "image": [
+              "https://www.foodiepack.com.mx/assets/meals/weekly-hero.jpg",
+              "https://www.foodiepack.com.mx/assets/meals/week-14-18/rollitos-de-jamon.jpg"
+            ],
+            "description": "Comida corrida casera con entrega gratis a oficinas y domicilios en Lindavista y colonias cercanas de Gustavo A. Madero, Ciudad de México. Menú del día, plan semanal y paquetes desde $60.",
+            "telephone": "+52 56 6035 6369",
+            "priceRange": "$60–$90 MXN",
+            "currenciesAccepted": "MXN",
+            "paymentAccepted": "Efectivo, transferencia, tarjeta",
+            "servesCuisine": ["Mexicana", "Comida casera", "Comida corrida"],
+            "acceptsReservations": false,
+            "hasMenu": "https://www.foodiepack.com.mx/menu-semana",
+            "address": {
+              "@type": "PostalAddress",
+              "addressLocality": "Lindavista, Gustavo A. Madero",
+              "addressRegion": "CDMX",
+              "postalCode": "07300",
+              "addressCountry": "MX"
+            },
+            "geo": { "@type": "GeoCoordinates", "latitude": 19.4936, "longitude": -99.1287 },
+            "areaServed": [
+              { "@type": "GeoCircle", "geoMidpoint": { "@type": "GeoCoordinates", "latitude": 19.4936, "longitude": -99.1287 }, "geoRadius": "3000" },
+              { "@type": "Place", "name": "Lindavista Norte" },
+              { "@type": "Place", "name": "Lindavista Sur" },
+              { "@type": "Place", "name": "Planetario Lindavista" },
+              { "@type": "Place", "name": "Torres Lindavista" },
+              { "@type": "Place", "name": "Tepeyac Insurgentes" },
+              { "@type": "Place", "name": "Churubusco Tepeyac" },
+              { "@type": "Place", "name": "Valle del Tepeyac" },
+              { "@type": "Place", "name": "Magdalena de las Salinas" },
+              { "@type": "Place", "name": "Residencial Zacatenco" },
+              { "@type": "Place", "name": "San Felipe de Jesús" },
+              { "@type": "AdministrativeArea", "name": "Gustavo A. Madero, Ciudad de México" }
+            ],
+            "openingHoursSpecification": [
+              { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], "opens": "08:00", "closes": "18:00" }
+            ],
+            "sameAs": [
+              "https://www.instagram.com/foodiepack.cdmx/",
+              "https://www.facebook.com/foodiepack.mx/",
+              "https://www.tiktok.com/@foodiepack"
+            ],
+            "potentialAction": {
+              "@type": "OrderAction",
+              "target": { "@type": "EntryPoint", "urlTemplate": "https://www.foodiepack.com.mx/#menu", "actionPlatform": ["http://schema.org/DesktopWebPlatform", "http://schema.org/MobileWebPlatform"] },
+              "deliveryMethod": "http://purl.org/goodrelations/v1#DeliveryModeOwnFleet"
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://www.foodiepack.com.mx/#sitio",
+            "url": "https://www.foodiepack.com.mx/",
+            "name": "FoodiePack",
+            "inLanguage": "es-MX",
+            "publisher": { "@id": "https://www.foodiepack.com.mx/#negocio" }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              { "@type": "Question", "name": "¿FoodiePack entrega comida a domicilio en Lindavista?", "acceptedAnswer": { "@type": "Answer", "text": "Sí. Entregamos comida casera gratis en Lindavista Norte, Lindavista Sur y colonias cercanas de Gustavo A. Madero, a menos de 3 km a la redonda, de lunes a viernes entre 12:00 y 2:00 pm." } },
+              { "@type": "Question", "name": "¿Cuánto cuesta la comida del día?", "acceptedAnswer": { "@type": "Answer", "text": "El paquete Económico cuesta $60, el Ejecutivo $75 y el Foodie+ $90 por día. El plan semanal de lunes a viernes va de $290 a $430 pagando por adelantado. El envío es gratis." } },
+              { "@type": "Question", "name": "¿Hasta qué hora puedo pedir?", "acceptedAnswer": { "@type": "Answer", "text": "Recibimos pedidos de 8:00 am a 6:00 pm, hora de la Ciudad de México, para entregar el siguiente día hábil." } },
+              { "@type": "Question", "name": "¿Cómo puedo pagar?", "acceptedAnswer": { "@type": "Answer", "text": "Por transferencia, en efectivo al recibir o con tarjeta usando la terminal del repartidor." } }
+            ]
+          }
+        ]
       }
     </script>
+
+    <style>
+      /* Instant preloader: plain HTML/CSS so it paints before any JavaScript loads. */
+      #fp-boot { position: fixed; z-index: 2000; inset: 0; display: grid; place-items: center; background: radial-gradient(120% 80% at 50% 0%, #13624b, #062f25); transition: opacity .45s ease, visibility .45s ease; animation: fp-boot-safety .4s 7s forwards; }
+      #fp-boot.is-done { opacity: 0; visibility: hidden; }
+      .fp-boot__inner { display: grid; justify-items: center; gap: 18px; }
+      .fp-boot__bowl { position: relative; width: 112px; height: 92px; }
+      .fp-boot__bowl b { position: absolute; left: 0; right: 0; bottom: 0; height: 56px; border-radius: 0 0 60px 60px; background: linear-gradient(180deg, #ffa23f, #dd6f06); box-shadow: 0 16px 30px -12px rgba(0,0,0,.6); }
+      .fp-boot__bowl b::before { content: ''; position: absolute; left: -6px; right: -6px; top: -8px; height: 16px; border-radius: 50%; background: #ffc845; }
+      .fp-boot__bowl b::after { content: ''; position: absolute; left: 34px; right: 34px; bottom: -8px; height: 10px; border-radius: 0 0 8px 8px; background: #dd6f06; }
+      .fp-boot__bowl i { position: absolute; bottom: 52px; width: 8px; height: 32px; border-radius: 8px; background: rgba(255,255,255,.75); filter: blur(1px); opacity: 0; animation: fp-steam 1.6s ease-in-out infinite; }
+      .fp-boot__bowl i:nth-child(1) { left: 32px; }
+      .fp-boot__bowl i:nth-child(2) { left: 52px; animation-delay: .35s; height: 40px; }
+      .fp-boot__bowl i:nth-child(3) { left: 72px; animation-delay: .7s; }
+      .fp-boot__logo { width: 190px; height: auto; animation: fp-boot-pop .6s cubic-bezier(.2,.8,.2,1) both; }
+      .fp-boot__bar { width: 150px; height: 5px; overflow: hidden; border-radius: 5px; background: rgba(255,255,255,.18); }
+      .fp-boot__bar i { display: block; width: 45%; height: 100%; border-radius: 5px; background: #f5891f; animation: fp-boot-bar 1.1s cubic-bezier(.65,0,.35,1) infinite; }
+      .fp-boot__text { margin: 0; color: rgba(255,255,255,.78); font: 600 13px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: .14em; text-transform: uppercase; }
+      @keyframes fp-steam { 0% { opacity: 0; transform: translateY(8px) scaleY(.6); } 40% { opacity: .9; } 100% { opacity: 0; transform: translateY(-26px) scaleY(1.1); } }
+      @keyframes fp-boot-bar { 0% { transform: translateX(-110%); } 100% { transform: translateX(240%); } }
+      @keyframes fp-boot-pop { from { opacity: 0; transform: scale(.88); } to { opacity: 1; transform: none; } }
+      @keyframes fp-boot-safety { to { opacity: 0; visibility: hidden; } }
+      @media (prefers-reduced-motion: reduce) { #fp-boot *, #fp-boot { animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
+      .fp-seo-static { max-width: 720px; margin: 0 auto; padding: 32px 20px; font-family: system-ui, sans-serif; color: #13241e; }
+    </style>
   </head>
   <body>
+    <div id="fp-boot" role="status" aria-label="Cargando FoodiePack">
+      <div class="fp-boot__inner">
+        <div class="fp-boot__bowl" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
+        <img class="fp-boot__logo" src="/assets/brand/logo-blanco-naranja.png" alt="FoodiePack" width="190" height="128" />
+        <p class="fp-boot__text">Tu cocina en la oficina</p>
+        <div class="fp-boot__bar" aria-hidden="true"><i></i></div>
+      </div>
+    </div>
     <div id="root">
-      <div class="boot-shell" aria-hidden="true"><span></span></div>
+      <!-- Static summary for search engines and no-JS visitors; React replaces it on load. -->
+      <main class="fp-seo-static">
+        <h1>Comida casera a domicilio en Lindavista, CDMX</h1>
+        <p>FoodiePack prepara comida corrida casera y la entrega gratis en tu oficina o casa en Lindavista y colonias cercanas de Gustavo A. Madero. Menú del día desde $60, plan semanal con descuento y paquetes Económico, Ejecutivo y Foodie+.</p>
+        <h2>Zona de entrega</h2>
+        <p>Lindavista Norte, Lindavista Sur, Planetario Lindavista, Torres Lindavista, Tepeyac Insurgentes, Churubusco Tepeyac, Valle del Tepeyac, Magdalena de las Salinas, Residencial Zacatenco y San Felipe de Jesús.</p>
+        <h2>Horarios</h2>
+        <p>Pedidos de lunes a viernes de 8:00 am a 6:00 pm. Entregas al día siguiente entre 12:00 y 2:00 pm.</p>
+        <p><a href="/menu-semana">Ver la carta de la semana</a> · <a href="/terminos">Términos y condiciones</a> · <a href="/privacidad">Aviso de privacidad</a></p>
+      </main>
     </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -5,6 +5,7 @@ import {
 import { getMenu, getMenuDays } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Footer from './components/Footer'
+import { setPageMeta } from './lib/seo'
 import SiteHeader from './components/SiteHeader'
 import { WhatsAppIcon } from './components/SocialIcons'
 import { trackEvent, trackWhatsAppLead } from './lib/analytics'
@@ -146,7 +147,11 @@ function WeekMenuApp() {
   }, [packageTier])
 
   useEffect(() => {
-    document.title = 'FoodiePack · Menú de la semana'
+    setPageMeta({
+      title: 'Menú de la semana en Lindavista · Comida casera | FoodiePack',
+      description: 'Arma tu semana de comida casera con entrega gratis en Lindavista, CDMX. Elige tu paquete y tus guisados de lunes a viernes y pide por WhatsApp.',
+      path: '/menu-semana',
+    })
   }, [])
 
   useEffect(() => {

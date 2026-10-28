@@ -13,6 +13,8 @@ import type { DishChoice } from './components/DishSheet'
 import MyOrders from './components/MyOrders'
 import NotifyPrompt, { NotifyCard } from './components/NotifyPrompt'
 import Footer from './components/Footer'
+import LocalSeo from './components/LocalSeo'
+import GarnishPicker from './components/GarnishPicker'
 import Logo from './components/Logo'
 import { trackAddPaymentInfo, trackAddToCart, trackBeginCheckout, trackPurchase } from './lib/analytics'
 import type { AnalyticsItem } from './lib/analytics'
@@ -22,9 +24,10 @@ import { externalMapUrl, isNearLindavista, reverseGeocode } from './lib/geo'
 import type { AddressSuggestion, Coordinates } from './lib/geo'
 import { rememberOrder } from './lib/myOrders'
 import { linkOrderToPush } from './lib/push'
+import { hideBoot } from './lib/boot'
 import { useReveal } from './lib/useReveal'
 import {
-  BANK_TRANSFER, GARNISH_OPTIONS, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE,
+  BANK_TRANSFER, garnishChoiceLabel, isDoubleGarnish, normalizeGarnish, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE,
   REPEAT_GUISADO_TIER,
 } from './packages'
 import type { Garnish, PackageTier } from './packages'
@@ -73,17 +76,6 @@ function loadFavorites() {
 }
 
 type Toast = { id: number; message: string; tone: 'success' | 'error' | 'info' }
-
-function BrandPreloader() {
-  return (
-    <div className="fp-preloader" role="status" aria-label="Cargando FoodiePack">
-      <div className="fp-preloader__lockup">
-        <Logo hero theme="white" />
-        <span aria-hidden="true"><i /></span>
-      </div>
-    </div>
-  )
-}
 
 function AcceptedOrderAnimation() {
   return (
@@ -206,21 +198,6 @@ function SpecialDayCard({ specialDay, chosen, onChoose }: { specialDay: SpecialD
             {chosen ? <><Check size={16} /> Elegido</> : <>Elegir este menú <ArrowRight size={16} /></>}
           </button>
         </div>
-      </div>
-    </div>
-  )
-}
-
-function GarnishPicker({ garnish, onGarnish }: { garnish: Garnish; onGarnish: (value: Garnish) => void }) {
-  return (
-    <div className="fp-field-group">
-      <span>Guarnición</span>
-      <div className="fp-segment fp-segment--small">
-        {GARNISH_OPTIONS.map((option) => (
-          <button type="button" key={option.value} className={garnish === option.value ? 'is-active' : ''} onClick={() => onGarnish(option.value)}>
-            {option.label}
-          </button>
-        ))}
       </div>
     </div>
   )
@@ -407,7 +384,7 @@ function OrderSummary({
               <b>+{money(REPEAT_GUISADO_SURCHARGE)}</b>
             </label>
           )}
-          <GarnishPicker garnish={garnish} onGarnish={onGarnish} />
+          <GarnishPicker tier={packageTier} value={garnish} onChange={onGarnish} />
         </div>
       )}
     </SummaryShell>
@@ -460,7 +437,7 @@ function WeeklySummary({ packageTier, quantity, prepay, garnish, canOrder, onQua
             <span className="fp-switch" aria-hidden="true"><i /></span>
             <span><strong>Pagar la semana por adelantado</strong><small>Por transferencia · ahorras {money(savings)}</small></span>
           </label>
-          <GarnishPicker garnish={garnish} onGarnish={onGarnish} />
+          <GarnishPicker tier={packageTier} value={garnish} onChange={onGarnish} />
         </div>
       )}
     </SummaryShell>
@@ -468,7 +445,6 @@ function WeeklySummary({ packageTier, quantity, prepay, garnish, canOrder, onQua
 }
 
 function App() {
-  const [preloading, setPreloading] = useState(true)
   const [days, setDays] = useState<MenuDay[]>([])
   const [policy, setPolicy] = useState<OrderPolicy | null>(null)
   const [orderMode, setOrderMode] = useState<OrderMode>('day')
@@ -521,11 +497,9 @@ function App() {
     window.setTimeout(() => dismissToast(id), 2800)
   }
 
-  useEffect(() => {
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const timer = window.setTimeout(() => setPreloading(false), reducedMotion ? 150 : 1100)
-    return () => window.clearTimeout(timer)
-  }, [])
+  // The tomorrow menu is requested together with the day list instead of after it.
+  const prefetchedMenu = useRef<Promise<MenuResponse> | null>(null)
+  if (prefetchedMenu.current === null) prefetchedMenu.current = getMenu().catch(() => null as unknown as MenuResponse)
 
   useEffect(() => {
     const goOnline = () => setIsOnline(true)
@@ -582,6 +556,7 @@ function App() {
       .catch(() => {
         setError('No pudimos conectar con la cocina. Intenta nuevamente en un momento.')
         setLoading(false)
+        hideBoot()
       })
   }, [retryTick])
 
@@ -590,10 +565,14 @@ function App() {
     let active = true
     setLoading(true)
     setError('')
-    getMenu(selectedDate)
+    const prefetched = prefetchedMenu.current
+    const request = prefetched && retryTick === 0
+      ? prefetched.then((response) => (response?.date === selectedDate ? response : getMenu(selectedDate)))
+      : getMenu(selectedDate)
+    request
       .then((response) => { if (active) setMenu(response) })
       .catch(() => { if (active) setError('No pudimos cargar el menú de este día.') })
-      .finally(() => { if (active) setLoading(false) })
+      .finally(() => { if (active) setLoading(false); hideBoot() })
     return () => { active = false }
   }, [selectedDate, orderMode, retryTick])
 
@@ -615,6 +594,7 @@ function App() {
 
   useEffect(() => {
     if (packageTier !== REPEAT_GUISADO_TIER) setRepeatGuisado(false)
+    setGarnish((current) => normalizeGarnish(current, packageTier))
   }, [packageTier])
 
   useEffect(() => {
@@ -948,7 +928,6 @@ function App() {
 
   return (
     <div className="fp">
-      {preloading && <BrandPreloader />}
       {!isOnline && (
         <div className="fp-offline" role="alert">
           <WifiOff size={14} /> Sin conexión a internet. Algunas acciones no estarán disponibles.
@@ -1008,7 +987,7 @@ function App() {
           <div className="fp-hero__blob fp-hero__blob--2" aria-hidden="true" />
           <div className="fp-hero__copy">
             <span className="fp-pill fp-pill--glass"><Truck size={14} /> Entrega {nextDelivery ? fullDate(nextDelivery).toLowerCase() : 'el próximo día hábil'}</span>
-            <h1 id="hero-title">Tu cocina<br />en la <em>oficina.</em></h1>
+            <h1 id="hero-title">Tu cocina<br />en la <em>oficina.</em><span className="fp-sr-only"> Comida casera a domicilio en Lindavista, CDMX</span></h1>
             <p>Comida casera recién hecha, con entrega gratis en Lindavista. Pide hoy, come rico mañana.</p>
             <div className="fp-hero__actions">
               <button type="button" className="fp-btn fp-btn--primary fp-btn--lg fp-btn--arrow" onClick={goToDayMenu}>
@@ -1207,6 +1186,8 @@ function App() {
         </div>
       </section>
 
+      <LocalSeo />
+
       <AppDownload meals={currentMeals.length ? currentMeals : (menu?.meals || [])} />
 
       <Footer />
@@ -1285,7 +1266,7 @@ function App() {
               <h2>{order.isWeeklyPlan ? '¡Tu semana está lista!' : `¡Nos vemos el ${fullDate(order.deliveryDate).toLowerCase()}!`}</h2>
               <p>
                 La cocina ya lo recibió y en un momento lo confirma. Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.
-                {order.items[0]?.garnish && <> Guarnición: {order.items[0].garnish === 'arroz' ? 'arroz' : 'frijoles'}.</>}
+                {order.items[0]?.garnish && <> Guarnición: {(order.items[0].garnishLabel || garnishChoiceLabel(order.items[0].garnish, isDoubleGarnish(order.items[0].packageTier))).toLowerCase()}.</>}
               </p>
               <NotifyCard orderId={order.id} />
               <div className="fp-confirmed__pay">
@@ -1324,7 +1305,7 @@ function App() {
                     <span>
                       {quantity} {quantity === 1 ? 'persona' : 'personas'}
                       {!usingSpecial && activePackage && orderMode === 'day' ? ` · ${activePackage.label}` : ''}
-                      {!usingSpecial ? ` · ${garnish === 'arroz' ? 'Arroz' : 'Frijoles'}` : ''}
+                      {!usingSpecial ? ` · ${garnishChoiceLabel(garnish, isDoubleGarnish(packageTier))}` : ''}
                       {usingSpecial && specialAddons.length ? ` · ${specialAddons.join(', ')}` : ''}
                       {orderMode === 'week' && prepay ? ` · ahorras ${money(weekSavings)}` : ''}
                     </span>

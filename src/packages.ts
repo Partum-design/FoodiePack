@@ -26,9 +26,9 @@ export const PACKAGES: Record<PackageTier, PackageDefinition> = {
 
 export const PACKAGE_ORDER: PackageTier[] = ['economico', 'ejecutivo', 'completo']
 
-export type Garnish = 'arroz' | 'frijoles'
+export type Garnish = 'arroz' | 'frijoles' | 'mixto'
 
-export const GARNISH_OPTIONS: Array<{ value: Garnish; label: string }> = [
+export const GARNISH_OPTIONS: Array<{ value: 'arroz' | 'frijoles'; label: string }> = [
   { value: 'arroz', label: 'Arroz' },
   { value: 'frijoles', label: 'Frijoles' },
 ]
@@ -42,6 +42,18 @@ export const DOUBLE_GARNISH_OPTIONS: Array<{ value: GarnishChoice; label: string
   { value: 'frijoles', label: '2 frijoles' },
   { value: 'mixto', label: 'Uno y uno' },
 ]
+
+export const DOUBLE_GARNISH_TIERS: PackageTier[] = ['completo']
+
+export function isDoubleGarnish(tier: PackageTier | null | undefined) {
+  return Boolean(tier && DOUBLE_GARNISH_TIERS.includes(tier))
+}
+
+/** Keeps the side choice valid when the package changes. */
+export function normalizeGarnish(choice: Garnish, tier: PackageTier | null | undefined): Garnish {
+  if (isDoubleGarnish(tier)) return choice
+  return choice === 'mixto' ? 'arroz' : choice
+}
 
 export function garnishChoiceLabel(choice: GarnishChoice, isDouble: boolean): string {
   if (choice === 'mixto') return 'Arroz y frijoles'

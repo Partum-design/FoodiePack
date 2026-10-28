@@ -34,8 +34,8 @@ export function getMenuDays() {
   return request<{ days: MenuDay[]; policy: OrderPolicy }>('/menu-days')
 }
 
-export function getMenu(date: string) {
-  return request<MenuResponse>(`/menu?date=${encodeURIComponent(date)}`)
+export function getMenu(date?: string) {
+  return request<MenuResponse>(date ? `/menu?date=${encodeURIComponent(date)}` : '/menu')
 }
 
 export function createOrder(payload: {

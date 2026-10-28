@@ -1290,3 +1290,50 @@ body:has(.fp), body:has(.fp-admin) { padding-bottom: 0 !important; }
   .fp-app__visual { height: 300px; }
   .fp-phone { width: 210px; height: 340px; }
 }
+
+/* =====================================================================
+   Side picker (Foodie+: 2 arroz · uno y uno · 2 frijoles)
+   ===================================================================== */
+.fp-garnish { display: grid; gap: 10px; }
+.fp-garnish__title { display: flex; align-items: center; gap: 8px; font: 600 17px var(--fp-display); color: var(--fp-ink); }
+.fp-summary .fp-garnish__title { font: 700 12px 'DM Sans', sans-serif; color: var(--fp-muted); letter-spacing: .08em; text-transform: uppercase; }
+.fp-garnish__title em { padding: 3px 9px; border-radius: 999px; color: #fff; background: var(--fp-orange); font: 800 10.5px 'DM Sans', sans-serif; letter-spacing: 0; text-transform: none; }
+.fp-garnish__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.fp-garnish__grid.is-double { grid-template-columns: repeat(3, 1fr); }
+.fp-garnish__option {
+  position: relative; min-height: 92px; padding: 12px 6px 10px; border: 2px solid var(--fp-line); border-radius: 18px; display: grid; justify-items: center; align-content: center; gap: 4px;
+  color: var(--fp-ink); background: var(--fp-white); cursor: pointer; transition: border-color .2s, background-color .2s, transform .15s var(--fp-ease), box-shadow .2s;
+}
+.fp-garnish__option:hover { transform: translateY(-2px); }
+.fp-garnish__option.is-active { border-color: var(--fp-orange); background: var(--fp-orange-soft); box-shadow: 0 10px 22px -12px rgba(245, 137, 31, .8); }
+.fp-garnish__art { height: 36px; display: flex; align-items: center; justify-content: center; }
+.fp-garnish__art b { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--fp-paper); font-size: 20px; line-height: 1; box-shadow: inset 0 0 0 2px #fff; }
+.fp-garnish__art b + b { margin-left: -9px; }
+.fp-garnish__option.is-active .fp-garnish__art b { background: #fff; animation: fp-bounce .45s var(--fp-ease) both; }
+.fp-garnish__option strong { font-size: 14px; }
+.fp-garnish__option small { color: var(--fp-muted); font-size: 11px; font-weight: 600; }
+.fp-garnish__option.is-active small { color: var(--fp-orange-deep); }
+.fp-garnish__check { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: var(--fp-orange); animation: fp-pop .3s var(--fp-ease); }
+.fp-summary .fp-garnish__option { min-height: 80px; }
+.fp-summary .fp-garnish__art b { width: 30px; height: 30px; font-size: 17px; }
+@keyframes fp-bounce { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-6px) scale(1.1); } 100% { transform: none; } }
+
+/* =====================================================================
+   Local SEO section
+   ===================================================================== */
+.fp-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.fp-local__card { padding: 24px 20px; border-radius: 30px; display: grid; gap: 22px; background: var(--fp-white); box-shadow: var(--fp-shadow-sm); }
+@media (min-width: 900px) { .fp-local__card { grid-template-columns: 1fr 1fr; gap: 40px; padding: 44px; } }
+.fp-local__intro { display: grid; gap: 12px; align-content: start; }
+.fp-local__intro h2 { font-size: clamp(26px, 5vw, 38px); line-height: 1.05; font-weight: 700; color: var(--fp-green); }
+.fp-local__intro p { color: var(--fp-muted); font-size: 15px; line-height: 1.55; }
+.fp-local__areas { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.fp-local__areas li { display: inline-flex; align-items: center; gap: 5px; padding: 7px 11px; border-radius: 999px; color: var(--fp-green); background: var(--fp-green-soft); font-size: 12.5px; font-weight: 700; }
+.fp-local__areas svg { color: var(--fp-orange-deep); }
+.fp-local__faq { display: grid; gap: 8px; align-content: start; }
+.fp-local__faq details { border-radius: 18px; background: var(--fp-paper); overflow: hidden; }
+.fp-local__faq summary { list-style: none; padding: 15px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 700; font-size: 15px; cursor: pointer; }
+.fp-local__faq summary::-webkit-details-marker { display: none; }
+.fp-local__faq summary svg { flex-shrink: 0; color: var(--fp-orange-deep); transition: transform .25s var(--fp-ease); }
+.fp-local__faq details[open] summary svg { transform: rotate(180deg); }
+.fp-local__faq details p { margin: 0; padding: 0 16px 16px; color: #3c4a44; font-size: 14.5px; line-height: 1.6; }

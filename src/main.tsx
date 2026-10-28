@@ -11,16 +11,26 @@ import './styles.css'
 import './storefront.css'
 import App from './App'
 import InstallPrompt, { InstallGuide } from './components/InstallPrompt'
+import { hideBoot } from './lib/boot'
 
-const AdminApp = lazy(() => import('./AdminApp'))
-const WeekMenuApp = lazy(() => import('./WeekMenuApp'))
-const PrivacyApp = lazy(() => import('./PrivacyApp'))
-const TermsApp = lazy(() => import('./TermsApp'))
+// Secondary pages drop the preloader as soon as their code has loaded; the storefront waits for its menu.
+function withBootHidden<T>(module: T) {
+  hideBoot(250)
+  return module
+}
+
+const AdminApp = lazy(() => import('./AdminApp').then(withBootHidden))
+const WeekMenuApp = lazy(() => import('./WeekMenuApp').then(withBootHidden))
+const PrivacyApp = lazy(() => import('./PrivacyApp').then(withBootHidden))
+const TermsApp = lazy(() => import('./TermsApp').then(withBootHidden))
 const currentPath = window.location.pathname.replace(/\/$/, '')
 const isAdminRoute = currentPath === '/admin' || currentPath === '/gestion-cocina'
 const isWeekMenuRoute = currentPath === '/menu-semana' || currentPath === '/semana'
 const isPrivacyRoute = currentPath === '/privacidad' || currentPath === '/aviso-de-privacidad'
 const isTermsRoute = currentPath === '/terminos' || currentPath === '/terminos-y-condiciones'
+
+// Safety net: never keep the preloader longer than 4 s, even if the API is slow.
+window.setTimeout(() => hideBoot(0), 4000)
 
 function Route() {
   if (isAdminRoute) return <AdminApp />

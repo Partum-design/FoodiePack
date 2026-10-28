@@ -15,6 +15,42 @@
   ],
   "headers": [
     {
+      "source": "/assets/(.*)-([A-Za-z0-9_-]{8})\\.(js|css|woff2|woff)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(meals|brand)/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800, stale-while-revalidate=2592000"
+        }
+      ]
+    },
+    {
+      "source": "/icons/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800, stale-while-revalidate=2592000"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         {
@@ -53,5 +89,8 @@
       "path": "/api/cron/reminder?slot=evening",
       "schedule": "0 23 * * 1-5"
     }
+  ],
+  "regions": [
+    "pdx1"
   ]
 }

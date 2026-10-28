@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { FileText, ShieldCheck } from 'lucide-react'
+import { setPageMeta } from '../lib/seo'
 import Footer from './Footer'
 import SiteHeader from './SiteHeader'
 
@@ -18,12 +19,10 @@ export default function LegalLayout({ kind, title, updatedAt, lead, canonical, c
   const [sections, setSections] = useState<Array<{ id: string; label: string }>>([])
 
   useEffect(() => {
-    document.title = `FoodiePack · ${title}`
-    // index.html points its canonical at the storefront; each legal page is its own document.
-    document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.setAttribute('href', canonical)
+    setPageMeta({ title: `${title} | FoodiePack Lindavista`, description: lead, path: new URL(canonical).pathname })
     setSections(Array.from(document.querySelectorAll<HTMLHeadingElement>('.fp-legal-body h2[id]'))
       .map((heading) => ({ id: heading.id, label: heading.textContent || '' })))
-  }, [title, canonical])
+  }, [title, canonical, lead])
 
   return (
     <div className="fp fp--page">

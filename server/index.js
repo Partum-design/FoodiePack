@@ -16,7 +16,7 @@ import {
 } from './push.js'
 import { addBusinessDays, MIN_ORDER_DATE, orderPolicy } from './time.js'
 import {
-  GARNISH_OPTIONS, PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS,
+  DOUBLE_GARNISH_TIERS, GARNISH_OPTIONS, garnishLabel, PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS,
 } from './packages.js'
 
 const app = express()
@@ -199,7 +199,12 @@ app.get('/api/health', (_request, response) => {
   response.json({ ok: true, service: 'foodiepack-api', storage: storageMode(), policy: orderPolicy() })
 })
 
+// Public menu data changes a few times a day: let Vercel's CDN serve it for a moment
+// instead of hitting the database on every visit. Orders are always re-validated live.
+const PUBLIC_CACHE = 'public, max-age=0, s-maxage=30, stale-while-revalidate=120'
+
 app.get('/api/menu', async (request, response) => {
+  response.set('Cache-Control', PUBLIC_CACHE)
   const policy = orderPolicy()
   const date = typeof request.query.date === 'string' ? request.query.date : policy.tomorrow
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return response.status(400).json({ error: 'Fecha inválida' })
@@ -219,6 +224,7 @@ app.get('/api/menu', async (request, response) => {
 })
 
 app.get('/api/menu-days', async (_request, response) => {
+  response.set('Cache-Control', PUBLIC_CACHE)
   const policy = orderPolicy()
   const { dates, specialDays } = await eligibleOrderDates(policy.today, WEEKLY_PLAN_DAYS)
   const menus = await getMenus()
@@ -290,7 +296,9 @@ app.post('/api/orders', async (request, response) => {
       }
     }
     canRepeatGuisado = orderMode === 'day' && packageTier === REPEAT_GUISADO_TIER && repeatGuisado
-    chosenGarnish = garnish || 'arroz'
+    chosenGarnish = garnish || (DOUBLE_GARNISH_TIERS.includes(packageTier) ? 'mixto' : 'arroz')
+    // "Uno y uno" only makes sense for packages that include two sides.
+    if (chosenGarnish === 'mixto' && !DOUBLE_GARNISH_TIERS.includes(packageTier)) chosenGarnish = 'arroz'
 
     if (orderMode === 'week') {
       subtotal = pack.weeklyRegular * quantity
@@ -327,7 +335,7 @@ app.post('/api/orders', async (request, response) => {
       unitPrice,
       repeatGuisado: canRepeatGuisado,
       prepay: orderMode === 'week' && prepay,
-      ...(chosenGarnish ? { garnish: chosenGarnish } : {}),
+      ...(chosenGarnish ? { garnish: chosenGarnish, garnishLabel: garnishLabel(chosenGarnish, packageTier) } : {}),
       ...(selectedMeal ? { mealId: selectedMeal.id, mealName: selectedMeal.name, menuDate: parsed.data.date } : {}),
       ...(chosenAddons.length > 0 ? { specialAddons: chosenAddons.map((addon) => addon.name) } : {}),
     }],
