@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ArrowRight, Calendar, Check, Loader2, MessageCircle, Minus, Plus, RefreshCw, Utensils, Wand2,
+  ArrowRight, Calendar, Check, Loader2, Minus, Plus, RefreshCw, Utensils, Wand2,
 } from 'lucide-react'
 import { getMenu, getMenuDays } from './api'
 import FloatingDecor from './components/FloatingDecor'
-import Logo from './components/Logo'
+import Footer from './components/Footer'
+import SiteHeader from './components/SiteHeader'
+import { WhatsAppIcon } from './components/SocialIcons'
 import { trackEvent, trackWhatsAppLead } from './lib/analytics'
 import { buildWhatsAppUrl } from './lib/contact'
 import { dayName, fullDate, shortDate } from './lib/dates'
@@ -250,11 +252,8 @@ function WeekMenuApp() {
   const whatsappHref = buildWhatsAppUrl(whatsappMessage)
 
   return (
-    <div className="week-menu-page">
-      <header className="week-menu-page__header">
-        <a href="/" aria-label="Ir a la tienda de FoodiePack"><Logo horizontal /></a>
-        <a className="week-menu-page__back" href="/">‹ Tienda principal</a>
-      </header>
+    <div className="fp fp--page week-menu-page">
+      <SiteHeader cta="Tienda" />
 
       <section className="week-hero-wrap">
         <FloatingDecor />
@@ -361,6 +360,8 @@ function WeekMenuApp() {
 
       <div className="week-menu-page__spacer" />
 
+      <Footer />
+
       <div className="week-summary-bar">
         <div className="week-summary-bar__info">
           <strong>{pack.label} · {quantity} {quantity === 1 ? 'persona' : 'personas'}</strong>
@@ -373,7 +374,7 @@ function WeekMenuApp() {
           rel="noreferrer"
           onClick={() => trackWhatsAppLead('carta_semana', { package: pack.label, people: quantity, days_selected: selectedCount })}
         >
-          <MessageCircle size={18} /> Enviar por WhatsApp <ArrowRight size={16} />
+          <WhatsAppIcon size={18} /> Enviar por WhatsApp <ArrowRight size={16} />
         </a>
       </div>
     </div>

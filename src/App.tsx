@@ -292,7 +292,7 @@ function PackagesSection({ selected, onSelect }: { selected: PackageTier | null;
 
 function SummaryShell({ title, label, children, footer }: { title: string; label: string; children: ReactNode; footer: ReactNode }) {
   return (
-    <aside className="fp-summary" id="pedido" aria-label="Tu pedido">
+    <aside className="fp-summary" aria-label="Tu pedido">
       <div className="fp-summary__head">
         <i><ShoppingBag size={20} /></i>
         <p><span>{title}</span><strong>{label}</strong></p>
@@ -518,6 +518,7 @@ function App() {
   const [retryTick, setRetryTick] = useState(0)
   const [headerScrolled, setHeaderScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [cartOpen, setCartOpen] = useState(false)
   const toastId = useRef(0)
   // True while the address text came from the map pin, so moving the pin may replace it.
   const addressFromPin = useRef(true)
@@ -553,6 +554,15 @@ function App() {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  useEffect(() => {
+    if (!cartOpen) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setCartOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', onKey) }
+  }, [cartOpen])
 
   useEffect(() => {
     if (!checkoutOpen) return
@@ -686,6 +696,7 @@ function App() {
   }
 
   const openCheckout = () => {
+    setCartOpen(false)
     setCheckoutOpen(true)
     trackBeginCheckout(cartItems(), activeTotal)
   }
@@ -862,7 +873,13 @@ function App() {
   const scrollToApp = () => scrollTo('#app')
   const goToDayMenu = () => { setOrderMode('day'); scrollToMenu() }
   const goToWeekPlan = () => { setOrderMode('week'); scrollToMenu() }
-  const onCartBar = () => (orderReady && orderingOpen ? openCheckout() : scrollToSummary())
+  // Phones get a bottom sheet with the order; desktop already shows it in the sticky sidebar.
+  const openCart = () => {
+    if (window.matchMedia('(min-width: 1024px)').matches) { scrollToSummary(); return }
+    setToasts([])
+    setCartOpen(true)
+  }
+  const browseMenu = () => { setCartOpen(false); window.setTimeout(scrollToMenu, 50) }
   const clearFilters = () => { setActiveTag(null); setOnlyFavorites(false); setSearch('') }
 
   const dateStrip = (mode: OrderMode) => (
@@ -885,6 +902,38 @@ function App() {
       {days.length === 0 && Array.from({ length: 5 }, (_, index) => <div className="fp-days__ph" key={index} />)}
     </div>
   )
+
+  const summaryNode = orderMode === 'day' ? (
+            <OrderSummary
+              packageTier={packageTier}
+              quantity={quantity}
+              repeatGuisado={repeatGuisado}
+              garnish={garnish}
+              deliveryDate={selectedDate}
+              meal={selectedMeal}
+              canOrder={orderingOpen}
+              specialDay={hasSpecialDay ? specialDay : null}
+              specialDayChosen={specialDayChosen}
+              specialAddons={specialAddons}
+              onQuantity={changeQuantity}
+              onToggleRepeat={() => setRepeatGuisado((value) => !value)}
+              onGarnish={setGarnish}
+              onToggleAddon={toggleSpecialAddon}
+              onCheckout={openCheckout}
+            />
+          ) : (
+            <WeeklySummary
+              packageTier={packageTier}
+              quantity={quantity}
+              prepay={prepay}
+              garnish={garnish}
+              canOrder={orderingOpen}
+              onQuantity={changeQuantity}
+              onTogglePrepay={() => setPrepay((value) => !value)}
+              onGarnish={setGarnish}
+              onCheckout={openCheckout}
+            />
+          )
 
   return (
     <div className="fp">
@@ -910,7 +959,7 @@ function App() {
 
           <div className="fp-header__actions">
             <span className={`fp-status ${orderingOpen ? 'is-open' : ''}`}><i />{policy ? (orderingOpen ? 'Abierto' : 'Cerrado') : '…'}</span>
-            <button className="fp-cart-btn" onClick={scrollToSummary} aria-label={`Ver pedido${badgeCount ? `, ${badgeCount} personas` : ''}`}>
+            <button className="fp-cart-btn" onClick={openCart} aria-label={`Ver pedido${badgeCount ? `, ${badgeCount} personas` : ''}`}>
               <ShoppingBag size={20} />
               <span>{badgeCount > 0 ? money(activeTotal) : 'Pedido'}</span>
               {badgeCount > 0 && <b key={badgeCount}>{badgeCount}</b>}
@@ -937,7 +986,7 @@ function App() {
         onGoMenu={goToDayMenu}
         onGoWeek={goToWeekPlan}
         onGoPackages={scrollToPackages}
-        onGoOrder={scrollToSummary}
+        onGoOrder={openCart}
         onGoApp={scrollToApp}
       />
 
@@ -991,8 +1040,6 @@ function App() {
         </div>
       </section>
 
-      <PackagesSection selected={packageTier} onSelect={choosePackage} />
-
       <main className="fp-section fp-order" id="menu">
         <div className="fp-order__main">
           <div className="fp-order__head">
@@ -1018,6 +1065,12 @@ function App() {
               </button>
             </div>
           </div>
+
+          <ol className="fp-howto" aria-label="Cómo pedir">
+            <li><b>1</b> Elige el día</li>
+            <li><b>2</b> Toca <i><Plus size={12} /></i> en tu guisado</li>
+            <li><b>3</b> Confirma y listo</li>
+          </ol>
 
           {dateStrip(orderMode)}
 
@@ -1119,40 +1172,12 @@ function App() {
           )}
         </div>
 
-        <div className="fp-order__side">
-          {orderMode === 'day' ? (
-            <OrderSummary
-              packageTier={packageTier}
-              quantity={quantity}
-              repeatGuisado={repeatGuisado}
-              garnish={garnish}
-              deliveryDate={selectedDate}
-              meal={selectedMeal}
-              canOrder={orderingOpen}
-              specialDay={hasSpecialDay ? specialDay : null}
-              specialDayChosen={specialDayChosen}
-              specialAddons={specialAddons}
-              onQuantity={changeQuantity}
-              onToggleRepeat={() => setRepeatGuisado((value) => !value)}
-              onGarnish={setGarnish}
-              onToggleAddon={toggleSpecialAddon}
-              onCheckout={openCheckout}
-            />
-          ) : (
-            <WeeklySummary
-              packageTier={packageTier}
-              quantity={quantity}
-              prepay={prepay}
-              garnish={garnish}
-              canOrder={orderingOpen}
-              onQuantity={changeQuantity}
-              onTogglePrepay={() => setPrepay((value) => !value)}
-              onGarnish={setGarnish}
-              onCheckout={openCheckout}
-            />
-          )}
+        <div className="fp-order__side" id="pedido">
+          {summaryNode}
         </div>
       </main>
+
+      <PackagesSection selected={packageTier} onSelect={choosePackage} />
 
       <section className="fp-section">
         <div className="fp-promo">
@@ -1175,14 +1200,33 @@ function App() {
 
       <Footer />
 
-      {badgeCount > 0 && !checkoutOpen && (
+      {badgeCount > 0 && !checkoutOpen && !cartOpen && (
         <div className="fp-cartbar" role="region" aria-label="Resumen rápido del pedido">
-          <button type="button" onClick={onCartBar}>
+          <button type="button" className="fp-cartbar__info" onClick={openCart} aria-label="Ver mi pedido">
             <b>{badgeCount}</b>
             <span><small>{cartLabel}</small><strong>{money(activeTotal)}</strong></span>
-            <em>{orderReady && orderingOpen ? 'Continuar' : 'Ver pedido'} <ChevronRight size={17} /></em>
+          </button>
+          <button type="button" className="fp-cartbar__go" onClick={orderReady && orderingOpen ? openCheckout : openCart}>
+            {orderReady && orderingOpen ? 'Pagar' : 'Ver pedido'} <ChevronRight size={17} />
           </button>
         </div>
+      )}
+
+      {cartOpen && <button className="fp-sheet-backdrop" aria-label="Cerrar pedido" onClick={() => setCartOpen(false)} />}
+      {cartOpen && (
+        <section className="fp-cart-sheet" role="dialog" aria-modal="true" aria-label="Tu pedido">
+          <div className="fp-sheet-handle" aria-hidden="true" />
+          <div className="fp-cart-sheet__top">
+            <h2>Tu pedido</h2>
+            <button type="button" className="fp-icon-btn" onClick={() => setCartOpen(false)} aria-label="Cerrar"><X size={19} /></button>
+          </div>
+          <div className="fp-cart-sheet__body">
+            {summaryNode}
+            <button type="button" className="fp-btn fp-btn--soft fp-btn--block" onClick={browseMenu}>
+              <Utensils size={17} /> {badgeCount > 0 ? 'Seguir viendo el menú' : 'Ver el menú'}
+            </button>
+          </div>
+        </section>
       )}
 
       <nav className="fp-tabbar" aria-label="Navegación">
@@ -1192,7 +1236,7 @@ function App() {
         <button className={orderMode === 'week' ? 'is-active' : ''} onClick={goToWeekPlan}>
           <CalendarDays size={21} /><span>Semana</span>
         </button>
-        <button className="fp-tabbar__main" onClick={onCartBar} aria-label="Mi pedido">
+        <button className={`fp-tabbar__main ${cartOpen ? 'is-active' : ''}`} onClick={openCart} aria-label="Mi pedido">
           <i><ShoppingBag size={24} />{badgeCount > 0 && <b>{badgeCount}</b>}</i>
           <span>Pedido</span>
         </button>
@@ -1319,7 +1363,7 @@ function App() {
                 </fieldset>
 
                 {orderError && <div className="fp-alert"><span>{orderError}</span></div>}
-                <p className="fp-legal">Al confirmar aceptas nuestro <a href="/privacidad" target="_blank" rel="noreferrer">Aviso de privacidad</a>.</p>
+                <p className="fp-legal">Al confirmar aceptas los <a href="/terminos" target="_blank" rel="noreferrer">Términos y condiciones</a> y el <a href="/privacidad" target="_blank" rel="noreferrer">Aviso de privacidad</a>.</p>
               </div>
 
               <div className="fp-checkout__foot">

@@ -15,15 +15,18 @@ import InstallPrompt, { InstallGuide } from './components/InstallPrompt'
 const AdminApp = lazy(() => import('./AdminApp'))
 const WeekMenuApp = lazy(() => import('./WeekMenuApp'))
 const PrivacyApp = lazy(() => import('./PrivacyApp'))
+const TermsApp = lazy(() => import('./TermsApp'))
 const currentPath = window.location.pathname.replace(/\/$/, '')
 const isAdminRoute = currentPath === '/admin' || currentPath === '/gestion-cocina'
 const isWeekMenuRoute = currentPath === '/menu-semana' || currentPath === '/semana'
 const isPrivacyRoute = currentPath === '/privacidad' || currentPath === '/aviso-de-privacidad'
+const isTermsRoute = currentPath === '/terminos' || currentPath === '/terminos-y-condiciones'
 
 function Route() {
   if (isAdminRoute) return <AdminApp />
   if (isWeekMenuRoute) return <WeekMenuApp />
   if (isPrivacyRoute) return <PrivacyApp />
+  if (isTermsRoute) return <TermsApp />
   return <App />
 }
 

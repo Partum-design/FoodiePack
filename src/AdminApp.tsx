@@ -11,6 +11,7 @@ import {
 } from './api'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
+import './admin.css'
 import { PACKAGE_ORDER } from './packages'
 import type { Meal, MenuDay, SavedOrder, SpecialDay } from './types'
 
@@ -114,7 +115,7 @@ function Login({ onSuccess }: { onSuccess: (token: string) => void }) {
   }
 
   return (
-    <main className="admin-login">
+    <main className="admin-login fp-admin">
       <FloatingDecor />
       <section>
         <Logo hero />
@@ -719,9 +720,9 @@ function AdminApp() {
   }
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell fp-admin">
       <aside className="admin-nav">
-        <Logo compact />
+        <a href="/" className="admin-nav__logo" aria-label="Ir a la tienda"><img src="/assets/brand/logo-blanco-naranja.png" alt="FoodiePack" /></a>
         <div>
           <button className={tab === 'menu' ? 'selected' : ''} onClick={() => setTab('menu')}><ClipboardList size={15} /> Menús</button>
           <button className={tab === 'special' ? 'selected' : ''} onClick={() => setTab('special')}><CalendarOff size={15} /> Días especiales</button>
@@ -732,7 +733,7 @@ function AdminApp() {
 
       <main className="admin-main">
         <div className="admin-main__brand">
-          <Logo />
+          <Logo horizontal />
           <div className="admin-main__brand-copy">
             <strong>FOODIE PACK</strong>
             <span>foodiepack.com.mx · Administración</span>
