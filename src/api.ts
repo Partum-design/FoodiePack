@@ -85,7 +85,7 @@ export function getAdminOrders(token: string) {
   return request<{ orders: SavedOrder[] }>('/admin/orders', { headers: adminHeaders(token) })
 }
 
-export function updateAdminOrderStatus(id: string, status: 'accepted' | 'cancelled', token: string) {
+export function updateAdminOrderStatus(id: string, status: 'pending' | 'accepted' | 'cancelled', token: string) {
   return request<{ order: SavedOrder }>(`/admin/orders/${id}`, {
     method: 'PATCH',
     headers: adminHeaders(token),
@@ -151,5 +151,19 @@ export function deleteAdminSpecialDay(date: string, token: string) {
   return request<Record<string, never>>(`/admin/special-days/${date}`, {
     method: 'DELETE',
     headers: adminHeaders(token),
+  })
+}
+
+export type PushBroadcast = { kind: string; title: string; body: string; url: string; sent: number; failed: number; createdAt: string }
+
+export function getAdminPush(token: string) {
+  return request<{ enabled: boolean; customers: number; admins: number; broadcasts: PushBroadcast[] }>('/admin/push', { headers: adminHeaders(token) })
+}
+
+export function sendAdminPush(message: { title: string; body: string; url: string; test?: boolean }, token: string) {
+  return request<{ sent: number; failed: number }>('/admin/push/send', {
+    method: 'POST',
+    headers: adminHeaders(token),
+    body: JSON.stringify(message),
   })
 }

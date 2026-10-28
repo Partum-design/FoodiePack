@@ -2,12 +2,16 @@ import { FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from 
 import type { ReactNode } from 'react'
 import {
   ArrowRight, Banknote, CalendarDays, Check, ChevronRight, Clock3, CreditCard, Heart, Landmark, MapPin, Menu, Minus,
-  PartyPopper, Plus, RefreshCw, Search, ShoppingBag, SlidersHorizontal, Sparkles, Truck, Utensils, WifiOff, X,
+  PartyPopper, Plus, ReceiptText, RefreshCw, Search, ShoppingBag, SlidersHorizontal, Sparkles, Truck, Utensils, WifiOff, X,
 } from 'lucide-react'
 import { createOrder, getMenu, getMenuDays } from './api'
 import AddressSearch from './components/AddressSearch'
 import AppDownload from './components/AppDownload'
 import AppMenu from './components/AppMenu'
+import DishSheet from './components/DishSheet'
+import type { DishChoice } from './components/DishSheet'
+import MyOrders from './components/MyOrders'
+import NotifyPrompt, { NotifyCard } from './components/NotifyPrompt'
 import Footer from './components/Footer'
 import Logo from './components/Logo'
 import { trackAddPaymentInfo, trackAddToCart, trackBeginCheckout, trackPurchase } from './lib/analytics'
@@ -16,6 +20,8 @@ import { dateFromKey, dayName, fullDate } from './lib/dates'
 import { money } from './lib/format'
 import { externalMapUrl, isNearLindavista, reverseGeocode } from './lib/geo'
 import type { AddressSuggestion, Coordinates } from './lib/geo'
+import { rememberOrder } from './lib/myOrders'
+import { linkOrderToPush } from './lib/push'
 import { useReveal } from './lib/useReveal'
 import {
   BANK_TRANSFER, GARNISH_OPTIONS, ORDER_KEY_POINTS, PACKAGE_ORDER, PACKAGES, REPEAT_GUISADO_SURCHARGE,
@@ -81,9 +87,9 @@ function BrandPreloader() {
 
 function AcceptedOrderAnimation() {
   return (
-    <div className="accepted-order-motion" role="status" aria-label="Pedido aceptado">
+    <div className="accepted-order-motion" role="status" aria-label="Pedido recibido">
       <span className="accepted-order-motion__waiting" aria-hidden="true">Enviando a cocina</span>
-      <span className="accepted-order-motion__success" aria-hidden="true">Pedido aceptado
+      <span className="accepted-order-motion__success" aria-hidden="true">Pedido recibido
         <svg viewBox="0 0 12 10" aria-hidden="true"><polyline points="1.5 6 4.5 9 10.5 1" /></svg>
       </span>
       <div className="accepted-order-motion__package" aria-hidden="true" />
@@ -123,28 +129,26 @@ function Counter({ value, onChange }: { value: number; onChange: (change: number
   )
 }
 
-function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, selectedMealId, onChoosePackage }: {
+function DishCard({ meal, index, isFavorite, onToggleFavorite, chosen, onOpen }: {
   meal: Meal
   index: number
   isFavorite: boolean
   onToggleFavorite: () => void
-  selectedPackage: PackageTier | null
-  selectedMealId: string | null
-  onChoosePackage: (mealId: string, tier: PackageTier) => void
+  chosen: boolean
+  onOpen: () => void
 }) {
   const { ref, visible } = useReveal<HTMLElement>()
   const tiers = PACKAGE_ORDER.filter((tier) => meal.packages.includes(tier))
-  const isChosen = selectedMealId === meal.id && Boolean(selectedPackage)
-  const [tier, setTier] = useState<PackageTier>(() => (isChosen && selectedPackage) || (tiers.includes('ejecutivo') ? 'ejecutivo' : tiers[0]))
-  const activeTier = isChosen && selectedPackage ? selectedPackage : tier
+  const fromPrice = Math.min(...tiers.map((tier) => PACKAGES[tier].dailyPrice))
   const badge = index === 0 && meal.available ? 'Más pedido' : meal.tags[0]
 
   return (
     <article
       ref={ref}
-      className={`fp-dish reveal ${meal.available ? '' : 'is-soldout'} ${isChosen ? 'is-chosen' : ''} ${visible ? 'reveal--visible' : ''}`}
+      className={`fp-dish reveal ${meal.available ? '' : 'is-soldout'} ${chosen ? 'is-chosen' : ''} ${visible ? 'reveal--visible' : ''}`}
       style={{ transitionDelay: visible ? `${Math.min(index, 8) * 60}ms` : '0ms' }}
     >
+      <button type="button" className="fp-dish__hit" onClick={onOpen} disabled={!meal.available} aria-label={`Ver ${meal.name}`} />
       <div className="fp-dish__media">
         <img src={meal.image} alt={meal.name} loading="lazy" decoding="async" />
         {badge && <span className={`fp-dish__badge ${index === 0 ? 'is-hot' : ''}`}>{badge}</span>}
@@ -162,33 +166,16 @@ function DishCard({ meal, index, isFavorite, onToggleFavorite, selectedPackage, 
       <div className="fp-dish__body">
         <h3>{meal.name}</h3>
         <p>{meal.description}</p>
-        {tiers.length > 0 && (
-          <div className="fp-dish__tiers" role="radiogroup" aria-label={`Paquete para ${meal.name}`}>
-            {tiers.map((option) => (
-              <button
-                type="button"
-                key={option}
-                role="radio"
-                aria-checked={activeTier === option}
-                className={activeTier === option ? 'is-active' : ''}
-                disabled={!meal.available}
-                onClick={() => { setTier(option); if (isChosen) onChoosePackage(meal.id, option) }}
-              >
-                {PACKAGES[option].label}
-              </button>
-            ))}
-          </div>
-        )}
         <div className="fp-dish__foot">
-          <p><small>{PACKAGES[activeTier]?.label || 'Paquete'}</small><strong>{money(PACKAGES[activeTier]?.dailyPrice || 0)}</strong></p>
+          <p>{chosen ? <small className="is-chosen"><Check size={13} /> En tu pedido</small> : <small>Desde</small>}<strong>{money(fromPrice)}</strong></p>
           <button
             type="button"
-            className={`fp-dish__add ${isChosen ? 'is-chosen' : ''}`}
+            className={`fp-dish__add ${chosen ? 'is-chosen' : ''}`}
             disabled={!meal.available || !tiers.length}
-            onClick={() => onChoosePackage(meal.id, activeTier)}
-            aria-label={isChosen ? `${meal.name} elegido` : `Elegir ${meal.name} con paquete ${PACKAGES[activeTier]?.label}`}
+            onClick={onOpen}
+            aria-label={chosen ? `Cambiar ${meal.name}` : `Agregar ${meal.name}`}
           >
-            {isChosen ? <Check size={20} /> : <Plus size={20} />}
+            {chosen ? <Check size={20} /> : <Plus size={20} />}
           </button>
         </div>
       </div>
@@ -519,6 +506,9 @@ function App() {
   const [headerScrolled, setHeaderScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
+  const [dishSheet, setDishSheet] = useState<Meal | null>(null)
+  const [ordersOpen, setOrdersOpen] = useState(false)
+  const [focusOrderId, setFocusOrderId] = useState<string | undefined>()
   const toastId = useRef(0)
   // True while the address text came from the map pin, so moving the pin may replace it.
   const addressFromPin = useRef(true)
@@ -553,6 +543,16 @@ function App() {
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Notification taps land on /?pedido=FP-… — open that order's status right away.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('pedido')
+    if (id && /^FP-[A-F0-9]{12}$/.test(id)) {
+      rememberOrder(id)
+      setFocusOrderId(id)
+      setOrdersOpen(true)
+    }
   }, [])
 
   useEffect(() => {
@@ -727,6 +727,15 @@ function App() {
     pushToast(`${currentMeals.find((meal) => meal.id === mealId)?.name || 'Guisado'} · ${PACKAGES[tier].label}`, 'success')
   }
 
+  const confirmDish = (meal: Meal, choice: DishChoice) => {
+    setQuantity(choice.quantity)
+    setGarnish(choice.garnish)
+    setRepeatGuisado(choice.repeatGuisado)
+    if (orderMode === 'day') chooseMealPackage(meal.id, choice.tier)
+    else choosePackage(choice.tier)
+    setDishSheet(null)
+  }
+
   const changeQuantity = (change: number) => {
     setQuantity((current) => Math.min(10, Math.max(1, current + change)))
   }
@@ -835,6 +844,8 @@ function App() {
         ...(usingSpecial ? { specialAddons } : {}),
       })
       setOrder(response.order)
+      rememberOrder(response.order.id)
+      void linkOrderToPush(response.order.id)
       trackPurchase({
         transactionId: response.order.id,
         value: response.order.total,
@@ -988,6 +999,7 @@ function App() {
         onGoPackages={scrollToPackages}
         onGoOrder={openCart}
         onGoApp={scrollToApp}
+        onGoMyOrders={() => { setFocusOrderId(undefined); setOrdersOpen(true) }}
       />
 
       <section className="fp-hero" aria-labelledby="hero-title">
@@ -1156,9 +1168,8 @@ function App() {
                     index={index}
                     isFavorite={favorites.includes(meal.id)}
                     onToggleFavorite={() => toggleFavorite(meal.id)}
-                    selectedPackage={packageTier}
-                    selectedMealId={orderMode === 'day' ? selectedMealId : null}
-                    onChoosePackage={orderMode === 'day' ? chooseMealPackage : (_mealId, tier) => choosePackage(tier)}
+                    chosen={orderMode === 'day' && selectedMealId === meal.id && Boolean(packageTier)}
+                    onOpen={() => setDishSheet(meal)}
                   />
                 ))}
               </div>
@@ -1240,13 +1251,27 @@ function App() {
           <i><ShoppingBag size={24} />{badgeCount > 0 && <b>{badgeCount}</b>}</i>
           <span>Pedido</span>
         </button>
-        <button onClick={scrollToPackages}>
-          <Sparkles size={21} /><span>Paquetes</span>
+        <button className={ordersOpen ? 'is-active' : ''} onClick={() => { setFocusOrderId(undefined); setOrdersOpen(true) }}>
+          <ReceiptText size={21} /><span>Mis pedidos</span>
         </button>
         <button className={menuOpen ? 'is-active' : ''} onClick={() => setMenuOpen(true)} aria-expanded={menuOpen} aria-controls="app-menu">
           <Menu size={21} /><span>Más</span>
         </button>
       </nav>
+
+      {dishSheet && (
+        <DishSheet
+          meal={dishSheet}
+          mode={orderMode}
+          initial={{ tier: packageTier || undefined, quantity, garnish, repeatGuisado }}
+          onClose={() => setDishSheet(null)}
+          onConfirm={(choice) => confirmDish(dishSheet, choice)}
+        />
+      )}
+
+      <MyOrders open={ordersOpen} focusId={focusOrderId} onClose={() => setOrdersOpen(false)} onOrder={() => { setOrdersOpen(false); window.setTimeout(scrollToMenu, 50) }} />
+
+      <NotifyPrompt />
 
       {checkoutOpen && <button className="fp-sheet-backdrop" aria-label="Cerrar" onClick={closeCheckout} />}
       {checkoutOpen && (
@@ -1259,9 +1284,10 @@ function App() {
               <span className="fp-pill fp-pill--green"><PartyPopper size={14} /> Pedido {order.id}</span>
               <h2>{order.isWeeklyPlan ? '¡Tu semana está lista!' : `¡Nos vemos el ${fullDate(order.deliveryDate).toLowerCase()}!`}</h2>
               <p>
-                Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.
+                La cocina ya lo recibió y en un momento lo confirma. Llegará a {order.delivery?.office || 'tu oficina'} entre 12:00 y 2:00 pm.
                 {order.items[0]?.garnish && <> Guarnición: {order.items[0].garnish === 'arroz' ? 'arroz' : 'frijoles'}.</>}
               </p>
+              <NotifyCard orderId={order.id} />
               <div className="fp-confirmed__pay">
                 {order.paymentMethod === 'transfer' ? <Landmark size={20} /> : order.paymentMethod === 'terminal' ? <CreditCard size={20} /> : <Banknote size={20} />}
                 <p>{order.paymentMethod === 'transfer'
@@ -1271,7 +1297,12 @@ function App() {
                     : 'Pagarás en efectivo al recibir. ¡Ten tu cambio listo!'}</p>
               </div>
               {order.delivery?.mapUrl && <a className="fp-link" href={order.delivery.mapUrl} target="_blank" rel="noreferrer"><MapPin size={15} /> Ver dirección guardada</a>}
-              <button className="fp-btn fp-btn--primary fp-btn--block fp-btn--lg" onClick={closeCheckout}>Listo</button>
+              <div className="fp-confirmed__actions">
+                <button className="fp-btn fp-btn--soft fp-btn--lg" onClick={() => { const id = order.id; closeCheckout(); setFocusOrderId(id); setOrdersOpen(true) }}>
+                  <ReceiptText size={18} /> Seguir mi pedido
+                </button>
+                <button className="fp-btn fp-btn--primary fp-btn--lg" onClick={closeCheckout}>Listo</button>
+              </div>
             </div>
           ) : (
             <form onSubmit={placeOrder} className="fp-checkout__form">

@@ -9,8 +9,11 @@ import { z } from 'zod'
 import {
   createProduct, deleteOrder, deleteProduct, deleteSpecialDay, getMenu, getMenus, getOrders, getProducts,
   getSpecialDays, saveMenu, saveOrder, saveSpecialDay, storageMode, updateOrderStatus, updateProduct,
-  uploadProductImage,
+  uploadProductImage, countPushSubscriptions, deletePushSubscription, getBroadcasts, getOrdersByIds, savePushSubscription,
 } from './store.js'
+import {
+  notifyAdminsNewOrder, notifyOrderStatus, pushEnabled, runReminder, safely, sendCampaign, vapidPublicKey,
+} from './push.js'
 import { addBusinessDays, MIN_ORDER_DATE, orderPolicy } from './time.js'
 import {
   GARNISH_OPTIONS, PACKAGES, PACKAGE_ORDER, REPEAT_GUISADO_SURCHARGE, REPEAT_GUISADO_TIER, WEEKLY_PLAN_DAYS,
@@ -107,7 +110,23 @@ const productSchema = z.object({
   available: z.boolean().default(true),
   packages: packagesSchema.default([...PACKAGE_ORDER]),
 })
-const orderStatusSchema = z.object({ status: z.enum(['accepted', 'cancelled']) })
+const orderStatusSchema = z.object({ status: z.enum(['pending', 'accepted', 'cancelled']) })
+const pushSubscriptionSchema = z.object({
+  endpoint: z.string().url().max(1000),
+  keys: z.object({ p256dh: z.string().min(10).max(200), auth: z.string().min(4).max(100) }),
+})
+const subscribeSchema = z.object({
+  subscription: pushSubscriptionSchema,
+  orderId: z.string().regex(/^FP-[A-F0-9]{12}$/).optional(),
+  reminders: z.boolean().optional(),
+})
+const campaignSchema = z.object({
+  title: z.string().trim().min(3).max(70),
+  body: z.string().trim().min(3).max(180),
+  url: z.string().trim().max(200).regex(/^\/[^\s]*$/).optional().default('/'),
+  test: z.boolean().optional().default(false),
+})
+const cronSecret = process.env.CRON_SECRET || ''
 const uploadSchema = z.object({
   fileBase64: z.string().min(1),
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
@@ -290,7 +309,7 @@ app.post('/api/orders', async (request, response) => {
     id: `FP-${crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`,
     createdAt: new Date().toISOString(),
     deliveryDate: orderMode === 'week' ? policy.tomorrow : parsed.data.date,
-    status: 'accepted',
+    status: 'pending',
     paymentMethod: parsed.data.paymentMethod,
     isWeeklyPlan: orderMode === 'week',
     customer: parsed.data.customer,
@@ -319,7 +338,60 @@ app.post('/api/orders', async (request, response) => {
     total,
   }
   await saveOrder(order)
+  await safely(() => notifyAdminsNewOrder(order))
   response.status(201).json({ order })
+})
+
+// Public order tracking: only non-personal fields, looked up by the unguessable order id.
+app.get('/api/orders/status', async (request, response) => {
+  const ids = String(request.query.ids || '').split(',').map((id) => id.trim()).filter((id) => /^FP-[A-F0-9]{12}$/.test(id)).slice(0, 20)
+  const orders = await getOrdersByIds(ids)
+  response.json({
+    orders: orders.map((order) => ({
+      id: order.id,
+      status: order.status,
+      createdAt: order.createdAt,
+      deliveryDate: order.deliveryDate,
+      isWeeklyPlan: order.isWeeklyPlan,
+      total: order.total,
+      paymentMethod: order.paymentMethod,
+      items: order.items.map((item) => ({ packageLabel: item.packageLabel, mealName: item.mealName, quantity: item.quantity })),
+    })),
+  })
+})
+
+app.get('/api/push/key', (_request, response) => {
+  response.json({ enabled: pushEnabled, publicKey: vapidPublicKey() })
+})
+
+app.post('/api/push/subscribe', async (request, response) => {
+  const parsed = subscribeSchema.safeParse(request.body)
+  if (!parsed.success) return response.status(400).json({ error: 'Suscripción inválida' })
+  await savePushSubscription({
+    ...parsed.data.subscription,
+    audience: 'customer',
+    orderId: parsed.data.orderId,
+    reminders: parsed.data.reminders,
+    userAgent: request.get('user-agent'),
+  })
+  response.status(201).json({ ok: true })
+})
+
+app.post('/api/push/unsubscribe', async (request, response) => {
+  const parsed = z.object({ endpoint: z.string().url().max(1000) }).safeParse(request.body)
+  if (!parsed.success) return response.status(400).json({ error: 'Suscripción inválida' })
+  await deletePushSubscription(parsed.data.endpoint)
+  response.status(204).end()
+})
+
+// Vercel Cron calls this with "Authorization: Bearer <CRON_SECRET>".
+app.get('/api/cron/reminder', async (request, response) => {
+  if (!cronSecret || request.get('authorization') !== `Bearer ${cronSecret}`) {
+    return response.status(401).json({ error: 'No autorizado' })
+  }
+  const slot = request.query.slot === 'evening' ? 'evening' : 'lunch'
+  const result = await runReminder(slot)
+  response.json({ slot, ...result })
 })
 
 app.post('/api/admin/login', (request, response) => {
@@ -387,7 +459,29 @@ app.patch('/api/admin/orders/:id', requireAdmin, async (request, response) => {
   if (!parsed.success) return response.status(400).json({ error: 'Estado de pedido inválido' })
   const order = await updateOrderStatus(request.params.id, parsed.data.status)
   if (!order) return response.status(404).json({ error: 'Pedido no encontrado' })
+  await safely(() => notifyOrderStatus(order))
   response.json({ order })
+})
+
+app.post('/api/admin/push/subscribe', requireAdmin, async (request, response) => {
+  const parsed = pushSubscriptionSchema.safeParse(request.body?.subscription)
+  if (!parsed.success) return response.status(400).json({ error: 'Suscripción inválida' })
+  await savePushSubscription({ ...parsed.data, audience: 'admin', reminders: false, userAgent: request.get('user-agent') })
+  response.status(201).json({ ok: true })
+})
+
+app.get('/api/admin/push', requireAdmin, async (_request, response) => {
+  const [counts, broadcasts] = await Promise.all([countPushSubscriptions(), getBroadcasts(20)])
+  response.json({ enabled: pushEnabled, ...counts, broadcasts })
+})
+
+app.post('/api/admin/push/send', requireAdmin, async (request, response) => {
+  const parsed = campaignSchema.safeParse(request.body)
+  if (!parsed.success) return response.status(400).json({ error: 'Escribe un título y un mensaje' })
+  if (!pushEnabled) return response.status(503).json({ error: 'Las notificaciones no están configuradas en el servidor' })
+  const { test, ...message } = parsed.data
+  const result = await sendCampaign({ ...message, kind: test ? 'test' : 'campaign', audience: test ? 'admin' : 'customer' })
+  response.json(result)
 })
 
 app.delete('/api/admin/orders/:id', requireAdmin, async (request, response) => {

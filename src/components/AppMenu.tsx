@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
-import { CalendarDays, ChevronRight, Clock3, Download, MapPin, MessageCircle, ShoppingBag, Sparkles, Utensils, X } from 'lucide-react'
+import { BellRing, CalendarDays, ChevronRight, Clock3, Download, MapPin, ReceiptText, ShoppingBag, Sparkles, Utensils, X } from 'lucide-react'
+import { enablePush, usePushPermission } from '../lib/push'
+import { WhatsAppIcon } from './SocialIcons'
 import { trackWhatsAppLead } from '../lib/analytics'
 import { buildWhatsAppUrl, WHATSAPP_DISPLAY } from '../lib/contact'
 import { money } from '../lib/format'
@@ -15,12 +17,14 @@ type AppMenuProps = {
   onGoPackages: () => void
   onGoOrder: () => void
   onGoApp: () => void
+  onGoMyOrders: () => void
 }
 
 /** Side drawer used on phones and tablets, where the header has no room for links. */
 export default function AppMenu({
-  open, badgeCount, weeklySavings, onClose, onGoMenu, onGoWeek, onGoPackages, onGoOrder, onGoApp,
+  open, badgeCount, weeklySavings, onClose, onGoMenu, onGoWeek, onGoPackages, onGoOrder, onGoApp, onGoMyOrders,
 }: AppMenuProps) {
+  const permission = usePushPermission()
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
@@ -41,6 +45,7 @@ export default function AppMenu({
     { icon: <Utensils size={19} />, label: 'Menú del día', hint: 'Guisados del próximo día hábil', action: onGoMenu },
     { icon: <CalendarDays size={19} />, label: 'Plan semanal', hint: `Ahorra hasta ${money(weeklySavings)}`, action: onGoWeek },
     { icon: <Sparkles size={19} />, label: 'Paquetes', hint: `Desde ${money(PACKAGES.economico.dailyPrice)} por día`, action: onGoPackages },
+    { icon: <ReceiptText size={19} />, label: 'Mis pedidos', hint: 'Revisa si ya los aceptaron', action: onGoMyOrders },
     { icon: <ShoppingBag size={19} />, label: 'Mi pedido', hint: badgeCount > 0 ? `${badgeCount} ${badgeCount === 1 ? 'persona' : 'personas'}` : 'Aún vacío', action: onGoOrder, badge: badgeCount },
     { icon: <Download size={19} />, label: 'Descarga la app', hint: 'Gratis, en tu pantalla de inicio', action: onGoApp },
   ]
@@ -67,6 +72,17 @@ export default function AppMenu({
             <ChevronRight size={17} />
           </a>
         </nav>
+        {(permission === 'default' || permission === 'granted') && (
+          <button
+            type="button"
+            className={`fp-drawer__notify ${permission === 'granted' ? 'is-on' : ''}`}
+            onClick={() => { if (permission !== 'granted') enablePush({ source: 'menu' }).catch(() => false) }}
+          >
+            <BellRing size={19} />
+            <span>{permission === 'granted' ? 'Avisos activados' : 'Activar avisos'}<small>{permission === 'granted' ? 'Te avisamos de tus pedidos y el menú' : 'Pedido aceptado, menú del día y más'}</small></span>
+            <i className="fp-switch" aria-hidden="true"><i /></i>
+          </button>
+        )}
         <a
           className="fp-drawer__whatsapp"
           href={buildWhatsAppUrl('Hola, quiero más información de FoodiePack')}
@@ -74,7 +90,7 @@ export default function AppMenu({
           rel="noreferrer"
           onClick={() => { onClose(); trackWhatsAppLead('menu') }}
         >
-          <MessageCircle size={20} /><span><small>¿Dudas? Escríbenos</small>{WHATSAPP_DISPLAY}</span>
+          <WhatsAppIcon size={20} /><span><small>¿Dudas? Escríbenos</small>{WHATSAPP_DISPLAY}</span>
         </a>
         <div className="fp-drawer__foot">
           <p><MapPin size={14} /> Lindavista, CDMX · envío gratis</p>

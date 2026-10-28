@@ -1,4 +1,4 @@
-const RUNTIME_CACHE = 'foodiepack-runtime-v2'
+const RUNTIME_CACHE = 'foodiepack-runtime-v3'
 
 // The kitchen admin tool has no offline use case, and a shared/kiosk device
 // shouldn't keep its login screen around in the cache after someone leaves.
@@ -57,6 +57,42 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => cached)
       return cached || networkFetch
+    }),
+  )
+})
+
+// ---------------------------------------------------------------------------
+// Push notifications (order updates, daily reminders, campaigns)
+// ---------------------------------------------------------------------------
+self.addEventListener('push', (event) => {
+  let data = {}
+  try { data = event.data ? event.data.json() : {} } catch { data = { body: event.data && event.data.text() } }
+  const title = data.title || 'FoodiePack'
+  const options = {
+    body: data.body || '',
+    icon: data.icon || '/icons/icon-192.png',
+    badge: data.badge || '/icons/icon-96.png',
+    tag: data.tag,
+    renotify: Boolean(data.tag),
+    requireInteraction: Boolean(data.requireInteraction),
+    actions: data.actions || [],
+    vibrate: [80, 40, 80],
+    data: { url: data.url || '/' },
+  }
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = new URL(event.notification.data && event.notification.data.url ? event.notification.data.url : '/', self.location.origin).href
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const sameApp = windows.find((client) => new URL(client.url).origin === self.location.origin)
+      if (sameApp) {
+        sameApp.navigate(target).catch(() => {})
+        return sameApp.focus()
+      }
+      return self.clients.openWindow(target)
     }),
   )
 })

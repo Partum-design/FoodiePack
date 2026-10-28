@@ -632,3 +632,138 @@ export async function uploadProductImage(buffer, fileName, contentType) {
   const { data } = supabase.storage.from(productImageBucket).getPublicUrl(fileName)
   return data.publicUrl
 }
+
+// ---------------------------------------------------------------------------
+// Web Push subscriptions and broadcast log
+// ---------------------------------------------------------------------------
+const pushSubscriptionTable = 'push_subscriptions'
+const pushBroadcastTable = 'push_broadcasts'
+
+function subscriptionFromRow(row) {
+  return {
+    endpoint: row.endpoint,
+    keys: { p256dh: row.p256dh, auth: row.auth },
+    audience: row.audience,
+    orderIds: row.order_ids || [],
+    reminders: row.reminders !== false,
+  }
+}
+
+function localPush(database) {
+  database.pushSubscriptions ||= []
+  database.pushBroadcasts ||= []
+  return database
+}
+
+export async function savePushSubscription({ endpoint, keys, audience, orderId, reminders, userAgent }) {
+  if (!supabase) {
+    const database = localPush(ensureLocalDatabase())
+    const existing = database.pushSubscriptions.find((item) => item.endpoint === endpoint)
+    const orderIds = [...new Set([...(existing?.orderIds || []), ...(orderId ? [orderId] : [])])].slice(-30)
+    const next = {
+      endpoint, keys, audience: existing?.audience === 'admin' ? 'admin' : audience, orderIds,
+      reminders: reminders ?? existing?.reminders ?? true,
+    }
+    database.pushSubscriptions = [...database.pushSubscriptions.filter((item) => item.endpoint !== endpoint), next]
+    writeLocalDatabase(database)
+    return next
+  }
+
+  const { data: existing, error: lookupError } = await supabase
+    .from(pushSubscriptionTable).select('*').eq('endpoint', endpoint).maybeSingle()
+  throwIfSupabaseError('push subscription lookup', lookupError)
+  const orderIds = [...new Set([...(existing?.order_ids || []), ...(orderId ? [orderId] : [])])].slice(-30)
+  const row = {
+    endpoint,
+    p256dh: keys.p256dh,
+    auth: keys.auth,
+    // A device used by the kitchen stays an admin device even if someone also orders from it.
+    audience: existing?.audience === 'admin' ? 'admin' : audience,
+    order_ids: orderIds,
+    reminders: reminders ?? existing?.reminders ?? true,
+    user_agent: userAgent?.slice(0, 300) || existing?.user_agent || null,
+  }
+  const { data, error } = await supabase.from(pushSubscriptionTable).upsert(row, { onConflict: 'endpoint' }).select('*').single()
+  throwIfSupabaseError('push subscription save', error)
+  return subscriptionFromRow(data)
+}
+
+export async function deletePushSubscription(endpoint) {
+  if (!supabase) {
+    const database = localPush(ensureLocalDatabase())
+    database.pushSubscriptions = database.pushSubscriptions.filter((item) => item.endpoint !== endpoint)
+    writeLocalDatabase(database)
+    return
+  }
+  const { error } = await supabase.from(pushSubscriptionTable).delete().eq('endpoint', endpoint)
+  throwIfSupabaseError('push subscription delete', error)
+}
+
+export async function getPushSubscriptions({ audience, orderId, remindersOnly = false } = {}) {
+  if (!supabase) {
+    return localPush(ensureLocalDatabase()).pushSubscriptions
+      .filter((item) => !audience || item.audience === audience)
+      .filter((item) => !orderId || item.orderIds.includes(orderId))
+      .filter((item) => !remindersOnly || item.reminders)
+  }
+  let query = supabase.from(pushSubscriptionTable).select('*')
+  if (audience) query = query.eq('audience', audience)
+  if (orderId) query = query.contains('order_ids', [orderId])
+  if (remindersOnly) query = query.eq('reminders', true)
+  const { data, error } = await query.limit(5000)
+  throwIfSupabaseError('push subscription list', error)
+  return (data || []).map(subscriptionFromRow)
+}
+
+export async function countPushSubscriptions() {
+  const all = await getPushSubscriptions()
+  return {
+    customers: all.filter((item) => item.audience === 'customer').length,
+    admins: all.filter((item) => item.audience === 'admin').length,
+  }
+}
+
+export async function logBroadcast(entry) {
+  const record = { ...entry, createdAt: new Date().toISOString() }
+  if (!supabase) {
+    const database = localPush(ensureLocalDatabase())
+    database.pushBroadcasts = [record, ...database.pushBroadcasts].slice(0, 50)
+    writeLocalDatabase(database)
+    return record
+  }
+  const { error } = await supabase.from(pushBroadcastTable).insert({
+    kind: entry.kind, title: entry.title, body: entry.body, url: entry.url, sent: entry.sent, failed: entry.failed,
+  })
+  throwIfSupabaseError('push broadcast log', error)
+  return record
+}
+
+export async function getBroadcasts(limit = 20) {
+  if (!supabase) return localPush(ensureLocalDatabase()).pushBroadcasts.slice(0, limit)
+  const { data, error } = await supabase
+    .from(pushBroadcastTable).select('*').order('created_at', { ascending: false }).limit(limit)
+  throwIfSupabaseError('push broadcast list', error)
+  return (data || []).map((row) => ({
+    kind: row.kind, title: row.title, body: row.body, url: row.url, sent: row.sent, failed: row.failed, createdAt: row.created_at,
+  }))
+}
+
+export async function getOrdersByIds(ids) {
+  if (!ids.length) return []
+  if (!supabase) return ensureLocalDatabase().orders.filter((order) => ids.includes(order.id))
+  const { data, error } = await supabase.from(orderTable).select('*').in('id', ids)
+  throwIfSupabaseError('order lookup by id', error)
+  return (data || []).map(orderFromRow)
+}
+
+export async function getOrderIdsForDate(date) {
+  if (!supabase) {
+    return ensureLocalDatabase().orders
+      .filter((order) => order.deliveryDate === date && order.status !== 'cancelled')
+      .map((order) => order.id)
+  }
+  const { data, error } = await supabase
+    .from(orderTable).select('id').eq('delivery_date', date).neq('status', 'cancelled')
+  throwIfSupabaseError('order lookup by date', error)
+  return (data || []).map((row) => row.id)
+}

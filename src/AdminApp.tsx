@@ -1,6 +1,6 @@
 import { ChangeEvent, CSSProperties, DragEvent, FormEvent, useEffect, useId, useRef, useState } from 'react'
 import {
-  ArrowLeft, Banknote, CalendarOff, Check, CheckCircle2, CircleX, ClipboardList, CreditCard, Eye, EyeOff,
+  ArrowLeft, Banknote, BellRing, CalendarOff, Check, CheckCircle2, CircleX, ClipboardList, CreditCard, Eye, EyeOff,
   ImagePlus, Landmark, Loader2, LogOut, MapPin, PackageOpen, Pencil, Phone, Plus, Receipt, Save, ShoppingBag,
   Trash2, UtensilsCrossed, X,
 } from 'lucide-react'
@@ -9,6 +9,7 @@ import {
   getAdminOrders, getAdminProducts, getAdminSpecialDays, getMenuDays, saveAdminMenu, saveAdminSpecialDay,
   updateAdminOrderStatus, updateAdminProduct, uploadAdminImage,
 } from './api'
+import AdminPushPanel from './components/AdminPushPanel'
 import FloatingDecor from './components/FloatingDecor'
 import Logo from './components/Logo'
 import './admin.css'
@@ -38,7 +39,7 @@ function shortDay(date: string) {
 function orderStatusLabel(status: string) {
   if (status === 'cancelled') return 'Cancelado'
   if (status === 'accepted') return 'Aceptado'
-  return 'Confirmado'
+  return 'Recibido'
 }
 
 function longDate(date: string) {
@@ -557,7 +558,10 @@ function SpecialDaysPanel({ token }: { token: string }) {
 
 function AdminApp() {
   const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY) || '')
-  const [tab, setTab] = useState<'menu' | 'orders' | 'special'>('menu')
+  const [tab, setTab] = useState<'menu' | 'orders' | 'special' | 'push'>(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab')
+    return requested === 'orders' || requested === 'special' || requested === 'push' ? requested : 'menu'
+  })
   const [days, setDays] = useState<MenuDay[]>([])
   const [selectedDate, setSelectedDate] = useState('')
   const [meals, setMeals] = useState<Meal[]>([])
@@ -614,13 +618,20 @@ function AdminApp() {
     return () => { active = false }
   }, [selectedDate, tab, token])
 
+  // Orders refresh on their own every 30 s so new ones show up without reloading.
   useEffect(() => {
-    if (!token || tab !== 'orders') return
-    setLoading(true)
-    getAdminOrders(token)
-      .then(({ orders: currentOrders }) => setOrders(currentOrders))
-      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : 'No se pudieron cargar los pedidos'))
-      .finally(() => setLoading(false))
+    if (!token) return
+    let first = true
+    const load = () => {
+      if (tab === 'orders' && first) setLoading(true)
+      getAdminOrders(token)
+        .then(({ orders: currentOrders }) => setOrders(currentOrders))
+        .catch((requestError) => { if (tab === 'orders') setError(requestError instanceof Error ? requestError.message : 'No se pudieron cargar los pedidos') })
+        .finally(() => { if (first) setLoading(false); first = false })
+    }
+    load()
+    const timer = window.setInterval(load, 30_000)
+    return () => window.clearInterval(timer)
   }, [tab, token])
 
   if (!token) return <Login onSuccess={setToken} />
@@ -687,6 +698,23 @@ function AdminApp() {
   const availableCount = meals.filter((meal) => meal.available).length
   const totalRevenue = orders.reduce((sum, order) => order.status === 'cancelled' ? sum : sum + order.total, 0)
 
+  const pendingCount = orders.filter((order) => order.status === 'pending').length
+
+  const acceptOrder = async (order: SavedOrder) => {
+    setOrderBusyId(order.id)
+    setError('')
+    try {
+      const { order: updatedOrder } = await updateAdminOrderStatus(order.id, 'accepted', token)
+      setOrders((current) => current.map((item) => item.id === updatedOrder.id ? updatedOrder : item))
+      setMessage('Pedido aceptado · el cliente fue notificado')
+      window.setTimeout(() => setMessage((current) => current.startsWith('Pedido aceptado') ? '' : current), 2200)
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'No se pudo aceptar el pedido')
+    } finally {
+      setOrderBusyId('')
+    }
+  }
+
   const cancelOrder = async (order: SavedOrder) => {
     if (order.status === 'cancelled' || !window.confirm(`¿Cancelar el pedido ${order.id}? Se conservará el registro con estado cancelado.`)) return
     setOrderBusyId(order.id)
@@ -726,7 +754,8 @@ function AdminApp() {
         <div>
           <button className={tab === 'menu' ? 'selected' : ''} onClick={() => setTab('menu')}><ClipboardList size={15} /> Menús</button>
           <button className={tab === 'special' ? 'selected' : ''} onClick={() => setTab('special')}><CalendarOff size={15} /> Días especiales</button>
-          <button className={tab === 'orders' ? 'selected' : ''} onClick={() => setTab('orders')}><ShoppingBag size={15} /> Pedidos</button>
+          <button className={tab === 'orders' ? 'selected' : ''} onClick={() => setTab('orders')}><ShoppingBag size={15} /> Pedidos{pendingCount > 0 && <b className="admin-nav__badge">{pendingCount}</b>}</button>
+          <button className={tab === 'push' ? 'selected' : ''} onClick={() => setTab('push')}><BellRing size={15} /> Avisos</button>
         </div>
         <button className="logout-button" onClick={logout}><LogOut size={15} /> Salir</button>
       </aside>
@@ -825,11 +854,14 @@ function AdminApp() {
           </div>
         </> : tab === 'special' ? <>
           <SpecialDaysPanel token={token} />
+        </> : tab === 'push' ? <>
+          <AdminPushPanel token={token} />
         </> : <>
-          <header className="admin-page-head"><div><p>Foodie Pack · Operación</p><h1>Pedidos</h1><span>Aquí llegan los pedidos aceptados.</span></div></header>
+          <header className="admin-page-head"><div><p>Foodie Pack · Operación</p><h1>Pedidos</h1><span>Acepta o cancela cada pedido: el cliente recibe la notificación al instante.</span></div>{message && <div className="save-message">{message}</div>}</header>
 
           <div className="admin-stats">
             <div className="admin-stat"><ShoppingBag size={20} /><span><b>{orders.length}</b>Pedidos</span></div>
+            <div className="admin-stat admin-stat--accent"><BellRing size={20} /><span><b>{pendingCount}</b>Por aceptar</span></div>
             <div className="admin-stat admin-stat--accent"><Receipt size={20} /><span><b>{money(totalRevenue)}</b>Ingresos</span></div>
           </div>
 
@@ -858,6 +890,9 @@ function AdminApp() {
                 <strong>{money(order.total)}{order.discountAmount > 0 && <small className="order-discount">-{money(order.discountAmount)}</small>}</strong>
                 <b className={`order-status ${order.status === 'accepted' ? '' : order.status === 'cancelled' ? 'order-status--cancelled' : 'status-confirmed'}`}>{orderStatusLabel(order.status)}</b>
                 <span className="order-actions" aria-label={`Acciones del pedido ${order.id}`}>
+                  {order.status === 'pending' && (
+                    <button className="order-action order-action--accept" type="button" disabled={orderBusyId === order.id} onClick={() => acceptOrder(order)}><Check size={13} /><span>Aceptar</span></button>
+                  )}
                   <button className="order-action order-action--cancel" type="button" title={order.status === 'cancelled' ? 'Pedido ya cancelado' : 'Cancelar pedido'} disabled={order.status === 'cancelled' || orderBusyId === order.id} onClick={() => cancelOrder(order)}><CircleX size={13} /><span>Cancelar</span></button>
                   <button className="order-action order-action--delete" type="button" title="Eliminar pedido" disabled={orderBusyId === order.id} onClick={() => removeOrder(order)}><Trash2 size={13} /><span>Eliminar</span></button>
                 </span>

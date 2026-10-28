@@ -65,6 +65,16 @@ La migración `20260828100000_seed_next_week_menu_and_packages.sql` agrega los t
 5. Redeploy de producción. Verifica en `https://www.foodiepack.com.mx/api/menu-days` que regrese días y no un error.
 6. Publica el menú de la semana desde `/admin`.
 
+## Notificaciones push
+
+- **Cocina:** en `/admin` → pestaña **Avisos** → "Recibir pedidos en este dispositivo". Cada pedido nuevo llega como notificación.
+- **Clientes:** la tienda invita a activar avisos. Reciben aviso cuando su pedido pasa de *Recibido* a *Aceptado* o *Cancelado*.
+- **Recordatorios automáticos** (Vercel Cron, lunes a viernes, solo si hay menú publicado): 11:00 am con el menú del siguiente día hábil y 5:00 pm como última llamada (solo a quien no ha pedido). En plan Hobby, Vercel puede ejecutarlos en cualquier minuto de esa hora.
+- **Campañas:** en `/admin` → **Avisos** se escribe título y mensaje, se prueba en la cocina y se envía a todos los clientes.
+- En iPhone las notificaciones solo funcionan con FoodiePack agregada a la pantalla de inicio (iOS 16.4+).
+
+Variables necesarias en Vercel (Production): `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (secreta), `VAPID_SUBJECT` (URL o mailto) y `CRON_SECRET` (secreta). Genera llaves nuevas con `npx web-push generate-vapid-keys`.
+
 ## Vercel
 
 ```bash
